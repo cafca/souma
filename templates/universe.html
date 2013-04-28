@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% import "macros/star.html" as star_macros %}
+
+{% block content %}
+
+{% for star in stars %}
+<section class="{{ star[0] }}">
+    {{ star_macros.star(star[1]) }}
+</section>
+{% endfor %}
+
+{% endblock %}

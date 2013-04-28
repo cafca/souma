@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Create Account</h2>
+<p>Please enter a password for encrypting your data.</p>
+{% if error %}<p>{{ error }}</p>{% endif %}
+<form method="POST" action="{{url_for('setup')}}">
+    <dl>
+      <dt>Password:
+      <dd><input type="password" name="password">
+      <dd><input type="submit" value="Create">
+    </dl>
+</form>
+{% endblock %}

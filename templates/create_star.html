@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="col1 row1 w3 h1">
+<h2><i class="icon-magic"></i> Create new star</h2>
+</section>
+
+<section class="col1 row2 w4 h6">
+<form method="POST" action="{{url_for('create_star')}}">
+    <p>
+    {{ form.creator.label }} {{ form.creator() }}
+    {% if form.creator.errors %}
+        <ul class="errors">{% for error in form.creator.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+    {% endif %}
+    </p>
+    <p>
+    {{ form.text.label}} {{ form.text(size=20) }}
+    {% if form.text.errors %}
+        <ul class="errors">{% for error in form.text.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+    {% endif %}
+    </p>
+    {{ form.csrf_token }}
+    <input type="submit" value="Create">
+</form>
+</section>
+{% endblock %}

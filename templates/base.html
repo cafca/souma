@@ -1,0 +1,58 @@
+<!doctype html>
+<head>
+    <title>{%block title %}soma{% endblock %}</title>
+    <link rel="stylesheet" type="text/css" href="/static/frameless.css">
+    <link rel="stylesheet" type="text/css" href="/static/style.css">
+    <link rel="stylesheet" type="text/css" href="/static/font-awesome.css">
+</head>
+<body>
+    <header>
+        <a href="{{ url_for('universe') }}"><h1>Soma</h1></a>
+
+        <h2>You</h2>
+        <ul>
+            {% for persona in controlled_personas %}
+            <li>
+                {% if persona.id == session.active_persona %}
+                <a href="{{ url_for('universe') }}" class="active">
+                    <p><i class="icon-circle"></i> {{persona.username}}</p>
+                </a>
+                <ul>
+                    <li><a href="{{ url_for('persona', id=persona.id) }}">
+                    <p><i class="icon-angle-right"></i> Your stuff</p></a></li>
+                    <li><a href="{{url_for('create_star')}}">
+                    <p><i class="icon-angle-right"></i> Post star</p></a></li>
+                    <li><a href="{{url_for('find_people')}}">
+                    <p><i class="icon-angle-right"></i> Find people</p></a></li>
+                </ul>
+                {% else %}
+                <a href="{{ url_for('activate_persona', id=persona.id) }}">
+                    <p><i class="icon-circle-blank"></i> {{persona.username}}</p>
+                </a>
+                {% endif %}
+            </li>
+            {% endfor %}
+            <a href="{{ url_for('create_persona') }}"><li>
+                <p><i class="icon-plus-sign"></i> New</p>
+            </li></a>
+        </ul>
+        <h2>System</h2>
+        <ul>
+            <a href="{{url_for('debug')}}"><li>
+                <p><i class="icon-cogs"></i> Debug</p>
+            </li></a>
+            <a href="{{url_for('logout')}}"><li>
+                <p><i class="icon-off"></i> Logout</p>
+            </li></a>
+        </ul>
+    </header>
+
+    <article class="{% block layout_name %}{% endblock %}">
+        {% for message in get_flashed_messages() %}
+            <div class='flash'><span>{{message}}</span></div>
+        {% endfor %}
+        <div id="container">
+        {% block content %}{% endblock %}
+        </div>
+    </article>
+</body>

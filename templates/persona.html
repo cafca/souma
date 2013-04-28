@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% import "macros/star.html" as star_macros %}
+
+{% block content %}
+<section class="{{vizier.get_cell()}}">
+    <span class="content">
+        <h1>{{persona.username}}</h1>
+        <p>Email: {{persona.email}}</p>
+    </span>
+</section>
+
+{% for star in starmap %}
+    <section class="{{vizier.get_cell()}}">
+        {{ star_macros.star(star) }}
+    </section>
+{% endfor %}
+
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="col1 row1 w6 h2">
+    <h2>Find people you know</h2>
+    <p>Please enter Email-Addresses of people you want to find.</p>
+</section>
+
+
+<section class="col1 row2 w6 h1">
+{% if error %}<p>{{ error }}</p>{% endif %}
+</section>
+
+<section class="col1 row3 w6 h4">
+<form method="POST" action="{{url_for('find_people')}}">
+    {{ form.email.label}} {{ form.email(size=20) }}
+    {% if form.email.errors %}
+        <ul class="errors">{% for error in form.email.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+    {% endif %}
+    {{ form.csrf_token }}
+    <input type="submit" value="Find" />
+</form>
+</section>
+
+{% if found %}
+<section class="col7 row3 w6 h2">
+    <h2>{{found.username}} [{{found.persona_id}}]</h2>
+    <form action="{{ url_for('contact_request', persona_id=found.persona_id)}}" method="POST">
+        <p><input type="submit" value="Add contact" /></p>
+    </form>
+</section>
+{% endif %}
+{% endblock %}

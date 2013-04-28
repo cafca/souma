@@ -1,0 +1,36 @@
+[
+    {
+        "name": "frontpage",
+        "vizier_version": 1,
+        "stars": [
+            [1, 1, 6, 4],
+            [1, 5, 4, 2],
+            [5, 5, 2, 2],
+            [7, 1, 2, 3]
+        ]
+    },
+    {
+        "name": "frontpage2",
+        "vizier_version": 1,
+        "stars": [
+            [1, 1, 6, 4],
+            [7, 1, 6, 4], 
+            [1, 5, 4, 2],
+            [5, 5, 2, 2]
+        ]
+    },
+    {
+        "name": "bigthing",
+        "vizier_version": 1,
+        "stars": [
+            [1, 1, 12, 8]
+        ]
+    },
+    {
+        "name": "shit",
+        "vizier_version": 1,
+        "stars": [
+            [1, 1, 6, 4]
+        ]
+    }
+]

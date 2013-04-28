@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="col1 row1 w3 h1">
+<h2><i class="icon-plus"></i> Create new persona</h2>
+</section>
+
+<section class="col1 row2 w4 h6">
+<form method="POST" action="{{url_for('create_persona')}}">
+    {{ form.name.label}} {{ form.name(size=20) }} <br />
+    {% if form.name.errors %}
+        <ul class="errors">{% for error in form.name.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+    {% endif %}
+
+    {{ form.email.label}} {{ form.email(size=20) }}<br />
+    {% if form.email.errors %}
+        <ul class="errors">{% for error in form.email.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+    {% endif %}
+    {{ form.csrf_token }}
+    <input type="submit" value="Create">
+</form>
+</section>
+{% endblock %}

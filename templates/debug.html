@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Stars</h1>
+<ul>
+{% for star in stars %}
+<li>{{star.json()}} <a href="{{ url_for('delete_star', id=star.id) }}">Delete</a></li>
+{%endfor%}
+</ul>
+
+<h1>Personas</h1>
+<ul>
+{% for persona in personas %}
+<li>{{persona.json()}}</li>
+{%endfor%}
+</ul>
+
+{%endblock%}

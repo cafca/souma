@@ -1,0 +1,25 @@
+{% macro star(star) %}
+<span class="content">
+    {% if star.title %} 
+        <a href="{{ url_for('star', id=star.id) }}">
+            <h1>{{ star.title }}</h1> 
+        </a>
+    {% endif %}
+
+    {% if star.text %}
+        <p>{{ star.text }}</p> 
+    {% endif %}
+</span>
+
+<span class="meta">
+    <span>
+        <i class="icon-asterisk"></i>
+        <a href="{{ url_for('star', id=star.id) }}" title="{{star.created}}">{{star.created|naturaltime}}</a> 
+        by 
+        <i class="icon-circle-blank"></i>
+        <a href="{{ url_for('persona', id=star.creator.id) }}">
+            {{ star.creator.username}}
+        </a>
+    </span>
+</span>
+{% endmacro %}
