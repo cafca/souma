@@ -51,4 +51,5 @@ def logged_in():
     """Check whether a user is logged in"""
     return cache.get('password') is not None
 
+# Views need to be imported at the bottom to avoid circular import (see Flask docs)
 import soma.web_ui.views
