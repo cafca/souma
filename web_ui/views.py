@@ -112,10 +112,6 @@ def persona_context():
 def before_request():
     """Preprocess requests"""
 
-    # TODO: serve favicon.ico
-    if request.base_url[-3:] == "ico":
-        abort(404)
-
     setup_path = '/setup'
     login_path = '/login'
     allowed_paths = [setup_path, login_path]

@@ -2,12 +2,12 @@
 <head>
     <title>{%block title %}soma{% endblock %}</title>
     <link rel="stylesheet" type="text/css" href="/static/frameless.css">
-    <link rel="stylesheet" type="text/css" href="/static/style.css">
     <link rel="stylesheet" type="text/css" href="/static/font-awesome.css">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
 </head>
 <body>
     <header>
-        <a href="{{ url_for('universe') }}"><h1>Soma</h1></a>
+        <a href="{{ url_for('universe') }}"><img src="/static/logo.png" alt="Soma"></a>
 
         <h2>You</h2>
         <ul>
