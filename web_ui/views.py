@@ -6,7 +6,7 @@ from hashlib import sha256
 from operator import itemgetter
 
 from soma import app, cache, db, logged_in, notification_signals
-from soma.web_ui.forms import Create_persona_form, Create_star_form, FindPeopleForm, ContactRequestForm
+from soma.web_ui.forms import *
 from soma.web_ui.helpers import get_active_persona
 from soma.web_ui.models import Persona, Star
 from soma.synapse.models import Message
@@ -418,29 +418,22 @@ def find_people():
 
 
 @app.route('/p/<persona_id>/add_contact', methods=['GET', "POST"])
-def contact_request(persona_id):
-    """Send a contact request to a peer"""
-    form = ContactRequestForm(request.form)
+def add_contact(persona_id):
+    """Add a persona to the current persona's address book"""
+    form = AddContactForm(request.form)
     persona = Persona.query.get(persona_id)
     author = Persona.query.get(get_active_persona())
 
     if request.method == 'POST' and persona is not None:
-        # Construct message
-        data = {
-            'recipient_id': persona.id,
-            'object_type': 'Persona',
-            'object': author.export(
-                exclude=['crypt_private', 'sign_private', 'starmap'])
-        }
-        message = Message('contact_request', data)
-        message.sign(author)
+        author.contacts.append(persona)
+        db.session.add(author)
+        db.session.commit()
 
-        # Send message
-        contact_request_sent.send(contact_request, message=message)
-
-        flash("Contact request sent.")
+        flash("Added {} to {}'s address book".format(persona.username, author.username))
+        app.logger.info("Added {} to {}'s contacts".format(persona, author))
         return redirect(url_for('persona', id=persona.id))
-    return render_template('contact_request.html', form=form, persona=persona)
+
+    return render_template('add_contact.html', form=form, persona=persona)
 
 
 class Vizier():

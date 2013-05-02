@@ -9,7 +9,7 @@ from gevent.pool import Pool
 from gevent.server import DatagramServer
 from requests import ConnectionError
 from soma import app, db, notification_signals
-from soma.web_ui.models import Persona, Star, ContactRequestNotification
+from soma.web_ui.models import Persona, Star
 from soma.synapse.models import Message
 
 
@@ -49,8 +49,6 @@ class Synapse(DatagramServer):
         star_created = self.signal('star-created')
         star_deleted = self.signal('star-deleted')
         persona_created = self.signal('persona-created')
-        contact_request_sent = self.signal('contact-request-sent')
-        self.signal('contact-request-received')
 
         # Subscribe notification message distribution to signals
         star_created.connect(self.on_notification_signal)
@@ -59,15 +57,16 @@ class Synapse(DatagramServer):
         persona_created.connect(self.on_notification_signal)
         persona_created.connect(self.on_persona_created)
 
-        contact_request_sent.connect(self.on_contact_request_sent)
-
         # Login all owned personas
         persona_set = Persona.query.filter('sign_private != ""').all()
-        for p in persona_set:
-            self.message_pool.spawn(self.login, p)
 
         if len(persona_set) == 0:
             self.logger.warning("No controlled Persona found.")
+        else:
+            for p in persona_set:
+                self.message_pool.spawn(self.login, p)
+                self.message_pool.spawn(self.update_peer_list, p)
+
 
     def request_object(self, object_type, object_id, address):
         """ Request an object from a peer """
@@ -119,8 +118,7 @@ class Synapse(DatagramServer):
             "object_request",
             "object",
             "inventory_request",
-            "inventory",
-            "contact_request"
+            "inventory"
         ]
 
         # Pass on the message depending on message type
@@ -193,37 +191,6 @@ class Synapse(DatagramServer):
         else:
             self.logger.error("[{msg}] Protocol error: Unknown change type '{change}'".format(
                 msg=message, change=change))
-
-    def handle_contact_request(self, message, address):
-        """Handle received contact request"""
-
-        # Validate request
-        author_id = message.author_id
-        recipient_id = message.data['recipient_id']
-
-        author = Persona.query.get(author_id)
-        if author is None:
-            self.logger.info("Creating missing request author persona.")
-            self.handle_object(message, address)
-
-        p = Persona.query.get(recipient_id)
-        if p is None or p.sign_private is None:
-            # The requested persona is not available
-            # TODO: Return error response
-            self.logger.warning("Received a contact request addressed to a foreign persona. ({})".format(author))
-        else:
-            self.logger.info("Received contact request for {} from {}".format(p, author))
-            # Save contacting persona
-            if Persona.query.get(author_id) is None:
-                self.handle_object(message, ('', ''))
-
-            # Create notification to ask user for confirmation
-            notif = ContactRequestNotification(author_id, recipient_id)
-            db.session.add(notif)
-            db.session.commit()
-
-            # Send signal
-            self.signal('contact-request-received').send(self.server_request, message=message)
 
     def handle_inventory(self, message, address):
         """ Look through an inventory to see if we want to download some of it """
@@ -334,15 +301,6 @@ class Synapse(DatagramServer):
         persona = Persona.query.get(persona_id)
         self.register_persona(persona)
 
-    def on_contact_request_sent(self, sender, message):
-        """ Send a contact request to the login server """
-        self.logger.info("Sending contact request to server")
-        url = "http://{host}/contact-request".format(host=app.config['LOGIN_SERVER'])
-        resp, errors = self.server_request(url, message)
-        if errors:
-            for e in errors:
-                self.logger.error("[pm-send contact request] {}".format(e))
-
     def distribute_message(self, message):
         """ Distribute a message to all peers who don't already have it """
         if self.peers:
@@ -410,18 +368,37 @@ class Synapse(DatagramServer):
     def update_peer_list(self, persona):
         """ Update list of current peer host addresses """
 
-        if app.config['LOCAL_PORT'] == 5000:
-            self.peers = {"127.0.0.1": 5051}
-        else:
-            self.peers = {"127.0.0.1": 5050}
+        contacts = Persona.query.get(persona.id).contacts
 
-        self.logger.info("Updated peer list ({} online)".format(len(self.peers)))
+        request_info = list()  # peers we want to look up
+        for p in contacts:
+            request_info.append(p.id)
+
+        # ask glia server for peer info
+        url = "http://{host}/peerinfo".format(host=app.config['LOGIN_SERVER'])
+        headers = {'content-type': 'application/json'}
+        resp = requests.post(url,
+            data=json.dumps({'request': request_info}),
+            headers=headers
+        )
+
+        # TODO what if the request fails? error handling..
+
+        for p_id, address in resp.json().iteritems():
+            host = address[0]
+            port = address[1]
+            if host and port:
+                self.peers[host] = port
+            else:
+                app.logger.debug("No address for peer <{}>".format(p_id))
+
+        self.logger.info("Updated peer list ({}/{} online)".format(len(self.peers), len(request_info)))
 
     def login(self, persona):
         """ Create session at login server """
 
         # Check current state
-        url = "http://{host}/{persona_id}/".format(host=app.config['LOGIN_SERVER'], persona_id=persona.id)
+        url = "http://{host}/p/{persona_id}/".format(host=app.config['LOGIN_SERVER'], persona_id=persona.id)
         resp, errors = self.server_request(url)
 
         if errors:
@@ -465,7 +442,7 @@ class Synapse(DatagramServer):
     def keep_alive(self, persona):
         """ Ping server to keep session alive """
 
-        url = "http://{host}/{persona_id}/".format(host=app.config['LOGIN_SERVER'], persona_id=persona.id)
+        url = "http://{host}/p/{persona_id}/".format(host=app.config['LOGIN_SERVER'], persona_id=persona.id)
         r, errors = self.server_request(url)
 
         if errors:
@@ -512,7 +489,7 @@ class Synapse(DatagramServer):
         }
         message = Message('create_persona', data)
 
-        url = "http://{host}/{persona}/create".format(host=app.config['LOGIN_SERVER'], persona=persona.id)
+        url = "http://{host}/p/{persona}/create".format(host=app.config['LOGIN_SERVER'], persona=persona.id)
         response, errors = self.server_request(url, message=message)
 
         if errors:

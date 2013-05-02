@@ -25,7 +25,7 @@
 {% if found %}
 <section class="col7 row3 w6 h2">
     <h2>{{found.username}} [{{found.persona_id}}]</h2>
-    <form action="{{ url_for('contact_request', persona_id=found.persona_id)}}" method="POST">
+    <form action="{{ url_for('add_contact', persona_id=found.persona_id)}}" method="POST">
         <p><input type="submit" value="Add contact" /></p>
     </form>
 </section>

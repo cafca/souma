@@ -20,6 +20,6 @@ class FindPeopleForm(Form):
         Required(), Email()])
 
 
-class ContactRequestForm(Form):
+class AddContactForm(Form):
     recipient_id = WTFTextField('Persona ID', validators=[Required()])
     author_id = WTFSelectField('Contact as', validators=[Required()])

@@ -7,6 +7,15 @@ from soma import db
 from soma.helpers import Serializable, epoch_seconds
 from sqlalchemy.exc import OperationalError
 
+#
+# Setup follower relationship on Persona objects
+#
+
+t_contacts = db.Table('contacts',
+    db.Column('left_id', db.String(32), db.ForeignKey('persona.id')),
+    db.Column('right_id', db.String(32), db.ForeignKey('persona.id'))
+)
+
 
 class Persona(Serializable, db.Model):
     """A Persona represents a user profile"""
@@ -15,6 +24,10 @@ class Persona(Serializable, db.Model):
     id = db.Column(db.String(32), primary_key=True)
     username = db.Column(db.String(80))
     email = db.Column(db.String(120))
+    contacts = db.relationship('Persona',
+        secondary='contacts',
+        primaryjoin='contacts.c.left_id==persona.c.id',
+        secondaryjoin='contacts.c.right_id==persona.c.id')
     crypt_private = db.Column(db.Text)
     crypt_public = db.Column(db.Text)
     sign_private = db.Column(db.Text)
@@ -90,6 +103,7 @@ class Star(Serializable, db.Model):
     text = db.Column(db.Text)
     created = db.Column(db.DateTime, default=datetime.datetime.now())
     modified = db.Column(db.DateTime, default=datetime.datetime.now(), onupdate=datetime.datetime.now())
+
     creator = db.relationship(
         'Persona',
         backref=db.backref('starmap'),
@@ -134,15 +148,6 @@ class Notification(db.Model):
         self.id = uuid4().hex
         self.kind = kind
         self.to_persona_id = to_persona_id
-
-
-class ContactRequestNotification(Notification):
-    def __init__(self, from_persona_id, to_persona_id):
-        Notification.__init__(
-            self,
-            kind='contact_request',
-            to_persona_id=to_persona_id)
-        self.from_persona_id = from_persona_id
 
 
 def init_db():
