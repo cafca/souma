@@ -1,13 +1,20 @@
 #!/usr/bin/python
 
-from soma import app
-from soma.web_ui.models import init_db
+from soma import app, db
+from soma.synapse.models import Starmap
 from gevent.wsgi import WSGIServer
 from synapse import Synapse
 from set_hosts import test_host_entry
+from sqlalchemy.exc import OperationalError
 
-app.logger.info("Initializing DB")
-init_db()
+# Initialize database
+try:
+    db.session.execute("SELECT * FROM 'starmap' LIMIT 1")
+except OperationalError:
+    app.logger.info("Initializing database")
+    db.create_all()
+    db.session.add(Starmap(app.config['SOMA_ID']))
+    db.session.commit()
 
 if not test_host_entry:
     app.logger.error("Please execute set_hosts.py with administrator privileges\
@@ -19,11 +26,11 @@ if app.config['USE_DEBUG_SERVER']:
     app.run(app.config['LOCAL_HOSTNAME'], app.config['LOCAL_PORT'])
 else:
     # Synapse
-    app.logger.info("Starting Synapses...")
+    app.logger.info("Starting Synapses")
     synapse = Synapse((app.config['LOCAL_HOSTNAME'], app.config['SYNAPSE_PORT']))
     synapse.start()
 
     # gevent server
-    app.logger.info("Starting Web-UI...")
+    app.logger.info("Starting Web-UI")
     local_server = WSGIServer(('', app.config['LOCAL_PORT']), app)
     local_server.serve_forever()

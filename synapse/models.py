@@ -2,7 +2,8 @@ import datetime
 import logging
 
 from flask import json
-from soma.web_ui.models import Persona
+from soma import db
+from soma.web_ui.models import Persona, Star
 
 
 class Message(object):
@@ -74,3 +75,43 @@ class Message(object):
         self.signature = author.sign(self.data)
         self.author_id = author.id
         self.send_attributes.extend(["signature", "author_id"])
+
+t_starmap_index = db.Table('starmap_index',
+    db.Column('starmap_id', db.String(32), db.ForeignKey('starmap.id')),
+    db.Column('orb_id', db.String(32), db.ForeignKey('orb.id'))
+)
+
+class Starmap(db.Model):
+    __tablename__ = 'starmap'
+    id = db.Column(db.String(32), primary_key=True)
+    index = db.relationship('Orb',
+        secondary='starmap_index',
+        primaryjoin='starmap_index.c.starmap_id==starmap.c.id',
+        secondaryjoin='starmap_index.c.orb_id==orb.c.id')
+
+    def __init__(self, id):
+        self.id = id
+
+    def add(self, obj):
+        """Add new Star/Persona to this starmap"""
+        if isinstance(obj, Persona):
+            if Persona.query.get(obj.id) is None:
+                orb = Orb("Persona", obj.id, obj.modified)
+                db.session.add(orb)
+        elif isinstance(obj, Star):
+            if Star.query.get(obj.id) is None:
+                orb = Orb("Star", obj.id, obj.modified, obj.creator.id)
+                db.session.add(orb)
+        db.session.commit()
+
+class Orb(db.Model):
+    """Stub for any object that might exist in a starmap"""
+
+    __tablename__ = 'orb'
+    id = db.Column(db.String(32), primary_key=True)
+    object_type = db.Column(db.String(32))
+    modified = db.Column(db.DateTime)
+    creator = db.Column(db.String(32))
+
+    def __init__(self, object_type, id, modified, creator=None):
+        self.id = id

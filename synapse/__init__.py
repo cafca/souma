@@ -10,7 +10,7 @@ from gevent.server import DatagramServer
 from requests import ConnectionError
 from soma import app, db, notification_signals
 from soma.web_ui.models import Persona, Star
-from soma.synapse.models import Message
+from soma.synapse.models import Message, Starmap, Orb
 
 
 class Synapse(DatagramServer):
@@ -43,19 +43,26 @@ class Synapse(DatagramServer):
         # Contains addresses of online peers as peer_id: (host,port)
         self.peers = dict()
 
+        self.starmap = Starmap.query.get(app.config['SOMA_ID'])
+
         # Create blinker signals
         self.signal = notification_signals.signal
 
         star_created = self.signal('star-created')
         star_deleted = self.signal('star-deleted')
         persona_created = self.signal('persona-created')
+        new_contact = self.signal('new-contact')
 
         # Subscribe notification message distribution to signals
         star_created.connect(self.on_notification_signal)
         star_deleted.connect(self.on_notification_signal)
-
         persona_created.connect(self.on_notification_signal)
+        
+        # Subscribe starmap sync to signals
         persona_created.connect(self.on_persona_created)
+        star_created.connect(self.on_star_created)
+
+        new_contact.connect(self.on_new_contact)
 
         # Login all owned personas
         persona_set = Persona.query.filter('sign_private != ""').all()
@@ -108,8 +115,8 @@ class Synapse(DatagramServer):
         try:
             message = Message.read(data)
         except KeyError, e:
-            self.logger.error("[{source}] Message malformed ({error})".format(
-                source=self.source_format(address), error=e))
+            self.logger.error("[{source}] Message malformed (missing {key})".format(
+                source=self.source_format(address), key=e))
             return
 
         # Allowed message types
@@ -117,8 +124,8 @@ class Synapse(DatagramServer):
             "change_notification",
             "object_request",
             "object",
-            "inventory_request",
-            "inventory"
+            "starmap_request",
+            "starmap"
         ]
 
         # Pass on the message depending on message type
@@ -142,8 +149,6 @@ class Synapse(DatagramServer):
         elif object_type == "Persona":
             o = Persona.query.get(object_id)
 
-        # TODO: Update inventory db
-
         # Reflect changes if neccessary
         if change == "delete":
             # Check authority to delete
@@ -152,6 +157,8 @@ class Synapse(DatagramServer):
                     source=self.source_format(address), object_type=object_type, object_id=object_id))
             else:
                 db.session.delete(o)
+                self.starmap.remove(o)
+                db.session.add(self.starmap)
                 db.session.commit()
                 self.logger.info("[{source}] {object_type} {object_id} deleted".format(
                     source=self.source_format(address), object_type=object_type, object_id=object_id))
@@ -192,13 +199,55 @@ class Synapse(DatagramServer):
             self.logger.error("[{msg}] Protocol error: Unknown change type '{change}'".format(
                 msg=message, change=change))
 
-    def handle_inventory(self, message, address):
-        """ Look through an inventory to see if we want to download some of it """
-        pass
+    def handle_starmap(self, message, address):
+        """ Look through a starmap to see if we want to download some of it """
+        # TODO validate response
+        soma_remote_id = message.data['soma_id']
+        remote_starmap = message.data['starmap']
 
-    def handle_inventory_request(self, message, address):
-        """ Send an inventory of published objects to the given address """
-        pass
+        self.logger.info("Scanning starmap of {} orbs from {}".format(
+            len(remote_starmap), self.source_format(address)))
+
+        # Get or create remote Soma
+        local_starmap = Starmap.query.get(soma_remote_id)
+        if local_starmap is None:
+            local_starmap = Starmap(soma_remote_id)
+            db.session.add(local_starmap)
+
+        request_objects = list()  # list of objects to be downloaded
+        for orb_id, orb_info in remote_starmap.iteritems():
+            orb_type = orb_info['type']
+            orb_modifed = orb_info['modified']
+            orb_creator = orb_info['creator']
+
+            orb_local = Orb.query.get(orb_id)
+            if orb_local is None:
+                orb_local = Orb(orb_type, orb_id, orb_modifed, orb_creator)
+                db.session.add(orb_local)
+                request_objects.append((orb_type, orb_id, address))
+            elif orb_modifed > orb_local.modified:
+                request_objects.append((orb_type, orb_id, address))
+
+            if orb_local not in local_starmap.index:
+                local_starmap.index.append(orb_local)
+                db.session.add(local_starmap)
+        db.session.commit()
+
+        # Spawn requests
+        for orb_type, orb_id, address in request_objects:
+            self.message_pool.spawn(self.request_object, orb_type, orb_id, address)
+
+    def handle_starmap_request(self, message, address):
+        """ Send starmap of published objects to the given address """
+        data = {
+            'soma_id': app.config['SOMA_ID'],
+            'starmap': self.create_starmap()
+        }
+        m = Message("starmap", data)
+
+        self.logger.info("Sending requested starmap of {} orbs to {}".format(
+            len(data), self.source_format(address)))
+        self.message_pool.spawn(self.send_message, address, m)
 
     def handle_object(self, message, address):
         """ Handle a received download """
@@ -210,17 +259,24 @@ class Synapse(DatagramServer):
         # Handle answer
         # TODO: Handle updates
         if object_type == "Star":
-            o = Star(obj["id"], obj["text"], obj["creator_id"])
+            if Star.query.get(obj['id']) is None:
+                o = Star(obj["id"], obj["text"], obj["creator_id"])
+                db.session.add(o)
+            else:
+                self.logger.warning("Received already existing <Star {}>".format(obj['id']))
         elif object_type == "Persona":
             # private key is not assumed
-            o = Persona(
-                id=obj["id"],
-                username=obj["username"],
-                email=obj["email"],
-                sign_public=obj["sign_public"],
-                crypt_public=obj["crypt_public"],
-            )
-        db.session.add(o)
+            if Persona.query.get(obj['id']) is None:
+                o = Persona(
+                    id=obj["id"],
+                    username=obj["username"],
+                    email=obj["email"],
+                    sign_public=obj["sign_public"],
+                    crypt_public=obj["crypt_public"],
+                )
+                db.session.add(o)
+            else:
+                self.logger.warning("Received already existing <Persona {}>".format(obj['id']))
         db.session.commit()
         self.logger.info("[{source}] Added new {object_type} {object_id}".format(
             source=self.source_format(address), object_type=object_type, object_id=obj['id']))
@@ -231,6 +287,7 @@ class Synapse(DatagramServer):
         object_type = message.data["object_type"]
 
         # Load object
+        obj = None
         if object_type == "Star":
             obj = Star.query.get(object_id)
         elif object_type == "Persona":
@@ -264,31 +321,30 @@ class Synapse(DatagramServer):
             address=self.source_format(address)
         ))
 
-    def inventory(self):
-        """ Return inventory of all data stored on this machine in json format """
+    def create_starmap(self):
+        """ Return starmap of all data stored on this machine in json format """
 
         # CURRENTLY NOT IN USE
 
         stars = Star.query.all()
         personas = Persona.query.all()
 
-        inventory = dict()
+        new_starmap = dict()
         for star in stars:
-            inventory[star.id] = {
+            new_starmap[star.id] = {
                 "type": "Star",
                 "creator": star.creator_id,
-                "modified": star.modified
+                "modified": star.modified.isoformat()
             }
 
         for persona in personas:
-            inventory[persona.id] = {
+            new_starmap[persona.id] = {
                 "type": "persona",
-                "modified": persona.modified,
-                "email_hash": persona.email_hash
+                "creator": None,
+                "modified": persona.modified.isoformat()
             }
 
-        inventory_json = json.dumps(inventory)
-        return inventory_json
+        return new_starmap
 
     def on_notification_signal(self, sender, message):
         """ Distribute notification messages """
@@ -299,7 +355,28 @@ class Synapse(DatagramServer):
         """ Register newly created personas with server """
         persona_id = message.data['object_id']
         persona = Persona.query.get(persona_id)
+        self.starmap.add(persona)  # Add to starmap
         self.register_persona(persona)
+
+    def on_star_created(self, sender, message):
+        """Add new stars to starmap and send notification message"""
+        star = message
+        data = dict({
+            "object_type": "Star",
+            "object_id": star.id,
+            "change": "insert",
+            "change_time": star.modified.isoformat()
+        })
+
+        message = Message(message_type="change_notification", data=data)
+        message.sign(star.creator)
+        self.distribute_message(message)
+
+        self.starmap.add(star)
+
+    def on_new_contact(self, sender, message):
+        author = message['author']
+        self.update_peer_list(author)
 
     def distribute_message(self, message):
         """ Distribute a message to all peers who don't already have it """
@@ -366,7 +443,7 @@ class Synapse(DatagramServer):
             return (resp, error_strings)
 
     def update_peer_list(self, persona):
-        """ Update list of current peer host addresses """
+        """ Request current list of host addresses for persona's contacts"""
 
         contacts = Persona.query.get(persona.id).contacts
 
@@ -382,17 +459,27 @@ class Synapse(DatagramServer):
             headers=headers
         )
 
-        # TODO what if the request fails? error handling..
+        # TODO: what if the request fails? error handling..
+        # TODO: Remove peers that are no longer online
 
         for p_id, address in resp.json().iteritems():
             host = address[0]
             port = address[1]
             if host and port:
                 self.peers[host] = port
+                self.message_pool.spawn(self.request_inventory, (host, port))
             else:
                 app.logger.debug("No address for peer <{}>".format(p_id))
 
-        self.logger.info("Updated peer list ({}/{} online)".format(len(self.peers), len(request_info)))
+        peer_list = "\n".join(["- {}".format(self.source_format((h,p))) for h, p in self.peers.iteritems()])
+        self.logger.info("Updated peer list for {} ({}/{} online)\n{}".format(
+            persona, len(self.peers), len(request_info), peer_list))
+
+    def request_inventory(self, address):
+        """Request an starmap from the soma at address"""
+        self.logger.info("Requesting starmap from {}".format(self.source_format(address)))
+        m = Message("starmap_request", data=None)
+        self.message_pool.spawn(self.send_message, address, m)
 
     def login(self, persona):
         """ Create session at login server """
@@ -438,6 +525,7 @@ class Synapse(DatagramServer):
                 self.logger.info("Persona {} logged in until {}".format(
                     persona, dateutil_parse(r['data']['timeout'])))
                 self.queue_keepalive(persona)
+                self.update_peer_list(persona)
 
     def keep_alive(self, persona):
         """ Ping server to keep session alive """

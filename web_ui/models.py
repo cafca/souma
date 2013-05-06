@@ -33,9 +33,18 @@ class Persona(Serializable, db.Model):
     sign_private = db.Column(db.Text)
     sign_public = db.Column(db.Text)
     modified = db.Column(db.DateTime, default=datetime.datetime.now(), onupdate=datetime.datetime.now())
+    soma_id = db.Column(db.String(32), db.ForeignKey('starmap.id'))
+    soma = db.relationship('Starmap', backref="personas", primaryjoin='starmap.c.id==persona.c.soma_id')
 
-    def __init__(
-            self, id, username, email=None, sign_private=None, sign_public=None, crypt_private=None, crypt_public=None):
+    def __init__(self,
+        id,
+        username,
+        email=None,
+        sign_private=None,
+        sign_public=None,
+        crypt_private=None,
+        crypt_public=None):
+
         self.id = id
         self.username = username
         self.email = email
@@ -148,22 +157,3 @@ class Notification(db.Model):
         self.id = uuid4().hex
         self.kind = kind
         self.to_persona_id = to_persona_id
-
-
-def init_db():
-    try:
-        Persona.query.first()
-    except OperationalError:
-        db.create_all()
-
-        """# Generate test persona #1
-        pv = Persona('247a1ca474b04a248c751d0eebf9738f', 'cievent', 'nichte@gmail.com')
-        pv.generate_keys('jodat')
-        db.session.add(pv)
-
-        # Generate test persona #2
-        paul = Persona('6e345777ca1a49cd8d005ac5e2f37cac', 'paul', 'mail@vincentahrend.com')
-        paul.generate_keys('jodat')
-        db.session.add(paul)
-
-        db.session.commit()"""

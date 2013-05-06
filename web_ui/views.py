@@ -16,6 +16,7 @@ star_created = notification_signals.signal('star-created')
 star_deleted = notification_signals.signal('star-deleted')
 persona_created = notification_signals.signal('persona-created')
 contact_request_sent = notification_signals.signal('contact-request-sent')
+new_contact = notification_signals.signal('new-contact')
 
 
 class PageManager():
@@ -112,21 +113,17 @@ def persona_context():
 def before_request():
     """Preprocess requests"""
 
-    setup_path = '/setup'
-    login_path = '/login'
-    allowed_paths = [setup_path, login_path]
-    allowed_paths.extend([
-        '/static/style.css',
-        '/static/frameless.css',
-        '/static/font-awesome.css'])
+    allowed_paths = [
+        '/setup',
+        '/login']
 
     session['active_persona'] = get_active_persona()
 
-    if app.config['PASSWORD_HASH'] is None and request.path != setup_path:
+    if app.config['PASSWORD_HASH'] is None and request.path not in allowed_paths and request.path[1:7] != 'static':
         app.logger.info("Redirecting to Setup")
         return redirect(url_for('setup', _external=True))
 
-    if request.path not in allowed_paths and not logged_in():
+    if request.path not in allowed_paths and not logged_in() and request.path[1:7] != 'static':
         app.logger.info("Redirecting to Login")
         return redirect(url_for('login', _external=True))
 
@@ -166,6 +163,7 @@ def logout():
 
 @app.route('/setup', methods=['GET', 'POST'])
 def setup():
+    import os
     from Crypto.Protocol.KDF import PBKDF2
     from hashlib import sha256
 
@@ -177,7 +175,10 @@ def setup():
         else:
             salt = app.config['SECRET_KEY']
             password = PBKDF2(request.form['password'], salt)
-            app.config['PASSWORD_HASH'] = sha256(password).hexdigest()
+            password_hash = sha256(password).hexdigest()
+
+            app.config['PASSWORD_HASH'] = password_hash
+            os.environ['SOMA_PASSWORD_HASH_{}'.format(app.config['LOCAL_PORT'])] = password_hash
             cache.set('password', password, 3600)
             return redirect(url_for('universe'))
     return render_template('setup.html', error=error)
@@ -299,7 +300,8 @@ def create_star():
 
         message = Message(message_type="change_notification", data=data)
         message.sign(new_star.creator)
-        star_created.send(create_star, message=message)
+
+        star_created.send(create_star, message=new_star)
 
         return redirect(url_for('star', id=uuid))
     return render_template('create_star.html', form=form, controlled_personas=controlled_personas)
@@ -428,6 +430,8 @@ def add_contact(persona_id):
         author.contacts.append(persona)
         db.session.add(author)
         db.session.commit()
+
+        new_contact.send(add_contact, message={'new_contact': persona, 'author': author})
 
         flash("Added {} to {}'s address book".format(persona.username, author.username))
         app.logger.info("Added {} to {}'s contacts".format(persona, author))

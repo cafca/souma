@@ -2,6 +2,7 @@ import sys
 import os
 
 from flask import json
+from Crypto.Hash import SHA256
 
 # Access the absolute path of the script file with this
 _basedir = os.path.abspath(os.path.dirname(__file__))
@@ -11,13 +12,6 @@ DEBUG = True
 USE_DEBUG_SERVER = False
 
 SEND_FILE_MAX_AGE_DEFAULT = 1
-
-# TODO: Generate after installation, keep secret.
-SECRET_KEY = '\xae\xac\xde\nIH\xe4\xed\xf0\xc1\xb9\xec\x08\xf6uT\xbb\xb6\x8f\x1fOBi\x13'
-
-# Comment this out to set a custom password
-# pw: jodat
-PASSWORD_HASH = '8302a8fbf9f9a6f590d6d435e397044ae4c8fa22fdd82dc023bcc37d63c8018c'
 
 # Setup host addresses
 if len(sys.argv) == 2:
@@ -38,6 +32,25 @@ LOGIN_SERVER = "{}:{}".format(LOGIN_SERVER_HOST, LOGIN_SERVER_PORT)
 
 DATABASE = 'khemia_{}.db'.format(LOCAL_PORT)
 SQLALCHEMY_DATABASE_URI = "sqlite:///" + DATABASE
+
+# Set secret key
+try:
+	with open('secret_key') as f:
+		SECRET_KEY = f.read()
+except IOError:
+	SECRET_KEY = os.urandom(24)
+	with open('secret_key', 'w') as f:
+		f.write(SECRET_KEY)
+
+if len(SECRET_KEY) != 24:
+	raise ValueError('Secret key not valid ({}). Try deleting the file "secretkey".'.format(SECRET_KEY))
+
+SOMA_ID = SHA256.new(SECRET_KEY+str(LOCAL_PORT)).hexdigest()
+
+if 'SOMA_PASSWORD_HASH_{}'.format(LOCAL_PORT) in os.environ:
+	PASSWORD_HASH = os.environ['SOMA_PASSWORD_HASH_{}'.format(LOCAL_PORT)]
+else:
+	PASSWORD_HASH = None
 
 LOG_FORMAT = (
     '%(name)s :: %(module)s [%(pathname)s:%(lineno)d]\n' +
