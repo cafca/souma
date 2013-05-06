@@ -328,7 +328,8 @@ def delete_star(id):
     })
 
     message = Message(message_type="change_notification", data=json.dumps(data))
-    message.sign(s.creator)
+    if s.creator.sign_private is not None:
+        message.sign(s.creator)
 
     # Delete instance from db
     db.session.delete(s)

@@ -28,7 +28,7 @@ console_handler.setFormatter(logging.Formatter(app.config['LOG_FORMAT']))
 
 for l in loggers:
     del l.handlers[:]  # remove old handlers
-    l.setLevel(logging.INFO)
+    l.setLevel(logging.DEBUG)
     l.addHandler(console_handler)
     l.propagate = False  # setting this to true triggers the root logger
 

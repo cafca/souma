@@ -120,7 +120,10 @@ class Star(Serializable, db.Model):
         # TODO: Attach multiple items as 'planets'
         self.text = text
 
-        self.creator_id = creator
+        if not isinstance(creator, Persona):
+            self.creator_id = creator
+        else:
+            self.creator_id = creator.id
 
     def __repr__(self):
         return "<Star {}: {}>".format(

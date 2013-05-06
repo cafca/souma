@@ -96,17 +96,17 @@ class Starmap(db.Model):
     def __init__(self, id):
         self.id = id
 
-    def add(self, obj):
-        """Add new Star/Persona to this starmap"""
-        if isinstance(obj, Persona):
-            if Persona.query.get(obj.id) is None:
-                orb = Orb("Persona", obj.id, obj.modified)
-                db.session.add(orb)
-        elif isinstance(obj, Star):
-            if Star.query.get(obj.id) is None:
-                orb = Orb("Star", obj.id, obj.modified, obj.creator.id)
-                db.session.add(orb)
-        db.session.commit()
+    def __contains__(self, key):
+        return (key in self.index)
+
+    def __repr__(self):
+        return "<Starmap {}>".format(self.id)
+
+    def add(self, orb):
+        """Add Orb to this starmap"""
+        if orb in self.index:
+            raise KeyError("{} is already part of {}.".format(orb, self))
+        return self.index.append(orb)
 
 
 class Orb(db.Model):
@@ -114,9 +114,15 @@ class Orb(db.Model):
 
     __tablename__ = 'orb'
     id = db.Column(db.String(32), primary_key=True)
-    object_type = db.Column(db.String(32))
+    type = db.Column(db.String(32))
     modified = db.Column(db.DateTime)
     creator = db.Column(db.String(32))
 
     def __init__(self, object_type, id, modified, creator=None):
         self.id = id
+        self.type = object_type
+        self.modified = modified
+        self.creator = creator
+
+    def __repr__(self):
+        return "<Orb:{} {}>".format(self.type, self.id[:6])

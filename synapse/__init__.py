@@ -1,6 +1,7 @@
 import datetime
 import logging
 import requests
+import iso8601
 
 from dateutil.parser import parse as dateutil_parse
 from flask import json
@@ -54,7 +55,7 @@ class Synapse(DatagramServer):
         new_contact = self.signal('new-contact')
 
         # Subscribe notification message distribution to signals
-        star_created.connect(self.on_notification_signal)
+        # star_created.connect(self.on_notification_signal)
         star_deleted.connect(self.on_notification_signal)
         persona_created.connect(self.on_notification_signal)
 
@@ -91,7 +92,7 @@ class Synapse(DatagramServer):
         if len(data) == 0:
             self.logger.info("[{}] Empty message received".format(self.source_format(address)))
         else:
-            self.logger.debug("[{source}] Received {l} bytes: {json}".format(
+            self.logger.info("[{source}] Received {l} bytes: {json}".format(
                 source=self.source_format(address), json=data, l=len(data)))
             self.socket.sendto('Received {} bytes'.format(len(data)), address)
 
@@ -147,14 +148,14 @@ class Synapse(DatagramServer):
             # Check authority to delete
             if o is None:
                 self.logger.info("[{}] <{} {}> deleted (no local copy)".format(
-                    self.source_format(address), object_type=object_type, object_id=object_id[:6]))
+                    self.source_format(address), object_type, object_id[:6]))
             else:
                 db.session.delete(o)
                 self.starmap.remove(o)
                 db.session.add(self.starmap)
                 db.session.commit()
                 self.logger.info("[{}] <{} {}> deleted".format(
-                    self.source_format(address), object_type=object_type, object_id=object_id[:6]))
+                    self.source_format(address), object_type, object_id[:6]))
 
         elif change == "insert":
             # Object already exists locally
@@ -165,7 +166,7 @@ class Synapse(DatagramServer):
             # Request object
             else:
                 self.logger.info("[{}] New <{} {}> available".format(
-                    self.source_format(address), object_type=object_type, object_id=object_id[:6]))
+                    self.source_format(address), object_type, object_id[:6]))
                 # TODO: Check if we even want to have this thing, also below in update
                 self.request_object(object_type, object_id, address)
 
@@ -204,7 +205,7 @@ class Synapse(DatagramServer):
         self.logger.info("Scanning starmap of {} orbs from {}\n{}".format(
             len(remote_starmap), self.source_format(address), log_starmap))
 
-        # Get or create remote Soma
+        # Get or create copy of remote Soma's starmap
         local_starmap = Starmap.query.get(soma_remote_id)
         if local_starmap is None:
             local_starmap = Starmap(soma_remote_id)
@@ -213,17 +214,28 @@ class Synapse(DatagramServer):
         request_objects = list()  # list of objects to be downloaded
         for orb_id, orb_info in remote_starmap.iteritems():
             orb_type = orb_info['type']
-            orb_modifed = orb_info['modified']
+            orb_modifed = iso8601.parse_date(orb_info['modified'])
             orb_creator = orb_info['creator']
 
+            # Create Orb if the object has not been seen before
             orb_local = Orb.query.get(orb_id)
             if orb_local is None:
                 orb_local = Orb(orb_type, orb_id, orb_modifed, orb_creator)
                 db.session.add(orb_local)
-                request_objects.append((orb_type, orb_id, address))
-            elif orb_modifed > orb_local.modified:
-                request_objects.append((orb_type, orb_id, address))
 
+            # Request corresponding object if this object is not yet in
+            # our own starmap (greedy downloading)
+            #if not orb_local in self.starmap.index:
+
+            # As the above doesnt work yet (*bug*), check directly
+            if (orb_type == 'Star' and Star.query.get(orb_id) is None) or (orb_type == "Persona" and Persona.query.get(orb_id) is None):
+                request_objects.append((orb_type, orb_id, address))
+            # Also download if the remote version is newer
+            # elif orb_modifed > orb_local.modified:
+            #     request_objects.append((orb_type, orb_id, address))
+
+            # Add to local copy of the remote starmap to keep track of
+            # who already has the Orb
             if orb_local not in local_starmap.index:
                 local_starmap.index.append(orb_local)
                 db.session.add(local_starmap)
@@ -258,6 +270,13 @@ class Synapse(DatagramServer):
             o = Star.query.get(obj['id'])
             if o is None:
                 o = Star(obj["id"], obj["text"], obj["creator_id"])
+
+                orb = Orb.query.get(o.id)
+                if not orb:
+                    orb = Orb("Star", o.id, o.modified, obj["creator_id"])
+                # buggy...
+                #self.starmap.add(orb)
+
                 db.session.add(o)
             else:
                 self.logger.warning("[{}] Received already existing {}".format(
@@ -272,6 +291,12 @@ class Synapse(DatagramServer):
                     sign_public=obj["sign_public"],
                     crypt_public=obj["crypt_public"],
                 )
+
+                orb = Orb.query.get(o.id)
+                if not orb:
+                    orb = Orb("Persona", o.id, o.modified)
+                #self.starmap.add(orb)
+
                 db.session.add(o)
             else:
                 self.logger.warning("[{}] Received already existing {}".format(
@@ -307,9 +332,9 @@ class Synapse(DatagramServer):
         message = Message("object", data)
 
         # Sign message
-        if object_type == "Star" and obj.creator.sign_private != "":
+        if object_type == "Star" and obj.creator.sign_private is not None:
             message.sign(obj.creator)
-        elif object_type == "Persona" and obj.sign_private != "":
+        elif object_type == "Persona" and obj.sign_private is not None  :
             message.sign(obj)
 
         # Send response
@@ -354,8 +379,9 @@ class Synapse(DatagramServer):
         """ Register newly created personas with server """
         persona_id = message.data['object_id']
         persona = Persona.query.get(persona_id)
-        self.starmap.add(persona)  # Add to starmap
         self.register_persona(persona)
+        orb = Orb("Persona", persona.id, persona.modified)
+        self.starmap.add(orb)  # Add to starmap
 
     def on_star_created(self, sender, message):
         """Add new stars to starmap and send notification message"""
@@ -369,9 +395,12 @@ class Synapse(DatagramServer):
 
         message = Message(message_type="change_notification", data=data)
         message.sign(star.creator)
+
+        self.logger.info("[{sender}] Distributing {msg}".format(sender=sender, msg=message))
         self.distribute_message(message)
 
-        self.starmap.add(star)
+        orb = Orb("Star", star.id, star.modified, star.creator.id)
+        self.starmap.add(orb)  # Add to starmap
 
     def on_new_contact(self, sender, message):
         author = message['author']

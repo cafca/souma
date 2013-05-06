@@ -30,27 +30,27 @@ LOGIN_SERVER_HOST = "app.soma"
 LOGIN_SERVER_PORT = "24500"
 LOGIN_SERVER = "{}:{}".format(LOGIN_SERVER_HOST, LOGIN_SERVER_PORT)
 
-DATABASE = 'khemia_{}.db'.format(LOCAL_PORT)
+DATABASE = 'ark_{}.db'.format(LOCAL_PORT)
 SQLALCHEMY_DATABASE_URI = "sqlite:///" + DATABASE
 
 # Set secret key
 try:
-	with open('secret_key') as f:
-		SECRET_KEY = f.read()
+    with open('secret_key') as f:
+        SECRET_KEY = f.read()
 except IOError:
-	SECRET_KEY = os.urandom(24)
-	with open('secret_key', 'w') as f:
-		f.write(SECRET_KEY)
+    SECRET_KEY = os.urandom(24)
+    with open('secret_key', 'w') as f:
+        f.write(SECRET_KEY)
 
 if len(SECRET_KEY) != 24:
-	raise ValueError('Secret key not valid ({}). Try deleting the file "secretkey".'.format(SECRET_KEY))
+    raise ValueError('Secret key not valid ({}). Try deleting the file "secretkey".'.format(SECRET_KEY))
 
 SOMA_ID = SHA256.new(SECRET_KEY+str(LOCAL_PORT)).hexdigest()
 
 if 'SOMA_PASSWORD_HASH_{}'.format(LOCAL_PORT) in os.environ:
-	PASSWORD_HASH = os.environ['SOMA_PASSWORD_HASH_{}'.format(LOCAL_PORT)]
+    PASSWORD_HASH = os.environ['SOMA_PASSWORD_HASH_{}'.format(LOCAL_PORT)]
 else:
-	PASSWORD_HASH = None
+    PASSWORD_HASH = None
 
 LOG_FORMAT = (
     '%(name)s :: %(module)s [%(pathname)s:%(lineno)d]\n' +
