@@ -2,19 +2,20 @@ import datetime
 import logging
 
 from flask import json
-from soma import db
+from soma import app, db
 from soma.web_ui.models import Persona, Star
 
 
 class Message(object):
     """ Container for peer messages """
 
-    def __init__(self, message_type, data):
+    def __init__(self, message_type, data, reply_to=app.config['SYNAPSE_PORT']):
         self.message_type = message_type
         self.data = data
         self.timestamp = None
-        self.send_attributes = ["message_type", "data"]
+        self.send_attributes = ["message_type", "data", "reply_to"]
         self.verified = False
+        self.reply_to = reply_to
 
     def __str__(self):
         if hasattr(self, "author_id"):
@@ -44,7 +45,7 @@ class Message(object):
 
         # TODO Catch errors
         msg = json.loads(data)
-        message = Message(message_type=msg["message_type"], data=msg["data"])
+        message = Message(message_type=msg["message_type"], data=msg["data"], reply_to=msg["reply_to"])
 
         if "signature" in msg:
             message.signature = msg["signature"]

@@ -96,17 +96,7 @@ class Synapse(DatagramServer):
                 source=self.source_format(address), json=data, l=len(data)))
             self.socket.sendto('Received {} bytes'.format(len(data)), address)
 
-            if address[0] in self.peers:
-                return_address = (address[0], self.peers[address[0]])
-            else:
-                return_address = address
-                self.logger.warning("No known return path for message sender {}".format(
-                    self.source_format(address)))
-
-            # TODO: Attempt correcting time of message by comparing machine clocks in the message
-            #   (see bittorrent utp spec)
-
-            self.handle_message(data, return_address)
+            self.handle_message(data, address)
 
     def handle_message(self, data, address):
         """Parse received Message objects and pass them on to the correct handler"""
@@ -118,6 +108,10 @@ class Synapse(DatagramServer):
             self.logger.error("[{source}] Message malformed (missing {key})".format(
                 source=self.source_format(address), key=e))
             return
+
+        # Change return address if message contains a reply_to field
+        if hasattr(message, 'reply_to'):
+            address = (address[0], message.reply_to)
 
         # Allowed message types
         message_types = [
