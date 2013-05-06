@@ -77,15 +77,18 @@ class Message(object):
         self.author_id = author.id
         self.send_attributes.extend(["signature", "author_id"])
 
-t_starmap_index = db.Table('starmap_index',
+t_starmap_index = db.Table(
+    'starmap_index',
     db.Column('starmap_id', db.String(32), db.ForeignKey('starmap.id')),
     db.Column('orb_id', db.String(32), db.ForeignKey('orb.id'))
 )
 
+
 class Starmap(db.Model):
     __tablename__ = 'starmap'
     id = db.Column(db.String(32), primary_key=True)
-    index = db.relationship('Orb',
+    index = db.relationship(
+        'Orb',
         secondary='starmap_index',
         primaryjoin='starmap_index.c.starmap_id==starmap.c.id',
         secondaryjoin='starmap_index.c.orb_id==orb.c.id')
@@ -104,6 +107,7 @@ class Starmap(db.Model):
                 orb = Orb("Star", obj.id, obj.modified, obj.creator.id)
                 db.session.add(orb)
         db.session.commit()
+
 
 class Orb(db.Model):
     """Stub for any object that might exist in a starmap"""

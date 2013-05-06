@@ -57,7 +57,7 @@ class Synapse(DatagramServer):
         star_created.connect(self.on_notification_signal)
         star_deleted.connect(self.on_notification_signal)
         persona_created.connect(self.on_notification_signal)
-        
+
         # Subscribe starmap sync to signals
         persona_created.connect(self.on_persona_created)
         star_created.connect(self.on_star_created)
@@ -74,11 +74,10 @@ class Synapse(DatagramServer):
                 self.message_pool.spawn(self.login, p)
                 self.message_pool.spawn(self.update_peer_list, p)
 
-
     def request_object(self, object_type, object_id, address):
         """ Request an object from a peer """
-        self.logger.info("Requesting {object_type} {object_id} from {source}".format(
-            object_type=object_type, object_id=object_id, source=self.source_format(address)))
+        self.logger.info("Requesting <{object_type} {object_id}> from {source}".format(
+            object_type=object_type, object_id=object_id[:6], source=self.source_format(address)))
 
         # Construct request
         data = {"object_type": object_type, "object_id": object_id}
@@ -90,7 +89,7 @@ class Synapse(DatagramServer):
     def handle(self, data, address):
         """ Handle incoming connections """
         if len(data) == 0:
-            self.logger.info("[{}] Empty message received".format(address[0]))
+            self.logger.info("[{}] Empty message received".format(self.source_format(address)))
         else:
             self.logger.debug("[{source}] Received {l} bytes: {json}".format(
                 source=self.source_format(address), json=data, l=len(data)))
@@ -147,26 +146,26 @@ class Synapse(DatagramServer):
         if change == "delete":
             # Check authority to delete
             if o is None:
-                self.logger.info("[{source}] {object_type} {object_id} deleted (no local copy)".format(
-                    source=self.source_format(address), object_type=object_type, object_id=object_id))
+                self.logger.info("[{}] <{} {}> deleted (no local copy)".format(
+                    self.source_format(address), object_type=object_type, object_id=object_id[:6]))
             else:
                 db.session.delete(o)
                 self.starmap.remove(o)
                 db.session.add(self.starmap)
                 db.session.commit()
-                self.logger.info("[{source}] {object_type} {object_id} deleted".format(
-                    source=self.source_format(address), object_type=object_type, object_id=object_id))
+                self.logger.info("[{}] <{} {}> deleted".format(
+                    self.source_format(address), object_type=object_type, object_id=object_id[:6]))
 
         elif change == "insert":
             # Object already exists locally
             if o is not None:
-                self.logger.info("[{source}] New {object_type} {object_id} already exists.".format(
-                    source=self.source_format(address), object_type=object_type, object_id=object_id))
+                self.logger.info("[{}] {} already exists.".format(
+                    self.source_format(address), o))
 
             # Request object
             else:
-                self.logger.info("[{source}] New {object_type} {object_id} available".format(
-                    source=self.source_format(address), object_type=object_type, object_id=object_id))
+                self.logger.info("[{}] New <{} {}> available".format(
+                    self.source_format(address), object_type=object_type, object_id=object_id[:6]))
                 # TODO: Check if we even want to have this thing, also below in update
                 self.request_object(object_type, object_id, address)
 
@@ -199,8 +198,11 @@ class Synapse(DatagramServer):
         soma_remote_id = message.data['soma_id']
         remote_starmap = message.data['starmap']
 
-        self.logger.info("Scanning starmap of {} orbs from {}".format(
-            len(remote_starmap), self.source_format(address)))
+        log_starmap = "\n".join(["- <{} {}>".format(
+            orb_info['type'], orb_id[:6]) for orb_id, orb_info in remote_starmap.iteritems()])
+
+        self.logger.info("Scanning starmap of {} orbs from {}\n{}".format(
+            len(remote_starmap), self.source_format(address), log_starmap))
 
         # Get or create remote Soma
         local_starmap = Starmap.query.get(soma_remote_id)
@@ -253,14 +255,16 @@ class Synapse(DatagramServer):
         # Handle answer
         # TODO: Handle updates
         if object_type == "Star":
-            if Star.query.get(obj['id']) is None:
+            o = Star.query.get(obj['id'])
+            if o is None:
                 o = Star(obj["id"], obj["text"], obj["creator_id"])
                 db.session.add(o)
             else:
-                self.logger.warning("Received already existing <Star {}>".format(obj['id']))
+                self.logger.warning("[{}] Received already existing {}".format(
+                    self.source_format(address), o))
         elif object_type == "Persona":
-            # private key is not assumed
-            if Persona.query.get(obj['id']) is None:
+            o = Persona.query.get(obj['id'])
+            if o is None:
                 o = Persona(
                     id=obj["id"],
                     username=obj["username"],
@@ -270,10 +274,11 @@ class Synapse(DatagramServer):
                 )
                 db.session.add(o)
             else:
-                self.logger.warning("Received already existing <Persona {}>".format(obj['id']))
+                self.logger.warning("[{}] Received already existing {}".format(
+                    self.source_format(address), o))
         db.session.commit()
-        self.logger.info("[{source}] Added new {object_type} {object_id}".format(
-            source=self.source_format(address), object_type=object_type, object_id=obj['id']))
+        self.logger.info("[{}] Received {}".format(
+            self.source_format(address), o))
 
     def handle_object_request(self, message, address):
         """ Serve an object to address in response to a request """
@@ -289,8 +294,8 @@ class Synapse(DatagramServer):
 
         if obj is None:
             # TODO: Serve error message
-            self.logger.error("Requested object {type} <{id}> not found".format(
-                type=object_type, id=object_id))
+            self.logger.error("Requested object <{type} {id}> not found".format(
+                type=object_type, id=object_id[:6]))
             self.socket.sendto(str(), address)
             return
 
@@ -333,7 +338,7 @@ class Synapse(DatagramServer):
 
         for persona in personas:
             new_starmap[persona.id] = {
-                "type": "persona",
+                "type": "Persona",
                 "creator": None,
                 "modified": persona.modified.isoformat()
             }
@@ -391,8 +396,8 @@ class Synapse(DatagramServer):
         sock.send(message_json)
         try:
             data, address = sock.recvfrom(8192)  # Read 8KB
-            self.logger.info("[{source}] replied: '{resp}'".format(
-                source=self.source_format(address), resp=data))
+            #self.logger.info("[{source}] replied: '{resp}'".format(
+            #    source=self.source_format(address), resp=data))
         except Exception, e:
             self.logger.error("[{source}] replied: {error}".format(
                 source=self.source_format(address), error=e))

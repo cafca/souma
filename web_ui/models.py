@@ -11,7 +11,8 @@ from sqlalchemy.exc import OperationalError
 # Setup follower relationship on Persona objects
 #
 
-t_contacts = db.Table('contacts',
+t_contacts = db.Table(
+    'contacts',
     db.Column('left_id', db.String(32), db.ForeignKey('persona.id')),
     db.Column('right_id', db.String(32), db.ForeignKey('persona.id'))
 )
@@ -24,7 +25,8 @@ class Persona(Serializable, db.Model):
     id = db.Column(db.String(32), primary_key=True)
     username = db.Column(db.String(80))
     email = db.Column(db.String(120))
-    contacts = db.relationship('Persona',
+    contacts = db.relationship(
+        'Persona',
         secondary='contacts',
         primaryjoin='contacts.c.left_id==persona.c.id',
         secondaryjoin='contacts.c.right_id==persona.c.id')
@@ -36,14 +38,8 @@ class Persona(Serializable, db.Model):
     soma_id = db.Column(db.String(32), db.ForeignKey('starmap.id'))
     soma = db.relationship('Starmap', backref="personas", primaryjoin='starmap.c.id==persona.c.soma_id')
 
-    def __init__(self,
-        id,
-        username,
-        email=None,
-        sign_private=None,
-        sign_public=None,
-        crypt_private=None,
-        crypt_public=None):
+    def __init__(self, id, username, email=None, sign_private=None, sign_public=None,
+                 crypt_private=None, crypt_public=None):
 
         self.id = id
         self.username = username
@@ -54,7 +50,7 @@ class Persona(Serializable, db.Model):
         self.crypt_public = crypt_public
 
     def __repr__(self):
-        return "<{} [{}]>".format(str(self.username), self.id)
+        return "<{} [{}]>".format(str(self.username), self.id[:6])
 
     def get_email_hash(self):
         """Return sha256 hash of this user's email address"""
@@ -128,8 +124,8 @@ class Star(Serializable, db.Model):
 
     def __repr__(self):
         return "<Star {}: {}>".format(
-            self.creator_id,
-            (self.text[:8] if len(self.text) <= 8 else self.text[:6] + ".."))
+            self.creator_id[:6],
+            (self.text[:24] if len(self.text) <= 24 else self.text[:22] + ".."))
 
     def get_absolute_url(self):
         return url_for('star', id=self.id)
