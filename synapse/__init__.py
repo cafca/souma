@@ -539,7 +539,8 @@ class Synapse(DatagramServer):
         # Do login
         if 'auth' in resp['data']:
             data = {
-                'auth_signed': persona.sign(resp['data']['auth'])
+                'auth_signed': persona.sign(resp['data']['auth']),
+                'reply_to': app.config['SYNAPSE_PORT']
             }
             r, errors = self.server_request(url, Message('session', data))
 
