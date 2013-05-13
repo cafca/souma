@@ -109,10 +109,18 @@ class Star(Serializable, db.Model):
     created = db.Column(db.DateTime, default=datetime.datetime.now())
     modified = db.Column(db.DateTime, default=datetime.datetime.now(), onupdate=datetime.datetime.now())
 
+    planets = db.relationship(
+        'Planet',
+        secondary='satellites',
+        backref=db.backref('starmap'),
+        primaryjoin="satellites.c.star_id==star.c.id",
+        secondaryjoin="satellites.c.planet_id==planet.c.id")
+
     creator = db.relationship(
         'Persona',
         backref=db.backref('starmap'),
         primaryjoin="Persona.id==Star.creator_id")
+
     creator_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
 
     def __init__(self, id, text, creator):
@@ -142,6 +150,25 @@ class Star(Serializable, db.Model):
         order = log(max(abs(s), 1), 10)
         sign = 1 if s > 0 else -1 if s < 0 else 0
         return round(order + sign * epoch_seconds(self.created) / 45000, 7)
+
+
+t_satellites = db.Table(
+    'satellites',
+    db.Column('star_id', db.String(32), db.ForeignKey('star.id')),
+    db.Column('planet_id', db.String(32), db.ForeignKey('planet.id'))
+)
+
+
+class Planet(Serializable, db.Model):
+    """A Planet represents an attachment"""
+
+    __tablename__ = 'planet'
+    id = db.Column(db.String(32), primary_key=True)
+    title = db.Column(db.Text)
+    kind = db.Column(db.String(32))
+    created = db.Column(db.DateTime, default=datetime.datetime.now())
+    modified = db.Column(db.DateTime, default=datetime.datetime.now(), onupdate=datetime.datetime.now())
+    source = db.Column(db.String(128))
 
 
 class Notification(db.Model):
