@@ -1,5 +1,5 @@
 from flask import session
-from soma.web_ui.models import Persona
+from web_ui.models import Persona
 
 
 def get_active_persona():
