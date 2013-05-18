@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 from web_ui import app, db
-from web_ui.synapse.models import Starmap
+from synapse.models import Starmap
 from gevent.wsgi import WSGIServer
 from synapse import Synapse
 from sqlalchemy.exc import OperationalError
