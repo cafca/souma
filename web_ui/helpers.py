@@ -42,8 +42,3 @@ def get_active_persona():
             session['active_persona'] = controlled_personas.first().id
 
     return session['active_persona']
-
-
-def score(star_object):
-    import random
-    return random.random() * 100 - random.random() * 10
