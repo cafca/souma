@@ -3,8 +3,8 @@ import datetime
 from flask import url_for
 from hashlib import sha256
 from keyczar.keys import RsaPrivateKey, RsaPublicKey
-from soma import db
-from soma.helpers import Serializable, epoch_seconds
+from web_ui import db
+from web_ui.helpers import Serializable, epoch_seconds
 from sqlalchemy.exc import OperationalError
 
 #

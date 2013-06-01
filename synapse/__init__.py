@@ -9,9 +9,9 @@ from gevent import Greenlet
 from gevent.pool import Pool
 from gevent.server import DatagramServer
 from requests import ConnectionError
-from soma import app, db, notification_signals
-from soma.web_ui.models import Persona, Star
-from soma.synapse.models import Message, Starmap, Orb
+from web_ui import app, db, notification_signals
+from web_ui.models import Persona, Star
+from synapse.models import Message, Starmap, Orb
 
 
 class Synapse(DatagramServer):

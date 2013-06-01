@@ -5,11 +5,11 @@ from flask import abort, flash, json, redirect, render_template, request, sessio
 from hashlib import sha256
 from operator import itemgetter
 
-from soma import app, cache, db, logged_in, notification_signals
-from soma.web_ui.forms import *
-from soma.web_ui.helpers import get_active_persona
-from soma.web_ui.models import Persona, Star
-from soma.synapse.models import Message
+from web_ui import app, cache, db, logged_in, notification_signals
+from web_ui.forms import *
+from web_ui.helpers import get_active_persona
+from web_ui.models import Persona, Star
+from synapse.models import Message
 
 # Create blinker signal namespace
 star_created = notification_signals.signal('star-created')

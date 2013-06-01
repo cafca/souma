@@ -2,8 +2,8 @@ import datetime
 import logging
 
 from flask import json
-from soma import app, db
-from soma.web_ui.models import Persona, Star
+from web_ui import app, db
+from web_ui.models import Persona, Star
 
 
 class Message(object):

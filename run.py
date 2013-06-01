@@ -1,14 +1,7 @@
 #!/usr/bin/python
-import sys
-import os
 
-# Add parent directory of current working directory to path so the current
-# directory can be imported as a module (I have no idea why this is neccessary).
-cwd_parent_dir = os.sep.join(os.getcwd().split(os.sep)[:-1])
-sys.path.append(cwd_parent_dir)
-
-from soma import app, db
-from soma.synapse.models import Starmap
+from web_ui import app, db
+from synapse.models import Starmap
 from gevent.wsgi import WSGIServer
 from synapse import Synapse
 from sqlalchemy.exc import OperationalError
