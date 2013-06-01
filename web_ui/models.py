@@ -5,6 +5,7 @@ from hashlib import sha256
 from keyczar.keys import RsaPrivateKey, RsaPublicKey
 from web_ui import db
 from web_ui.helpers import Serializable, epoch_seconds
+from sqlalchemy import ForeignKey
 from sqlalchemy.exc import OperationalError
 
 #
@@ -169,6 +170,33 @@ class Planet(Serializable, db.Model):
     created = db.Column(db.DateTime, default=datetime.datetime.now())
     modified = db.Column(db.DateTime, default=datetime.datetime.now(), onupdate=datetime.datetime.now())
     source = db.Column(db.String(128))
+
+    __mapper_args__ = {
+        'polymorphic_identity': 'planet',
+        'polymorphic_on': kind
+    }
+
+
+class TextPlanet(Planet):
+    """A Text attachment"""
+
+    id = db.Column(db.String(32), ForeignKey('planet.id'), primary_key=True)
+    content = db.Column(db.Text)
+
+    __mapper_args__ = {
+        'polymorphic_identity': 'text'
+    }
+
+
+class LinkPlanet(Planet):
+    """A URL attachment"""
+
+    id = db.Column(db.String(32), ForeignKey('planet.id'), primary_key=True)
+    url = db.Column(db.Text)
+
+    __mapper_args__ = {
+        'polymorphic_identity': 'link'
+    }
 
 
 class Notification(db.Model):
