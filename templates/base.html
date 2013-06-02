@@ -1,8 +1,10 @@
 <!doctype html>
 <head>
     <title>{%block title %}soma{% endblock %}</title>
-    <link rel="stylesheet" type="text/css" href="/static/frameless.css">
-    <link rel="stylesheet" type="text/css" href="/static/font-awesome.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="/static/css/bootstrap.css" media="screen" >
+    <link rel="stylesheet" type="text/css" href="/static/css/frameless.css">
+    <link rel="stylesheet" type="text/css" href="/static/css/font-awesome.css">
     <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.png') }}">
 </head>
 <body>
@@ -55,4 +57,8 @@
         {% block content %}{% endblock %}
         </div>
     </article>
+
+    <!-- Load scripts after content -->
+    <script src="http://code.jquery.com/jquery.js"></script>
+    <script src="/static/js/bootstrap.js"></script>
 </body>

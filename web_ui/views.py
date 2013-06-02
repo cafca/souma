@@ -274,6 +274,7 @@ def create_star():
     # Load author drop down contents
     controlled_personas = Persona.query.filter(Persona.sign_private != None).all()
     creator_choices = [(p.id, p.username) for p in controlled_personas]
+    active_persona = Persona.query.get(session['active_persona'])
 
     form = Create_star_form(default_creator=session['active_persona'])
     form.creator.choices = creator_choices
@@ -304,7 +305,7 @@ def create_star():
         star_created.send(create_star, message=new_star)
 
         return redirect(url_for('star', id=uuid))
-    return render_template('create_star.html', form=form, controlled_personas=controlled_personas)
+    return render_template('create_star.html', form=form, active_persona=active_persona)
 
 
 @app.route('/s/<id>/delete', methods=["GET"])

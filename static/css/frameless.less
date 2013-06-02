@@ -353,6 +353,10 @@ article {
             }
         }
 
+        &.framed {
+            border: 1px solid darken(white, 20%);
+        }
+
         .content { 
             display: block; 
         }
@@ -370,6 +374,11 @@ article {
             }
 
             a:hover { text-decoration: underline; }
+        }
+
+        .message_text_input > textarea {
+            width: 100% - 2px;
+            height: @1cols * 0.9;
         }
     }
 }

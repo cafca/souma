@@ -2,25 +2,63 @@
 
 {% block content %}
 <section class="col1 row1 w3 h1">
-<h2><i class="icon-magic"></i> Create new star</h2>
+<h2><i class="icon-magic"></i> Create Star</h2>
 </section>
 
-<section class="col1 row2 w4 h6">
 <form method="POST" action="{{url_for('create_star')}}">
-    <p>
-    {{ form.creator.label }} {{ form.creator() }}
-    {% if form.creator.errors %}
-        <ul class="errors">{% for error in form.creator.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-    {% endif %}
-    </p>
-    <p>
-    {{ form.text.label}} {{ form.text(size=20) }}
-    {% if form.text.errors %}
-        <ul class="errors">{% for error in form.text.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-    {% endif %}
-    </p>
-    {{ form.csrf_token }}
-    <input type="submit" value="Create">
+    <!-- Main text field -->
+    <section class="textarea col1 row2 w5 h1">
+        <div class="message_text_input">
+        {{ form.text() }}
+        {% if form.text.errors %}
+            <ul class="errors">{% for error in form.text.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+        {% endif %}
+        </div>
+        {{ form.csrf_token }}
+    </section>
+
+    <!-- Add Attachments -->
+    <section class="col1 row3 w5 h1">
+        <div class="btn-group well well-small">
+            <a class="btn" href="#"><i class="icon-font"></i></a>
+            <a class="btn" href="#"><i class="icon-link"></i></a>
+        </div>
+    </section>
+
+    <!-- Controls -->
+    <section class="col1 row4 w5 h2">
+        <button type="submit" class="btn"><i class="icon-save"></i> Save Draft</button>
+        <div class="btn-group">
+            <button type="submit" class="btn">
+                <i class="icon-magic"></i>
+                Publish
+            </button>  
+            <button class="btn dropdown-toggle" data-toggle="dropdown">
+                <span class="caret"></span> as {{active_persona.username}} 
+            </button>
+            <ul class="dropdown-menu">
+                {% for p in controlled_personas %}
+                <li><i class="icon-user"></i> Switch to {{p.username}}</li>
+                {% endfor %}
+            </ul>
+
+            <!-- <span class="privacy-selector">
+                <ul>
+                    <li>Only important</li>
+                    <li>All contacts</li>
+                    <li>public</li>
+                </ul>
+            </span> -->
+        </div> 
+        </div>
+
+    </section>
+
+    <section class="col6 row2 w4 h1" style="display:none">
+
+        {{ form.creator() }}
+        {% if form.creator.errors %}
+            <ul class="errors">{% for error in form.creator.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+        {% endif %}</section>
 </form>
-</section>
 {% endblock %}
