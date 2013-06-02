@@ -27,30 +27,32 @@
 
     <!-- Controls -->
     <section class="col1 row4 w5 h2">
-        <button type="submit" class="btn"><i class="icon-save"></i> Save Draft</button>
-        <div class="btn-group">
-            <button type="submit" class="btn">
-                <i class="icon-magic"></i>
-                Publish
-            </button>  
-            <button class="btn dropdown-toggle" data-toggle="dropdown">
-                <span class="caret"></span> as {{active_persona.username}} 
-            </button>
-            <ul class="dropdown-menu">
-                {% for p in controlled_personas %}
-                <li><i class="icon-user"></i> Switch to {{p.username}}</li>
-                {% endfor %}
-            </ul>
-
-            <!-- <span class="privacy-selector">
-                <ul>
-                    <li>Only important</li>
-                    <li>All contacts</li>
-                    <li>public</li>
+        <span class="pull-right">
+            <button type="submit" class="btn"><i class="icon-save"></i> Save Draft</button>
+            <div class="btn-group">
+                <button type="submit" class="btn">
+                    <i class="icon-magic"></i>
+                    Publish
+                </button>  
+                <button class="btn dropdown-toggle" data-toggle="dropdown">
+                    <span class="caret"></span> as {{active_persona.username}} 
+                </button>
+                <ul class="dropdown-menu">
+                    {% for p in controlled_personas %}
+                    <li><i class="icon-user"></i> Switch to {{p.username}}</li>
+                    {% endfor %}
                 </ul>
-            </span> -->
-        </div> 
-        </div>
+
+                <!-- <span class="privacy-selector">
+                    <ul>
+                        <li>Only important</li>
+                        <li>All contacts</li>
+                        <li>public</li>
+                    </ul>
+                </span> -->
+            </div> 
+            </div>
+        </span>
 
     </section>
 
