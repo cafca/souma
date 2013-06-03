@@ -2,17 +2,53 @@
 
 {% block content %}
 <h1>Stars</h1>
-<ul>
-{% for star in stars %}
-<li>{{star.json()}} <a href="{{ url_for('delete_star', id=star.id) }}">Delete</a></li>
-{%endfor%}
-</ul>
+<table class="table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Message</th>
+            <th>Creator</th>
+            <th>Modified</th>
+            <th>Created</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+      {% for star in stars %}
+      <tr>
+        <td>{{ star.id }}</td>
+        <td>{{ star.text }}</td>
+        <td>{{ star.creator.username}}</td>
+        <td>{{ star.modified }}</td>
+        <td>{{ star.created}} </td>
+        <td><a class="btn" href="{{ url_for('delete_star', id=star.id) }}">Delete</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+</table>  
 
 <h1>Personas</h1>
-<ul>
-{% for persona in personas %}
-<li>{{persona.json()}}</li>
-{%endfor%}
-</ul>
+<table class="table">
+    <thead>
+        <tr>
+            <th>ID</id>
+            <th>Username</th>
+            <th>Email-Address</th>
+            <th>Modified</th>
+            <th>Private Key</th>
+        </tr>
+    </thead>
+    <tbody>
+      {% for persona in personas %}
+      <tr>
+        <td>{{ persona.id }}</td>
+        <td>{{ persona.username }}</td>
+        <td>{{ persona.email }}</td>
+        <td>{{ persona.modified }}</td>
+        <td>{% if persona.crypt_private %}<i class="icon-key"></i>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+</table>  
 
 {%endblock%}
