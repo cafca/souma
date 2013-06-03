@@ -14,7 +14,7 @@
     <div class="control-group {% if form.email.errors %}error{% endif %}">
         <div class="input-prepend input-append controls">
             <span class="add-on"><i class="icon-envelope"></i></span>
-            <input class="span2" name="email" type="text" placeholder="Email address">
+            {{form.email(placeholder="Email")}}
             <button class="btn" type="submit">Find</button>
         </div>
         {% if error %}
