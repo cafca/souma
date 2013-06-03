@@ -404,17 +404,16 @@ def find_people():
         # TODO: Use message_errors() instead
         if resp and resp['data'] and 'found' in resp['data']:
             found = resp['data']['found']
-            import pprint; pprint.pprint(found)
 
             for p in found:
                 if Persona.query.get(p['persona_id']) is None:
                     app.logger.info("Storing new Persona {}".format(p['persona_id']))
                     p_new = Persona(
-                        id=found['persona_id'],
-                        username=found['username'],
+                        id=p['persona_id'],
+                        username=p['username'],
                         email=email,
-                        crypt_public=found['crypt_public'],
-                        sign_public=found['sign_public'])
+                        crypt_public=p['crypt_public'],
+                        sign_public=p['sign_public'])
                     db.session.add(p_new)
                     db.session.commit()
         else:

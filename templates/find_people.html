@@ -30,22 +30,19 @@
 </section>
 
 {% if found %}
-<section class="col6 row1 w6 h2">
-    <table class="table">
+<section class="col6 row1 w5 h2">
+    <table class="table table-hover">
         <thead>
-            <tr>
-                <th></th>
-                <th>ID</id>
-                <th>Name</th>
-                <th></th>
-            </tr>
+            <tr><th colspan="2">Found {{found|length}} Personas</th></tr>
         </thead>
         <tbody>
             {% for p in found %}
             <tr>
-                <td><i class="icon-circle-blank"></i></td>
-                <td><{{p.persona_id|truncate(8, True, end="")}}></td>
-                <td>{{p.username}}</td>
+                <td><a href="{{ url_for('persona', id=p.persona_id) }}" class="btn btn-link">
+                    <i class="icon-circle-blank"></i>
+                    {{p.username}}
+                    <{{p.persona_id|truncate(8, True, end="")}}>
+                </a></td>
                 <td>
                     <form action="{{ url_for('add_contact', persona_id=p.persona_id)}}" method="POST">
                         <button class="btn btn-small" type="submit">Follow</button>
