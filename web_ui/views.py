@@ -377,6 +377,7 @@ def find_people():
     """Search for and follow people"""
     form = FindPeopleForm(request.form)
     found = None
+    error = None
 
     if request.method == 'POST' and form.validate():
         # Compile message
@@ -403,22 +404,23 @@ def find_people():
         # TODO: Use message_errors() instead
         if resp and resp['data'] and 'found' in resp['data']:
             found = resp['data']['found']
+            import pprint; pprint.pprint(found)
+
+            for p in found:
+                if Persona.query.get(p['persona_id']) is None:
+                    app.logger.info("Storing new Persona {}".format(p['persona_id']))
+                    p_new = Persona(
+                        id=found['persona_id'],
+                        username=found['username'],
+                        email=email,
+                        crypt_public=found['crypt_public'],
+                        sign_public=found['sign_public'])
+                    db.session.add(p_new)
+                    db.session.commit()
         else:
-            flash("No record for {}. Check the spelling!".format(email))
+            error = "No record for {}. Check the spelling!".format(email)
 
-        # Create persona for found contact
-        if found and Persona.query.get(found['persona_id']) is None:
-            app.logger.info("Storing new Persona {}".format(found['persona_id']))
-            p_new = Persona(
-                id=found['persona_id'],
-                username=found['username'],
-                email=email,
-                crypt_public=found['crypt_public'],
-                sign_public=found['sign_public'])
-            db.session.add(p_new)
-            db.session.commit()
-
-    return render_template('find_people.html', form=form, found=found)
+    return render_template('find_people.html', form=form, found=found, error=error)
 
 
 @app.route('/p/<persona_id>/add_contact', methods=['GET', "POST"])

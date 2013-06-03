@@ -1,17 +1,15 @@
 {% extends "base.html" %}
 
 {% block content %}
-<section class="col1 row1 w6 h2">
+<section class="col1 row w4 h4 well">
+&nbsp;
+</section>
+<section class="col1 row1 w4 h1">
     <h2>Find people you know</h2>
     <p>Please enter Email-Addresses of people you want to find.</p>
 </section>
 
-
-<section class="col1 row2 w6 h1">
-{% if error %}<p>{{ error }}</p>{% endif %}
-</section>
-
-<section class="col1 row3 w6 h4">
+<section class="col1 row3 w4 h2">
 <form method="POST" action="{{url_for('find_people')}}">
     <div class="control-group {% if form.email.errors %}error{% endif %}">
         <div class="input-prepend input-append controls">
@@ -19,8 +17,11 @@
             <input class="span2" name="email" type="text" placeholder="Email address">
             <button class="btn" type="submit">Find</button>
         </div>
+        {% if error %}
+        <p class="errors">{{ error }}</p>
+        {% endif %}
         {% if form.email.errors %}
-            <ul class="errors">{% for error in form.email.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+        <ul class="errors">{% for error in form.email.errors %}<li>{{ error }}</li>{% endfor %}</ul>
         {% endif %}
     </div>
 
@@ -29,11 +30,31 @@
 </section>
 
 {% if found %}
-<section class="col7 row3 w6 h2">
-    <h2>{{found.username}} [{{found.persona_id}}]</h2>
-    <form action="{{ url_for('add_contact', persona_id=found.persona_id)}}" method="POST">
-        <p><input type="submit" value="Add contact" /></p>
-    </form>
+<section class="col6 row1 w6 h2">
+    <table class="table">
+        <thead>
+            <tr>
+                <th></th>
+                <th>ID</id>
+                <th>Name</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in found %}
+            <tr>
+                <td><i class="icon-circle-blank"></i></td>
+                <td><{{p.persona_id|truncate(8, True, end="")}}></td>
+                <td>{{p.username}}</td>
+                <td>
+                    <form action="{{ url_for('add_contact', persona_id=p.persona_id)}}" method="POST">
+                        <button class="btn btn-small" type="submit">Follow</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </section>
 {% endif %}
 {% endblock %}
