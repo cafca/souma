@@ -28,7 +28,7 @@
     <!-- Controls -->
     <section class="col1 row4 w5 h2">
         <span class="pull-right">
-            <button type="submit" class="btn"><i class="icon-save"></i> Save Draft</button>
+            <button type="submit" class="btn" disabled="disabled"><i class="icon-save"></i> Save Draft</button>
             <div class="btn-group">
                 <button type="submit" class="btn">
                     <i class="icon-magic"></i>
@@ -39,7 +39,7 @@
                 </button>
                 <ul class="dropdown-menu">
                     {% for p in controlled_personas %}
-                    <li><i class="icon-user"></i> Switch to {{p.username}}</li>
+                    <li><i class="icon-user"></i> {{p.username}}</li>
                     {% endfor %}
                 </ul>
 
