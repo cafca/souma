@@ -10,8 +10,12 @@ _basedir = os.path.abspath(os.path.dirname(__file__))
 # This is the main Flask debug switch
 DEBUG = True
 USE_DEBUG_SERVER = False
-
 SEND_FILE_MAX_AGE_DEFAULT = 1
+# uploads are placed in the UPLOADS_DEFAULT_DEST/'attachments' subfolder by flask-uploads
+# this is configured in web_ui/__init__.py
+UPLOADS_DEFAULT_DEST = os.path.join(_basedir, "static")
+ALLOWED_EXTENSIONS = set(['txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'])
+
 
 # Setup host addresses
 if len(sys.argv) == 2:

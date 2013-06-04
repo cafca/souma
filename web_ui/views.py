@@ -1,14 +1,17 @@
+import os
 import datetime
 import requests
+import werkzeug
 
 from flask import abort, flash, json, redirect, render_template, request, session, url_for
+from flaskext import uploads
 from hashlib import sha256
 from operator import itemgetter
 
-from web_ui import app, cache, db, logged_in, notification_signals
+from web_ui import app, cache, db, logged_in, notification_signals, attachments
 from web_ui.forms import *
-from web_ui.helpers import get_active_persona
-from web_ui.models import Persona, Star
+from web_ui.helpers import get_active_persona, allowed_file
+from web_ui.models import Persona, Star, PicturePlanet
 from synapse.models import Message
 
 # Create blinker signal namespace
@@ -290,6 +293,26 @@ def create_star():
 
         flash('New star created!')
         app.logger.info('Created new star {}'.format(new_star.id))
+
+        if 'picture' in request.files:
+            # compute hash
+            picture_hash = sha256(request.files['picture'].stream.read()).hexdigest()
+            request.files['picture'].stream.seek(0)
+
+            # store file
+            app.logger.info("Storing submitted file")
+            filename = attachments.save(request.files['picture'], folder=picture_hash[:2], name=picture_hash[2:]+".")
+
+            # attach to star
+            planet = PicturePlanet(id=picture_hash[:32])
+            new_star.planets.append(planet)
+
+            # commit
+            db.session.add(planet)
+            db.session.add(new_star)
+            db.session.commit()
+            app.logger.info("Attached planet {} to new star".format(planet))
+
 
         # Create certificate
         data = dict({

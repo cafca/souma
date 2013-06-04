@@ -5,14 +5,17 @@
 <h2><i class="icon-magic"></i> Create Star</h2>
 </section>
 
-<form method="POST" action="{{url_for('create_star')}}">
+<form method="POST" action="{{url_for('create_star')}}" enctype="multipart/form-data">
     <!-- Main text field -->
     <section class="textarea card col0 row2 w5 h1">
+        <div class="sidenav">
+            {% if form.text.errors %}
+                {% for error in form.text.errors %}<small>{{ error }}</small>{% endfor %}
+            {% endif %}
+        </div>
+
         <div class="message_text_input">
         {{ form.text(placeholder="Enter your message") }}
-        {% if form.text.errors %}
-            <ul class="errors">{% for error in form.text.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-        {% endif %}
         </div>
         {{ form.csrf_token }}
     </section>
@@ -24,7 +27,7 @@
                 <div class="btn btn-file btn-small">
                     <span class="fileupload-new">Select image</span>
                     <span class="fileupload-exists">Change</span>
-                    <input type="file" />
+                    {{ form.picture() }}
                 </div>
                 <a href="#" class="btn  btn-small fileupload-exists" data-dismiss="fileupload">Remove</a>
             </div>
