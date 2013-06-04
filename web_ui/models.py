@@ -1,4 +1,5 @@
 import datetime
+import os
 
 from flask import url_for
 from hashlib import sha256
@@ -181,7 +182,7 @@ class PicturePlanet(Planet):
     """A Picture attachment"""
 
     id = db.Column(db.String(32), ForeignKey('planet.id'), primary_key=True)
-    original_filename = db.Column(db.Text)
+    filename = db.Column(db.Text)
 
     __mapper_args__ = {
         'polymorphic_identity': 'picture'
