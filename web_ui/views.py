@@ -304,7 +304,7 @@ def create_star():
             filename = attachments.save(request.files['picture'], folder=picture_hash[:2], name=picture_hash[2:]+".")
 
             # attach to star
-            planet = PicturePlanet(id=picture_hash[:32])
+            planet = PicturePlanet(id=picture_hash[:32], filename=os.path.join(attachments.name, filename))
             new_star.planets.append(planet)
 
             # commit
