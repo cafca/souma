@@ -1,3 +1,4 @@
+from web_ui import app
 from flask import session
 from datetime import datetime
 
@@ -42,3 +43,8 @@ def get_active_persona():
             session['active_persona'] = controlled_personas.first().id
 
     return session['active_persona']
+
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1] in app.config['ALLOWED_EXTENSIONS']

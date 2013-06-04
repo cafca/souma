@@ -37,6 +37,7 @@ nosetests.xml
 
 # Soma specific
 *.db
+static/attachments/*
 
 # Misc
 .DS_Store

@@ -177,14 +177,14 @@ class Planet(Serializable, db.Model):
     }
 
 
-class TextPlanet(Planet):
-    """A Text attachment"""
+class PicturePlanet(Planet):
+    """A Picture attachment"""
 
     id = db.Column(db.String(32), ForeignKey('planet.id'), primary_key=True)
-    content = db.Column(db.Text)
+    original_filename = db.Column(db.Text)
 
     __mapper_args__ = {
-        'polymorphic_identity': 'text'
+        'polymorphic_identity': 'picture'
     }
 
 

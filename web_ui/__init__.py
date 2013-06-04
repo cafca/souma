@@ -4,6 +4,7 @@ import sys
 from blinker import Namespace
 from flask import Flask
 from flask.ext.sqlalchemy import SQLAlchemy
+from flaskext import uploads
 from humanize import naturaltime
 from werkzeug.contrib.cache import SimpleCache
 
@@ -17,6 +18,10 @@ db = SQLAlchemy(app)
 
 # Setup Blinker namespace
 notification_signals = Namespace()
+
+# Setup attachment access
+attachments = uploads.UploadSet('attachments', uploads.IMAGES)
+uploads.configure_uploads(app, (attachments))
 
 # Setup loggers
 # Flask is configured to route logging events only to the console if it is in debug

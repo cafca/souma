@@ -1,4 +1,4 @@
-from flask.ext.wtf import Form, TextField, SelectField, Required, Email
+from flask.ext.wtf import Form, TextField, SelectField, FileField, Required, Email
 from flask.ext.wtf import widgets
 
 
@@ -14,6 +14,7 @@ class Create_star_form(Form):
     # TODO: Validate creator selection
     creator = SelectField('Creator', validators=[Required(), ])
     text = TextField('Content', validators=[Required(), ], widget=widgets.TextArea())
+    picture = FileField('Picture')
 
 
 class FindPeopleForm(Form):
