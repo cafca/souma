@@ -1,12 +1,20 @@
 {% extends "base.html" %}
 {% import "macros/star.html" as star_macros %}
+{% import "macros/planet.html" as planet_macros %}
 
 {% block content %}
 
 {% for star in stars %}
-<section class="{{ star[0] }}">
+{% for planet in star[1].planets %}
+<section class='{{ star[0] }}'>
+    {{ planet_macros.planet(planet, False)}}
+</section>
+{% endfor %}
+
+<section class="{%if star[1].planets|length() >= 1 %}image-overlay{% endif %} {{ star[0] }}">
     {{ star_macros.star(star[1]) }}
 </section>
+
 {% endfor %}
 
 {% endblock %}

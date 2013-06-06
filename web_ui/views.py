@@ -11,7 +11,7 @@ from operator import itemgetter
 from web_ui import app, cache, db, logged_in, notification_signals, attachments
 from web_ui.forms import *
 from web_ui.helpers import get_active_persona, allowed_file
-from web_ui.models import Persona, Star, PicturePlanet
+from web_ui.models import Persona, Star, Planet, PicturePlanet
 from synapse.models import Message
 
 # Create blinker signal namespace
@@ -294,21 +294,23 @@ def create_star():
         flash('New star created!')
         app.logger.info('Created new star {}'.format(new_star.id))
 
-        if 'picture' in request.files:
+        if 'picture' in request.files and request.files['picture'].filename != "":
             # compute hash
             picture_hash = sha256(request.files['picture'].stream.read()).hexdigest()
             request.files['picture'].stream.seek(0)
 
-            # store file
-            app.logger.info("Storing submitted file")
-            filename = attachments.save(request.files['picture'], folder=picture_hash[:2], name=picture_hash[2:]+".")
+            # create or get planet
+            planet = Planet.query.filter_by(id=picture_hash[:32]).first()
+            if not planet:
+                app.logger.info("Storing submitted file")
+                filename = attachments.save(request.files['picture'], folder=picture_hash[:2], name=picture_hash[2:]+".")
+                planet = PicturePlanet(id=picture_hash[:32], filename=os.path.join(attachments.name, filename))
+                db.session.add(planet)
 
             # attach to star
-            planet = PicturePlanet(id=picture_hash[:32], filename=os.path.join(attachments.name, filename))
             new_star.planets.append(planet)
 
             # commit
-            db.session.add(planet)
             db.session.add(new_star)
             db.session.commit()
             app.logger.info("Attached planet {} to new star".format(planet))

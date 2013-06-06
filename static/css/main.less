@@ -121,9 +121,11 @@ article {
                 font-size: (@font-size - 1)/16*1em;
                 line-height: ((@font-size - 1) * 1.5)/16*1em;
             }
+
+            .content img {display: none;}
         }
 
-        &.w5, &.w6 {
+        &.w5, &.w6, &.w7, &.w8 {
             .content {
                 font-size: (@font-size * 2.5)/16*1em;
                 line-height: 1em;
@@ -181,5 +183,56 @@ article {
             }
 
         }
+    }
+}
+
+.w3, .w4, .w5, .w6, .w7, .w8, .w9, .w10, .w11, .w12, .w13, .w14, .w15, .w16 {
+&.image-overlay {
+    background-color: none);
+    color: white;
+    transition: 1s;
+
+    &:hover {
+        background-color: rgba(0,0,0,0.15);
+
+        .meta a {
+            color: white;
+        }
+    }
+
+    .meta a {
+        display: inline;
+        color: #333;
+    }
+
+    // i + span:after { content:"\A"; white-space:pre; }
+
+    .attribute {
+        display: block;
+        // font-size: 200%;
+        margin: 0 0 0 6px;
+    }
+
+    .content {
+        padding: 6px 6px 0;
+    }
+    .meta {
+        padding: 0 6px;
+    }
+
+    .inline-semantic {
+        display: none;
+    }
+}
+}
+
+.imagewrap {
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    height: 100%;
+
+    img {
+        position: absolute;
     }
 }
