@@ -12,14 +12,20 @@
 </span>
 
 <span class="meta">
-    <span>
+    <span class="attribute">
         <i class="icon-asterisk"></i>
-        <a href="{{ url_for('star', id=star.id) }}" title="{{star.created}}">{{star.created|naturaltime}}</a> 
-        by 
+        <span class="caption">
+            <a href="{{ url_for('star', id=star.id) }}" title="{{star.created}}">{{star.created|naturaltime}}</a>
+        </span>
+    </span>
+
+    <span class="inline-semantic"> by </span>
+
+    <span class="attribute">
         <i class="icon-circle-blank"></i>
-        <a href="{{ url_for('persona', id=star.creator.id) }}">
-            {{ star.creator.username}}
-        </a>
+        <span class="caption">
+            <a href="{{ url_for('persona', id=star.creator.id) }}">{{ star.creator.username}}</a>
+        </span>
     </span>
 </span>
 {% endmacro %}

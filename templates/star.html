@@ -1,14 +1,21 @@
 {% extends "base.html" %}
 {% import "macros/star.html" as star_macros %}
+{% import "macros/planet.html" as planet_macros %}
 
 {% block content %}
+{% if star.planets|length() > 0 %}
 {% for planet in star.planets %}
-<section class="col1 row1 w6 h6">
-    <img src="{{ url_for('static', filename=planet.filename) }}" />
+<section class="col2 row1 w5 h7">
+    {{ planet_macros.planet(planet, True) }}
 </section>
 {% endfor %}
 
+<section class="col7 row1 w5 h2">
+    {{ star_macros.star(star) }}
+</section>
+{% else %}
 <section class="col1 row1 w6 h2">
     {{ star_macros.star(star) }}
 </section>
+{% endif %}
 {% endblock %}

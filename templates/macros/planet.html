@@ -1,0 +1,21 @@
+{% macro planet(planet, scale) %}
+{% if planet.kind == 'picture' %}
+<span class="content imagewrap">
+    <img src="{{ url_for('static', filename=planet.filename) }}" onload="OnImageLoad(event, {% if scale %}scale=true{%else%}scale=false{%endif%});"/>
+</span>
+{% elif planet.kind == 'link' %}
+<span class="content">
+    <a href="{{ planet.url }}" />
+</span>
+{% endif %}
+
+{% if planet.title %} 
+<span class="meta">
+    <span>
+        <a href="{{ url_for('star', id=planet.star.id) }}">
+            <h1>{{ planet.title }}</h1> 
+        </a>
+    </span>
+</span>
+{% endif %}
+{% endmacro %}

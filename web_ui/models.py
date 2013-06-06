@@ -136,9 +136,10 @@ class Star(Serializable, db.Model):
             self.creator_id = creator.id
 
     def __repr__(self):
+        ascii_text = self.text.encode('utf-8')
         return "<Star {}: {}>".format(
             self.creator_id[:6],
-            (self.text[:24] if len(self.text) <= 24 else self.text[:22] + ".."))
+            (ascii_text[:24] if len(ascii_text) <= 24 else ascii_text[:22] + ".."))
 
     def get_absolute_url(self):
         return url_for('star', id=self.id)
