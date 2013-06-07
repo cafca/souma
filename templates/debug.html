@@ -51,29 +51,4 @@
     </tbody>
 </table>  
 
-<h1>Planets</h1>
-<table class="table">
-    <thead>
-        <tr>
-            <th>ID</id>
-            <th>Title</th>
-            <th>Kind</th>
-            <th>Created</th>
-            <th>Modified</th>
-            <th>Source</th>
-        </tr>
-    </thead>
-    <tbody>
-      {% for planet in planets %}
-      <tr>
-        <td>{{ planet.id }}</td>
-        <td>{{ planet.kind }}</td>
-        <td>{{ planet.title }}</td>
-        <td>{{ planet.created }}</td>
-        <td>{{ planet.modified }}</td>
-        <td>{{ planet.source }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-</table>  
 {%endblock%}

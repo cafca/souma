@@ -4,8 +4,8 @@
     <img src="{{ url_for('static', filename=planet.filename) }}" onload="OnImageLoad(event, {% if scale %}scale=true{%else%}scale=false{%endif%});"/>
 </span>
 {% elif planet.kind == 'link' %}
-<span class="content link">
-    <a href="{{ planet.url }}" />{{planet.url}}</a>
+<span class="content">
+    <a href="{{ planet.url }}" />
 </span>
 {% endif %}
 
