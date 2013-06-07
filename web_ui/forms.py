@@ -1,5 +1,5 @@
-from flask.ext.wtf import Form, TextField, SelectField, FileField, Required, Email
-from flask.ext.wtf import widgets
+from flask.ext.wtf import Form, TextField, SelectField, FileField, Required, Email, url, widgets
+from flask.ext.wtf.html5 import URLField
 
 
 class Create_persona_form(Form):
@@ -15,6 +15,7 @@ class Create_star_form(Form):
     creator = SelectField('Creator', validators=[Required(), ])
     text = TextField('Content', validators=[Required(), ], widget=widgets.TextArea())
     picture = FileField('Picture')
+    link = URLField('Link', validators=[url()])
 
 
 class FindPeopleForm(Form):
