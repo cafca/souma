@@ -11,7 +11,7 @@ from operator import itemgetter
 from web_ui import app, cache, db, logged_in, notification_signals, attachments
 from web_ui.forms import *
 from web_ui.helpers import get_active_persona, allowed_file
-from web_ui.models import Persona, Star, Planet, PicturePlanet
+from web_ui.models import Persona, Star, Planet, PicturePlanet, LinkPlanet
 from synapse.models import Message
 
 # Create blinker signal namespace
@@ -304,7 +304,9 @@ def create_star():
             if not planet:
                 app.logger.info("Storing submitted file")
                 filename = attachments.save(request.files['picture'], folder=picture_hash[:2], name=picture_hash[2:]+".")
-                planet = PicturePlanet(id=picture_hash[:32], filename=os.path.join(attachments.name, filename))
+                planet = PicturePlanet(
+                    id=picture_hash[:32],
+                    filename=os.path.join(attachments.name, filename))
                 db.session.add(planet)
 
             # attach to star
@@ -315,6 +317,20 @@ def create_star():
             db.session.commit()
             app.logger.info("Attached planet {} to new star".format(planet))
 
+        if 'link' in request.form and request.form['link'] != "":
+            link_hash = sha256(request.form['link']).hexdigest()[:32]
+            planet = Planet.query.filter_by(id=link_hash).first()
+            if not planet:
+                app.logger.info("Storing new Link")
+                planet = LinkPlanet(
+                    id=link_hash,
+                    url=request.form['link'])
+                db.session.add(planet)
+
+            new_star.planets.append(planet)
+            db.session.add(new_star)
+            db.session.commit()
+            app.logger.info("Attached planet {} to new star".format(planet))
 
         # Create certificate
         data = dict({
@@ -376,6 +392,12 @@ def universe():
     pm = PageManager()
     page = pm.auto_layout(stars)
 
+    if len(persona_context()['controlled_personas'].all()) == 0:
+        return redirect(url_for('create_persona'))
+
+    if len(stars) == 0:
+        return redirect(url_for('create_star'))
+
     return render_template('universe.html', layout="sternenhimmel", stars=page)
 
 
@@ -393,8 +415,9 @@ def debug():
     """ Display raw data """
     stars = Star.query.all()
     personas = Persona.query.all()
+    planets = Planet.query.all()
 
-    return render_template('debug.html', stars=stars, personas=personas)
+    return render_template('debug.html', stars=stars, personas=personas, planets=planets)
 
 
 @app.route('/find-people', methods=['GET', 'POST'])
