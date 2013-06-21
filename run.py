@@ -3,6 +3,7 @@
 import gevent
 
 from web_ui import app, db
+from gevent.wsgi import WSGIServer
 from synapse.models import Starmap
 from synapse import Synapse
 from sqlalchemy.exc import OperationalError
@@ -24,13 +25,13 @@ else:
 
     # Synapse
     app.logger.info("Starting Synapses")
-    synapse = Synapse((app.config['LOCAL_HOSTNAME'], app.config['SYNAPSE_PORT']))
+    synapse = Synapse(('0.0.0.0', app.config['SYNAPSE_PORT']))
     synapse.start()
 
     # gevent server
     if not app.config['NO_UI']:
         app.logger.info("Starting Web-UI")
-        local_server = gevent.wsgi.WSGIServer(('', app.config['LOCAL_PORT']), app)
+        local_server = WSGIServer(('', app.config['LOCAL_PORT']), app)
         local_server.start()
 
     shutdown.wait()
