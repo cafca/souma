@@ -37,6 +37,8 @@ LOGIN_SERVER_PORT = "24500"
 #LOGIN_SERVER_HOST = "glia.herokuapp.com"
 #LOGIN_SERVER_PORT = "80"
 
+OPERATOR_ID = "operator"
+
 LOGIN_SERVER = "{}:{}".format(LOGIN_SERVER_HOST, LOGIN_SERVER_PORT)
 
 DATABASE = 'ark_{}.db'.format(LOCAL_PORT)

@@ -495,7 +495,11 @@ class Synapse(DatagramServer):
             port = address[1]
             if host and port:
                 self.peers[host] = port
-                self.message_pool.spawn(self.request_inventory, (host, port))
+                if p_id == app.config['OPERATOR_ID']:
+                    self.message_pool.spawn(self.request_inventory_operator, (host, port))
+                else:
+                    self.message_pool.spawn(self.request_inventory, (host, port))
+                    
             else:
                 app.logger.debug("No address for peer <{}>".format(p_id))
 
@@ -508,6 +512,13 @@ class Synapse(DatagramServer):
         self.logger.info("Requesting starmap from {}".format(self.source_format(address)))
         m = Message("starmap_request", data=None)
         self.message_pool.spawn(self.send_message, address, m)
+        
+    def request_inventory_operator(self, address):
+        """Request an starmap from the soma at address and reschedule the process in 180 seconds"""
+        self.logger.info("Requesting starmap from {}".format(self.source_format(address)))
+        m = Message("starmap_request", data=None)
+        self.message_pool.spawn(self.send_message, address, m)
+        self.message_pool.spawn_later(180, self.send_message, address, m)
 
     def login(self, persona):
         """ Create session at login server """
