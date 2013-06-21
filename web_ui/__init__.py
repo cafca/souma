@@ -1,5 +1,6 @@
 import logging
 import sys
+import argparse
 
 from blinker import Namespace
 from flask import Flask
@@ -12,6 +13,25 @@ from werkzeug.contrib.cache import SimpleCache
 app = Flask('soma')
 app.config.from_object("default_config")
 app.jinja_env.filters['naturaltime'] = naturaltime
+
+# Parse command line arguments
+parser = argparse.ArgumentParser(description='Start Soma client')
+parser.add_argument(
+    '--no_ui',
+    default=False,
+    action="store_true",
+    help="skip starting the web ui server")
+
+parser.add_argument(
+    '-p',
+    '--port',
+    default=app.config['LOCAL_PORT'],
+    type=int,
+    help='run synapse on this port')
+
+args = parser.parse_args()
+app.config['LOCAL_PORT'] = args.port
+app.config['NO_UI'] = args.no_ui
 
 # Setup SQLAlchemy database
 db = SQLAlchemy(app)
@@ -40,7 +60,7 @@ for l in loggers:
 # Log configuration info
 app.logger.info(
     "\n".join(["{:=^80}".format(" SOMA CONFIGURATION "),
-              "{:>12}: {}".format("web ui", app.config['LOCAL_ADDRESS']),
+              "{:>12}: {}".format("web ui", "disabled" if app.config['NO_UI'] else app.config['LOCAL_ADDRESS']),
               "{:>12}: {}:{}".format(
                   "synapse",
                   app.config['LOCAL_HOSTNAME'],
