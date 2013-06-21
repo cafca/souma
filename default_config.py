@@ -16,12 +16,7 @@ SEND_FILE_MAX_AGE_DEFAULT = 1
 UPLOADS_DEFAULT_DEST = os.path.join(_basedir, "static")
 ALLOWED_EXTENSIONS = set(['txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'])
 
-
-# Setup host addresses
-if len(sys.argv) == 2:
-    LOCAL_PORT = int(sys.argv[1])
-else:
-    LOCAL_PORT = 5000
+LOCAL_PORT = 5000
 
 # The "Local" server has the Web UI
 LOCAL_HOSTNAME = 'app.soma'

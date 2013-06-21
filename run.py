@@ -1,8 +1,9 @@
 #!/usr/bin/python
 
+import gevent
+
 from web_ui import app, db
 from synapse.models import Starmap
-from gevent.wsgi import WSGIServer
 from synapse import Synapse
 from sqlalchemy.exc import OperationalError
 
@@ -19,12 +20,17 @@ if app.config['USE_DEBUG_SERVER']:
     # flask development server
     app.run(app.config['LOCAL_HOSTNAME'], app.config['LOCAL_PORT'])
 else:
+    shutdown = gevent.event.Event()
+
     # Synapse
     app.logger.info("Starting Synapses")
     synapse = Synapse((app.config['LOCAL_HOSTNAME'], app.config['SYNAPSE_PORT']))
     synapse.start()
 
     # gevent server
-    app.logger.info("Starting Web-UI")
-    local_server = WSGIServer(('', app.config['LOCAL_PORT']), app)
-    local_server.serve_forever()
+    if not app.config['NO_UI']:
+        app.logger.info("Starting Web-UI")
+        local_server = gevent.wsgi.WSGIServer(('', app.config['LOCAL_PORT']), app)
+        local_server.start()
+
+    shutdown.wait()
