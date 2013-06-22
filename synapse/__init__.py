@@ -465,7 +465,8 @@ class Synapse(DatagramServer):
                 # n contains a json string
                 for n in notifications:
                     self.logger.info("Received notification message")
-                    self.handle_message(n, (app.config['LOGIN_SERVER_HOST'], app.config['LOGIN_SERVER_PORT']))
+                    # handle_message expects address as a 2-tuple, so the server address is splitted at ':'
+                    self.handle_message(n, app.config['LOGIN_SERVER'].split(":"))
 
             #self.logger.debug("[server] Received data: {}".format(resp))
             return (resp, error_strings)

@@ -25,16 +25,11 @@ LOCAL_ADDRESS = "{}:{}".format(LOCAL_HOSTNAME, LOCAL_PORT)
 MEMCACHED_ADDRESS = "{}:{}".format(LOCAL_HOSTNAME, 24000)
 SYNAPSE_PORT = LOCAL_PORT + 50
 
-LOGIN_SERVER_HOST = "app.soma"
-LOGIN_SERVER_PORT = "24500"
-
+LOGIN_SERVER = "app.soma:24500"
 # Uncomment this to use Heroku server
-#LOGIN_SERVER_HOST = "glia.herokuapp.com"
-#LOGIN_SERVER_PORT = "80"
+#LOGIN_SERVER = "glia.herokuapp.com:80"
 
 OPERATOR_ID = "operator"
-
-LOGIN_SERVER = "{}:{}".format(LOGIN_SERVER_HOST, LOGIN_SERVER_PORT)
 
 DATABASE = 'ark_{}.db'.format(LOCAL_PORT)
 SQLALCHEMY_DATABASE_URI = "sqlite:///" + DATABASE

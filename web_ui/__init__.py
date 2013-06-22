@@ -30,16 +30,15 @@ parser.add_argument(
     help='run synapse on this port')
 
 parser.add_argument(
-  '-g',
-  '--glia',
-  default=":".join([app.config['LOGIN_SERVER_HOST'], app.config['LOGIN_SERVER_PORT']]),
-  help="glia server")
+    '-g',
+    '--glia',
+    default=app.config['LOGIN_SERVER'],
+    help="glia server")
 
 args = parser.parse_args()
 app.config['LOCAL_PORT'] = args.port
 app.config['NO_UI'] = args.no_ui
-app.config['LOGIN_SERVER_HOST'] = args.glia.split(':')[0]
-app.config['LOGIN_SERVER_PORT'] = args.glia.split(':')[1]
+app.config['LOGIN_SERVER'] = args.glia
 
 # Setup SQLAlchemy database
 db = SQLAlchemy(app)
