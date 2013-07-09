@@ -1,5 +1,6 @@
 import json
 import datetime
+import logging
 
 from hashlib import sha256
 from keyczar.keys import AesKey
@@ -15,13 +16,15 @@ class Vesicle(object):
     Container for peer messages
     """
 
-    def __init__(self, message_type, data=None, cipher=None, signature=None, version=VESICLE_VERSION, reply_to=SYNAPSE_PORT):
+    def __init__(self, message_type, data=None, cipher=None, signature=None, created=None, version=VESICLE_VERSION, reply_to=SYNAPSE_PORT):
         self.message_type = message_type
         self.data = data
         self.cipher = cipher
-        self.created = None
-        self.send_attributes = ["message_type", "cipher", "data", "signature", "reply_to", "version"]
+        self.signature = signature
+        self.created = created
+        self.version = version
         self.reply_to = reply_to
+        self.send_attributes = ["message_type", "cipher", "data", "signature", "reply_to", "version"]
 
     def __str__(self):
         """
@@ -33,14 +36,14 @@ class Vesicle(object):
             if p:
                 author = p.username
             else:
-                author = author_id[:6]
+                author = self.author_id[:6]
         else:
             author = "anon"
         return "<vesicle {id}@{author}>".format(id=self.id[:6], author=author)
 
     def encrypt(self, author):
         """
-        Encrypt the vesicle's data field into the cipher field
+        Encrypt the vesicle's data field into the cipher field and set the data field to None
         """
 
         # Generate a string representation of the message data
@@ -57,6 +60,7 @@ class Vesicle(object):
 
         self.cipher = cipher
         self.author_id = author.id
+        self.data = None
 
     def encrypted(self):
         return self.cipher is not None
@@ -90,6 +94,34 @@ class Vesicle(object):
     def decrypted(self):
         return self.data is not None
 
+    def sign(self, author):
+        """
+        Sign a vesicle
+        """
+        if self.author_id is not None and self.author_id != author.id:
+            raise ValueError("Signing author {} does not match existing author {}".format(author, self.author_id[:6]))
+
+        if self.cipher is None:
+            self.cipher = json.dumps(self.data)
+
+        self.signature = author.sign(self.cipher)
+        self.author_id = author.id
+        self.send_attributes.extend(["signature", "author_id"])
+
+    def signed(self):
+        """
+        Return true if vesicle has a signature and it is valid
+        """
+
+        if not hasattr(self, "signature"):
+            return False
+
+        author = Persona.query.get(self.author_id)
+        if not author:
+            raise NameError("Signature of {} could not be verified: author not found.".format(self))
+
+        return author.verify(self.cipher, self.signature)
+
     def json(self):
         """
         Return JSON representation
@@ -114,5 +146,11 @@ class Vesicle(object):
             signature=msg["signature"],
             reply_to=msg["reply_to"],
             version=msg["version"])
+
+        try:
+            if vesicle.signature is not None and not vesicle.signed():
+                raise Exception("Invalid signature on {}".format(vesicle))
+        except NameError, e:
+            logging.warning(e)
 
         return vesicle
