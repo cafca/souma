@@ -9,8 +9,9 @@ from gevent import Greenlet
 from gevent.pool import Pool
 from gevent.server import DatagramServer
 from requests import ConnectionError
-from web_ui import app, db, notification_signals
-from web_ui.models import Persona, Star
+from web_ui import app, db
+from nucleus import notification_signals
+from nucleus.models import Persona, Star
 from synapse.models import Message, Starmap, Orb
 
 

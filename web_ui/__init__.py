@@ -2,7 +2,6 @@ import logging
 import sys
 import argparse
 
-from blinker import Namespace
 from flask import Flask
 from flask.ext.sqlalchemy import SQLAlchemy
 from flaskext import uploads
@@ -42,9 +41,6 @@ app.config['LOGIN_SERVER'] = args.glia
 
 # Setup SQLAlchemy database
 db = SQLAlchemy(app)
-
-# Setup Blinker namespace
-notification_signals = Namespace()
 
 # Setup attachment access
 attachments = uploads.UploadSet('attachments', uploads.IMAGES)

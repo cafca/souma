@@ -30,6 +30,12 @@
             <i class="icon-link"></i>
         </div>
 
+        <div class="sidenav">
+            {% if form.link.errors %}
+                {% for error in form.link.errors %}<small>{{ error }}</small>{% endfor %}
+            {% endif %}
+        </div>
+
         <div class="fullsize-input">
             {{ form.link(default='Enter a URL', disabled='disabled') }}
         </div>

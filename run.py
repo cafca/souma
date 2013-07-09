@@ -28,7 +28,7 @@ else:
     synapse = Synapse(('0.0.0.0', app.config['SYNAPSE_PORT']))
     synapse.start()
 
-    # gevent server
+    # Web UI
     if not app.config['NO_UI']:
         app.logger.info("Starting Web-UI")
         local_server = WSGIServer(('', app.config['LOCAL_PORT']), app)

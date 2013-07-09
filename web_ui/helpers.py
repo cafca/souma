@@ -31,7 +31,7 @@ def score(star_object):
 
 
 def get_active_persona():
-    from web_ui.models import Persona
+    from nucleus.models import Persona
     """ Return the currently active persona or 0 if there is no controlled persona. """
 
     if 'active_persona' not in session or session['active_persona'] is None:

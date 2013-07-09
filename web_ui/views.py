@@ -1,17 +1,16 @@
 import os
 import datetime
 import requests
-import werkzeug
 
 from flask import abort, flash, json, redirect, render_template, request, session, url_for
-from flaskext import uploads
 from hashlib import sha256
 from operator import itemgetter
 
-from web_ui import app, cache, db, logged_in, notification_signals, attachments
+from web_ui import app, cache, db, logged_in, attachments
 from web_ui.forms import *
-from web_ui.helpers import get_active_persona, allowed_file
-from web_ui.models import Persona, Star, Planet, PicturePlanet, LinkPlanet
+from web_ui.helpers import get_active_persona
+from nucleus import notification_signals
+from nucleus.models import Persona, Star, Planet, PicturePlanet, LinkPlanet
 from synapse.models import Message
 
 # Create blinker signal namespace
@@ -166,7 +165,6 @@ def logout():
 
 @app.route('/setup', methods=['GET', 'POST'])
 def setup():
-    import os
     from Crypto.Protocol.KDF import PBKDF2
     from hashlib import sha256
 

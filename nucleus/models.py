@@ -199,17 +199,3 @@ class LinkPlanet(Planet):
     __mapper_args__ = {
         'polymorphic_identity': 'link'
     }
-
-
-class Notification(db.Model):
-    """Represents a stored notification to the user"""
-    id = db.Column(db.String(32), primary_key=True)
-    kind = db.Column(db.String(32))
-    created = db.Column(db.DateTime, default=datetime.datetime.now())
-    to_persona_id = db.Column(db.String(32))
-
-    def __init__(self, kind, to_persona_id):
-        from uuid import uuid4
-        self.id = uuid4().hex
-        self.kind = kind
-        self.to_persona_id = to_persona_id

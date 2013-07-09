@@ -3,7 +3,7 @@ import logging
 
 from flask import json
 from web_ui import app, db
-from web_ui.models import Persona, Star
+from nucleus.models import Persona, Star
 
 
 class Message(object):
