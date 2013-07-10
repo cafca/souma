@@ -15,7 +15,6 @@ class Synapse(gevent.server.DatagramServer):
     """
 
     self.peers = dict()  # Contains addresses of online peers as peer_id: (host,port)
-    self.sessions = dict()
 
     def __init__(self, address):
         DatagramServer.__init__(self, address)

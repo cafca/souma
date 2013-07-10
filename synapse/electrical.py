@@ -52,19 +52,33 @@ class ElectricalSynapse(object):
         """
         pass
 
-    def login(self, persona):
+    def find_persona(self, hashed_addresses):
+        """
+        Find personas by their email address
+
+        @param hashed_addresses A list of SHA256-hashed email addresses
+        """
+        pass
+
+    def persona_info(self, persona_id):
+        """
+        Return a dictionary containing info about @param persona_id
+        """
+        pass
+
+    def persona_login(self, persona):
         """
         Login a persona on the server, register if not existing
         """
         pass
 
-    def logout(self, persona):
+    def persona_logout(self, persona):
         """
         Terminate persona's session on the host
         """
         pass
 
-    def register(self, persona):
+    def persona_register(self, persona):
         """
         Register a persona on the server
         """
@@ -75,9 +89,9 @@ class ElectricalSynapse(object):
         Terminate connections and logout
         """
 
-    def update_peer_list(self, persona):
+    def peerinfo(self, persona_list):
         """
-        Retrieve current addresses of persona's peers from the server
+        Returns a dictionary containing addresses of each of persona list
         """
         pass
 
