@@ -29,12 +29,12 @@ class Vesicle(object):
         self.keycrypt = keycrypt
         self.enc = enc
         self.reply_to = reply_to
-        self.send_attributes = ["message_type", "payload", "data", "signature", "reply_to", "enc"]
+        self.send_attributes = {"message_type", "payload", "reply_to", "enc"}
         self._hashcode = None
 
     def __str__(self):
         """
-        Return string identified
+        Return string identifier
         """
 
         if hasattr(self, "author_id"):
@@ -47,9 +47,12 @@ class Vesicle(object):
             author = "anon"
         return "<vesicle {id}@{author}>".format(id=self.id[:6], author=author)
 
-    def encrypt(self, author):
+    def encrypt(self, author, recipients):
         """
         Encrypt the vesicle's data field into the payload field and set the data field to None
+
+        @param author The persona whose encrypting key is used
+        @param recipients A list of recipient personas who will be added to the keycrypt
         """
 
         # Generate a string representation of the message data
@@ -68,17 +71,25 @@ class Vesicle(object):
         self.data = None
         self.author_id = author.id
         self.enc = self.enc.split("-")[0] + "-AES" + AES_BYTES
+        self.send_attributes.union({"author_id", "keycrypt"})
+
+        for r in recipients:
+            self.add_recipient(r)
 
     def encrypted(self):
         return self.payload is not None and self.enc.split("-")[1] != "plain"
 
     def decrypt(self, reader_persona):
         """
-        Decrypt the vesicle's payload field into the data field
+        Decrypt the vesicle's payload field into the data field.
+
+        This method does not remove the ciphertext from the payload field, so that encrypted() still returns True.
+
+        @param reader_persona Persona instance used to retrieve the hash key
         """
 
         if not self.encrypted():
-            raise ValueError("Vesicle {} can't be decrypted: Already plaintext.".format(self))
+            raise ValueError("Can't decrypt {}: Already plaintext.".format(self))
 
         author = Persona.query.get(self.author_id)
         if not author:
@@ -108,6 +119,8 @@ class Vesicle(object):
     def sign(self, author):
         """
         Sign a vesicle
+
+        @param author Persona instance used to created the signature
         """
 
         if self.author_id is not None and self.author_id != author.id:
@@ -120,7 +133,7 @@ class Vesicle(object):
 
         self.signature = author.sign(self.payload)
         self.author_id = author.id
-        self.send_attributes.extend(["signature", "author_id"])
+        self.send_attributes.union({"signature", "author_id"})
 
     def signed(self):
         """
@@ -136,9 +149,11 @@ class Vesicle(object):
 
         return author.verify(self.payload, self.signature)
 
-    def add_recipient(self, persona):
+    def add_recipient(self, recipient):
         """
         Add a persona to the keycrypt
+
+        @param recipient Persona instance to be added
         """
         if not self.encrypted():
             raise Exception("Can not add recipients to plaintext vesicles")
@@ -146,20 +161,22 @@ class Vesicle(object):
         if not self.decrypted():
             raise Exception("Vesicle must be decrypted for adding recipients")
 
-        if persona.id in self.keycrypt.keys():
-            raise KeyError("Persona {} is already a recipient of {}".format(persona, self))
+        if recipient.id in self.keycrypt.keys():
+            raise KeyError("Persona {} is already a recipient of {}".format(recipient, self))
 
         if not self._hashcode:
             raise KeyError("Hashcode not found")
 
-        key = persona.encrypt(self._hashcode)
-        self.keycrypt[persona.id] = key
+        key = recipient.encrypt(self._hashcode)
+        self.keycrypt[recipient.id] = key
 
-    def remove_recipient(self, persona):
+    def remove_recipient(self, recipient):
         """
         Remove a persona from the keycrypt
+
+        @param recipient Persona instance to be removed from the keycrypt
         """
-        del self.keycrypt[persona.id]
+        del self.keycrypt[recipient.id]
 
     def json(self):
         """
@@ -176,6 +193,8 @@ class Vesicle(object):
     def read(data):
         """
         Create a vesicle instance from its JSON representation
+
+        @param data JSON representation obtained from a vesicle instance's json() method
         """
 
         msg = json.loads(data)
