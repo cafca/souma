@@ -3,9 +3,8 @@ from web_ui.helpers import get_active_persona
 
 class Word(Serializable, db.Model):
 	__tablename__ = "words"
-	id = db.Column(db.Integer, primary_key=True, nullable=False, autoincrement=True)
-	persona = db.Column(db.String(32), db.ForeignKey('persona.id'), primary_key=True, nullable=False, autoincrement=False)
-	word = db.Column(db.String(32))
+	word = db.Column(db.String(32), , primary_key=True)
+	persona = db.Column(db.String(32), db.ForeignKey('persona.id'), primary_key=True)
 	collection_id = db.Column(db.Integer, db.ForeignKey('word_collections.id'))
 
 	def create_word():
@@ -14,7 +13,7 @@ class Word(Serializable, db.Model):
 class Word_Collection(Serializable, db.Model):
 	__tablename__ = "word_collections"
 	id = db.Column(db.Integer, primary_key=True, nullable=False, autoincrement=True)
-	persona = db.Column(db.String(32), db.ForeignKey('persona.id'), primary_key=True, nullable=False, autoincrement=False)
+	persona = db.Column(db.String(32), db.ForeignKey('persona.id'), primary_key=True)
 
 	def create_collection():
 		pass
@@ -33,17 +32,15 @@ class Word_Collection(Serializable, db.Model):
 
 class Word_under_Tag_Count(Serializable, db.Model):
 	__tablename__ = "word_under_tag_counts"
-    id = db.Column(db.Integer, primary_key=True)
-    persona = db.Column(db.String(32), db.ForeignKey('persona.id'), primary_key=True, nullable=False, autoincrement=False)
-    collection_id = db.Column(db.Integer, db.ForeignKey('word_collections.id'))
-    tag_id = db.Column(db.Integer, db.ForeignKey('tags.id'))
+    persona = db.Column(db.String(32), db.ForeignKey('persona.id'), primary_key=True)
+    collection_id = db.Column(db.Integer, db.ForeignKey('word_collections.id'), primary_key=True, nullable=False, autoincrement=False)
+    tag_id = db.Column(db.Integer, db.ForeignKey('tags.id'), primary_key=True, nullable=False, autoincrement=False)
     count = db.Column(db.Integer)
 
 class Tag(Serializable, db.Model):
 	__tablename__ = "tags"
-	id = db.Column(db.Integer, primary_key=True, nullable=False, autoincrement=True)
-	persona = db.Column(db.String(32), db.ForeignKey('persona.id'), primary_key=True, nullable=False, autoincrement=False)
-	word_collection_id = db.Column(db.Integer, db.ForeignKey('word_collections.id'))
+	persona = db.Column(db.String(32), db.ForeignKey('persona.id'), primary_key=True)
+	word_collection_id = db.Column(db.Integer, db.ForeignKey('word_collections.id'), primary_key=True, nullable=False, autoincrement=True)
 	count = db.Column(db.Integer)
 
 	def create_tag():
@@ -55,8 +52,8 @@ class Tag(Serializable, db.Model):
 	def get_count():
 		pass
 
-class Naive_Bayes_Model(Serializable, db.Model):
+class Naive_Bayes_Tag_Model(Serializable, db.Model):
 	__tablename__ = "naive_bayes_model"
-	id = db.Column(db.Integer, primary_key=True, nullable=False, autoincrement=True)
-	persona = db.Column(db.String(32), db.ForeignKey('persona.id'), primary_key=True, nullable=False, autoincrement=False)
+	persona = db.Column(db.String(32), db.ForeignKey('persona.id'), primary_key=True)
+	tag_id = db.Column(db.Integer, db.ForeignKey(tags.id))
 	model = db.Column(db.PickleType)
