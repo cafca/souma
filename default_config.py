@@ -47,7 +47,7 @@ except IOError:
 if len(SECRET_KEY) != 24:
     raise ValueError('Secret key not valid ({}). Try deleting the file "secretkey".'.format(SECRET_KEY))
 
-SOMA_ID = SHA256.new(SECRET_KEY+str(LOCAL_PORT)).hexdigest()
+SOMA_ID = SHA256.new(SECRET_KEY+str(LOCAL_PORT)).hexdigest()[:32]
 
 if 'SOMA_PASSWORD_HASH_{}'.format(LOCAL_PORT) in os.environ:
     PASSWORD_HASH = os.environ['SOMA_PASSWORD_HASH_{}'.format(LOCAL_PORT)]

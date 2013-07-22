@@ -428,12 +428,6 @@ def find_people():
     if request.method == 'POST' and form.validate():
         # Compile message
         email = request.form['email']
-        email_hash = sha256(email).hexdigest()
-        app.logger.info("Searching for {}".format(email))
-        data = {
-            "email_hash": email_hash
-        }
-        message = Message(message_type='find_people', data=data)
 
         # Send message
         headers = {"Content-Type": "application/json"}

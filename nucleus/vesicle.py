@@ -20,17 +20,19 @@ class Vesicle(object):
 
     """
 
-    def __init__(self, message_type, data=None, payload=None, signature=None, created=None, keycrypt=None, enc=DEFAULT_ENCODING, reply_to=SYNAPSE_PORT):
-        self.message_type = message_type
-        self.data = data
-        self.payload = payload
-        self.signature = signature
-        self.created = created
-        self.keycrypt = keycrypt
-        self.enc = enc
-        self.reply_to = reply_to
-        self.send_attributes = {"message_type", "payload", "reply_to", "enc"}
+    def __init__(self, message_type, data=None, payload=None, signature=None, created=None, keycrypt=None, enc=DEFAULT_ENCODING, reply_to=SYNAPSE_PORT, soma_id=app.config["SOMA_ID"]):
+        
         self._hashcode = None
+        self.created = created
+        self.data = data
+        self.enc = enc
+        self.keycrypt = keycrypt
+        self.message_type = message_type
+        self.payload = payload
+        self.reply_to = reply_to
+        self.send_attributes = {"message_type", "payload", "reply_to", "enc", "soma_id"}
+        self.signature = signature
+        self.soma_id = soma_id
 
     def __str__(self):
         """
@@ -45,7 +47,7 @@ class Vesicle(object):
                 author = self.author_id[:6]
         else:
             author = "anon"
-        return "<vesicle {id}@{author}>".format(id=self.id[:6], author=author)
+        return "<vesicle {type}-{id}@{author}>".format(type=self.message_type, id=self.id[:6], author=author)
 
     def encrypt(self, author, recipients):
         """
@@ -203,14 +205,18 @@ class Vesicle(object):
         if version != VESICLE_VERSION:
             raise ValueError("Unknown protocol version: {} \nExpecting: {}".format(version, VESICLE_VERSION))
 
-        vesicle = Vesicle(
-            message_type=msg["message_type"],
-            payload=msg["payload"],
-            signature=msg["signature"],
-            keycrypt=msg["keycrypt"],
-            created=msg["created"],
-            reply_to=msg["reply_to"],
-            enc=msg["enc"])
+        try:
+            vesicle = Vesicle(
+                message_type=msg["message_type"],
+                payload=msg["payload"],
+                signature=msg["signature"],
+                keycrypt=msg["keycrypt"],
+                created=msg["created"],
+                reply_to=msg["reply_to"],
+                enc=msg["enc"])
+        except KeyError, e:
+            self.logger.error("Vesicle malformed: missing key\n{}".format(e))
+            return None
 
         # Verify signature
         try:
