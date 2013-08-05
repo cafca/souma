@@ -6,6 +6,8 @@ This product includes software developed at the Institute for Cognitive Science 
 Souma is making use of the following open source software projects:
 (see the /licenses directory for the full text of their respective licenses)
 
+* Altgraph (c) 2004 Istvan Albert unless otherwise noted, licensed under the MIT license
+* Async (c) 2010, 2011 Sebastian Thiel and contributors, licensed under the BSD license
 * Blinker (c) the Blinker authors and contributors, licensed under the MIT license
 * Flask 2013 by Armin Ronacher and contributors, licensed under the Flask license
 * Flask-Uploads (c) 2010 Matthew "LeafStorm" Frazier, licensed under the MIT license
@@ -17,14 +19,15 @@ Souma is making use of the following open source software projects:
 * Jinja 2 (c) 2009 by the Jinja Team, licensed under the BSD license
 * Macholib (c) Ronald Oussoren, licensed under the MIT license
 * Modulegraph (c) Ronald Oussoren, licensed under the MIT license
-* Padding, SQLAlchemy, PyYAML, altgraph, async, py2app
+* Padding by Peio Popov (in the public domain)
 * pyasn1 (c) 2005-2009 Ilya Etingof <ilya@glas.net>, all rights reserved,, licensed under the BSD license
-* pycrypto by Dwayne C. Litzenberger
+* pycrypto by Dwayne C. Litzenberger (in the public domain)
 * python-dateutil (c) unknown, licensed under the Simplified BSD license
-* python-keyczar (c) Arkajit Dey, licensed under the Apache License
+* python-keyczar (c) Arkajit Dey, licensed under the Apache2 License
 * requests (c) 2013 Kenneth Reitz, licensed under the Apache2 License
-* six (c) 2013 Benjamin Peterson
+* six (c) 2010-2013 Benjamin Peterson, licensed under the MIT license
 * smmap (c) ,licensed under the new BSD license
+* SQLAlchemy (c) SQLAlchemy authors and contributors, licensed under the MIT license
 * umemcache (c) Jonas Tarnstrom, licensed under the BSD license
 * WTForms (c) 2010 by Thomas Johansson, James Crasta and others, licensed under the BSD license
 * Werkzeug (c) 2011 by the Werkzeug Team, licensed under the BSD license

@@ -5,8 +5,8 @@ Souma is a peer to peer cognitive network, it allows communication and collabora
 
 Development Status
 ====
-Souma is currently in beta status. That means it should be expected to break and functionality is quite limited as development is currently concentrated on laying a groundwork in sensible protocols and APIs.
+Souma is currently in beta status. That means it should be expected to break and functionality is quite limited. Development is currently focussed on laying a groundwork in sensible protocols and APIs. 
 
 License
 ====
-Souma is licensed under the Apache2 license. See LICENSE.txt and NOTICE.txt for details.
+Souma is licensed under the Apache2 license. See LICENSE, NOTICE and the licenses/ folder for details.
