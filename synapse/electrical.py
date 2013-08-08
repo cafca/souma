@@ -3,6 +3,7 @@ import logging
 import requests
 
 from nucleus import notification_signals
+from nucleus.models import Persona
 from web_ui import app
 
 API_VERSION = 0
@@ -19,22 +20,26 @@ class ElectricalSynapse(object):
         self.logger.setLevel(app.config['LOG_LEVEL'])
 
         # Core setup
-        self.host = "http://{host}/".format(host=host)
+        self.host = "http://{host}".format(host=host)
         self.session = requests.Session()
         self._peers = dict()
+        self._sessions = dict()
 
         # Setup signals
         self.soma_discovered = notification_signals.signal('soma-discovered')
+        notification_signals.signal('persona-created').connect(self.on_persona_created)
+        notification_signals.signal('persona-modified').connect(self.on_persona_modified)
+        notification_signals.signal('persona-deleted').connect(self.on_persona_deleted)
 
         # Test connection to glia-server
         try:
             self.session.get(self.host)
         except requests.ConnectionError, e:
-            self.logger.error("Could not establish connection to glia server\n - {}".format(e))
+            self.logger.error("Could not establish connection to glia server\n* {}".format(e))
             quit()
 
         # Login all owned personas
-        self._login_all()
+        self.login_all()
 
     def _get_session(self, persona):
         """
@@ -128,37 +133,36 @@ class ElectricalSynapse(object):
             [1] (list) A list of error strings specified in the `errors` field of the response
         """
         # Validate params
-        errors = list()
+        HTTP_METHODS_1 = ("GET", "DELETE")
+        HTTP_METHODS_2 = ("POST", "PUT", "PATCH")  # have `data` parameter
 
-        HTTP_METHODS = ("GET", "POST", "PUT", "UPDATE", "DELETE")
-        if method not in HTTP_METHODS:
-            errors.append("Invalid request method {}".form(method))
+        if method not in HTTP_METHODS_1 and method not in HTTP_METHODS_2:
+            raise ValueError("Invalid request method {}".form(method))
 
-        if payload:
-            try:
-                payload = json.encode(payload)
-            except ValueError, e:
-                errors.append("Error encoding payload: {}".format(e))
+        if payload and not isinstance(payload, dict):
+            raise ValueError("Payload must be a dictionary type")
 
-        url = "/".join(self.host, API_VERSION, endpoint)
+        # Construct URL
+        url_elems = [self.host, str(API_VERSION)]
+        url_elems.extend(endpoint)
+        url = "/".join(url_elems)
 
         # Make request
-        headers = None
-        if payload:
-            headers = {'Content-Type': "application/json"}
+        errors = list()
+        call = getattr(self.session, method.lower())
+        try:
+            if method in HTTP_METHODS_1:
+                r = call(url, params=params)
+            else:
+                r = call(url, payload, headers={'Content-Type': "application/json"}, params=params)
+            r.raise_for_status()
+        except requests.exceptions.RequestException, e:
+            errors.append(e)
 
-        if not errors:
-            call = getattr(self.session, method.lower())
-            try:
-                r = call(url, payload, headers=headers, params=params)
-                r.raise_for_status()
-            except requests.exceptions.RequestException, e:
-                errors.append(e)
-
-        # Log errors
+        # Log all errors
         if errors:
-            self.logger.error("{} {} failed.\nParam:{}\nPayload:{}\nErrors:\n{}".format(
-                method, endpoint, params, payload, "\n* ".join(errors)))
+            raise requests.exceptions.RequestException("{} {} failed.\nParam: {}\nPayload: {}\nErrors:\n* {}".format(
+                method, endpoint, params, payload, "\n* ".join(str(e) for e in errors)))
 
         # Parse JSON, extract errors
         else:
@@ -204,10 +208,10 @@ class ElectricalSynapse(object):
         for p_id, somas in resp['peer_list']:
             if somas:
                 for soma in somas:
-                    self.soma_discovered.send(self._update_peer_list, soma)
+                    self.soma_discovered.send(self._update_peer_list, message=soma)
             else:
                 offline += 1
-                self.logger.info("No address found for {}".format(contacts.get(p_id)))
+                self.logger.info("No online souma found for {}".format(contacts.get(p_id)))
 
         self.logger.info("Updated peer list: {}/{} online".format(len(resp)-offline, len(resp)))
 
@@ -254,8 +258,20 @@ class ElectricalSynapse(object):
             self.logger.warning("No controlled Persona found.")
         else:
             for p in persona_set:
-                self.login(p)
+                self.persona_login(p)
                 self.update_peer_list(p)
+
+    def on_persona_created(self, sender, message):
+        """Register new personas with glia-server"""
+        pass
+
+    def on_persona_modified(self, sender, message):
+        """Update persona info on glia-server when changed"""
+        pass
+
+    def on_persona_deleted(self, sender, message):
+        """Delete persona from glia-server"""
+        pass
 
     def persona_info(self, persona_id):
         """

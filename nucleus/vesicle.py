@@ -4,9 +4,10 @@ import logging
 
 from hashlib import sha256
 from keyczar.keys import AesKey
-from web_ui.models import Persona
 
-VESICLE_VERSION = 0.1
+from web_ui import app
+
+VESICLE_VERSION = "0.1"
 DEFAULT_ENCODING = VESICLE_VERSION + "-plain"
 SYNAPSE_PORT = None
 AES_BYTES = 256
@@ -21,7 +22,7 @@ class Vesicle(object):
     """
 
     def __init__(self, message_type, data=None, payload=None, signature=None, created=None, keycrypt=None, enc=DEFAULT_ENCODING, reply_to=SYNAPSE_PORT, soma_id=app.config["SOMA_ID"]):
-        
+
         self._hashcode = None
         self.created = created
         self.data = data
@@ -30,7 +31,7 @@ class Vesicle(object):
         self.message_type = message_type
         self.payload = payload
         self.reply_to = reply_to
-        self.send_attributes = {"message_type", "payload", "reply_to", "enc", "soma_id"}
+        self.send_attributes = ("message_type", "payload", "reply_to", "enc", "soma_id")
         self.signature = signature
         self.soma_id = soma_id
 
@@ -38,6 +39,7 @@ class Vesicle(object):
         """
         Return string identifier
         """
+        from nucleus.models import Persona
 
         if hasattr(self, "author_id"):
             p = Persona.query.get(self.author_id)
@@ -47,7 +49,7 @@ class Vesicle(object):
                 author = self.author_id[:6]
         else:
             author = "anon"
-        return "<vesicle {type}-{id}@{author}>".format(type=self.message_type, id=self.id[:6], author=author)
+        return "<vesicle {type}@{author}>".format(type=self.message_type, author=author)
 
     def encrypt(self, author, recipients):
         """
@@ -56,6 +58,10 @@ class Vesicle(object):
         @param author The persona whose encrypting key is used
         @param recipients A list of recipient personas who will be added to the keycrypt
         """
+
+        # Validate state
+        if self.data == "" or self.data is None:
+            raise ValueError("Cannot encrypt empty vesicle {} (empty data field)".format(self))
 
         # Generate a string representation of the message data
         data = json.encode(self.data)
@@ -90,8 +96,9 @@ class Vesicle(object):
         @param reader_persona Persona instance used to retrieve the hash key
         """
 
+        # Validate state
         if not self.encrypted():
-            raise ValueError("Can't decrypt {}: Already plaintext.".format(self))
+            raise ValueError("Cannot decrypt {}: Already plaintext.".format(self))
 
         author = Persona.query.get(self.author_id)
         if not author:
@@ -100,6 +107,7 @@ class Vesicle(object):
         if not reader_persona.id in self.keycrypt.keys():
             raise KeyError("No key found decrypting {} for {}".format(self, reader_persona))
 
+        # Retrieve hashcode
         if self._hashcode:
             h = self._hashcode
         else:

@@ -11,7 +11,7 @@ from web_ui.forms import *
 from web_ui.helpers import get_active_persona
 from nucleus import notification_signals
 from nucleus.models import Persona, Star, Planet, PicturePlanet, LinkPlanet
-from synapse.models import Message
+from nucleus.vesicle import Vesicle
 
 # Create blinker signal namespace
 star_created = notification_signals.signal('star-created')
@@ -35,7 +35,7 @@ class PageManager():
         # gives the best score
         layout_scores = dict()
         for layout in self.layouts:
-            print("\nLayout: {}".format(layout['name']))
+            # print("\nLayout: {}".format(layout['name']))
             layout_scores[layout['name']] = 0
 
             for i, star_cell in enumerate(layout['stars']):
@@ -45,8 +45,8 @@ class PageManager():
 
                 cell_score = self._cell_score(star_cell)
                 layout_scores[layout['name']] += star.hot() * cell_score
-                print("{}\t{}\t{}".format(star, star.hot() * cell_score, cell_score))
-            print("Score: {}".format(layout_scores[layout['name']]))
+                # print("{}\t{}\t{}".format(star, star.hot() * cell_score, cell_score))
+            # print("Score: {}".format(layout_scores[layout['name']]))
 
         # Select best layout
         selected_layouts = sorted(
@@ -62,7 +62,7 @@ class PageManager():
             if layout['name'] == selected_layouts[0][0]:
                 break
 
-        print("Chosen {}".format(layout))
+        # print("Chosen {}".format(layout))
 
         # Create list of elements in layout
         page = list()
@@ -239,8 +239,7 @@ def create_persona():
             "change_time": p.modified.isoformat()
         })
 
-        message = Message(message_type="change_notification", data=data)
-        persona_created.send(create_persona, message=message)
+        persona_created.send(create_persona, message=p)
 
         flash("New persona {} created!".format(p.username))
         return redirect(url_for('persona', id=uuid))
@@ -338,9 +337,6 @@ def create_star():
             "change_time": new_star.modified.isoformat()
         })
 
-        message = Message(message_type="change_notification", data=data)
-        message.sign(new_star.creator)
-
         star_created.send(create_star, message=new_star)
 
         return redirect(url_for('star', id=uuid))
@@ -367,16 +363,12 @@ def delete_star(id):
         "change_time": datetime.datetime.now().isoformat()
     })
 
-    message = Message(message_type="change_notification", data=json.dumps(data))
-    if s.creator.sign_private is not None:
-        message.sign(s.creator)
+    # Distribute deletion request
+    star_deleted.send(delete_star, message=s)
 
     # Delete instance from db
     db.session.delete(s)
     db.session.commit()
-
-    # Distribute deletion request
-    star_deleted.send(delete_star, message=message)
 
     app.logger.info("Deleted star {}".format(id))
 

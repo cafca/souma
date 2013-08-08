@@ -2,12 +2,16 @@ import logging
 import gevent
 import requests
 
-
 from dateutil.parser import parse as dateutil_parse
+from gevent.pool import Pool
+from gevent.server import DatagramServer
+
 from nucleus import notification_signals
 from nucleus.models import Persona, Star
 from nucleus.vesicle import Vesicle
 from synapse.electrical import ElectricalSynapse
+from synapse.models import Starmap, Orb
+from web_ui import app
 
 ALLOWED_MESSAGE_TYPES = [
     "change_notification",
@@ -40,7 +44,7 @@ class Synapse(gevent.server.DatagramServer):
     #     "starmap": STARMAP
     #     "last_seen": datetime LAST_SEEN
     # }
-    self.somamap = dict()
+    somamap = dict()
 
     def __init__(self, address):
         DatagramServer.__init__(self, address)
@@ -131,9 +135,9 @@ class Synapse(gevent.server.DatagramServer):
             author = Persona.query.get(vesicle.author_id) if author is None else author
             vesicle.encrypt(author, recipients=recipients)
 
-        for host, port in self.peers.iteritems():
+        for soma_id in self.somamap.iterkeys():
             # TODO: Check whether that peer has the message already
-            self.message_pool.spawn(self.send_vesicle, vesicle, (host, port))
+            self.message_pool.spawn(self.send_vesicle, vesicle, soma_id)
 
     def _send_vesicle(self, vesicle, soma_id, signed=False, recipients=None):
         """
@@ -360,7 +364,7 @@ class Synapse(gevent.server.DatagramServer):
             errors.append("invalid object_type: {}".format(object_type))
 
         if errors:
-            self.logger.error("Received malformed object request {}:\n{}".format(vesicle, "* "+e for e in errors))
+            self.logger.error("Received malformed object request {}:\n{}".format(vesicle, ("* "+e for e in errors)))
             return
 
         # Load object
@@ -423,7 +427,7 @@ class Synapse(gevent.server.DatagramServer):
                 "last_seen": datetime.datetime.now()
             }
 
-            logging.info("Encountered new soma ({})".format(self.somamap[soma_id][:6])
+            logging.info("Encountered new soma ({})".format(self.somamap[soma_id][:6]))
 
         #
         #
@@ -507,10 +511,15 @@ class Synapse(gevent.server.DatagramServer):
             len(data), self.source_format(address)))
         self.message_pool.spawn(self._send_vesicle, vesicle, address, signed=True)
 
-    def on_star_created(self, sender, star):
+    def on_new_contact(self, sender, message):
+        logging.warning("New contact signal received from {}: {}".format(sender, message))
+
+    def on_star_created(self, sender, message):
         """
         React to star_created signal
         """
+        star = message
+
         # Update starmap
         orb = Orb("Star", star.id, star.modified, star.creator.id)
         self.starmap.add(orb)
@@ -528,10 +537,12 @@ class Synapse(gevent.server.DatagramServer):
 
         self._distribute_vesicle(message, signed=True)
 
-    def on_star_modified(self, sender, star):
+    def on_star_modified(self, sender, message):
         """
         React to star-modified signal
         """
+        star = message
+
         # Update starmap
         orb = Orb.query.get(star.id)
         if not orb:
@@ -557,10 +568,12 @@ class Synapse(gevent.server.DatagramServer):
             self.logger.warning("Received modification signal from {} on non-modified {}".format(sender, star))
 
 
-    def on_star_deleted(self, sender, star):
+    def on_star_deleted(self, sender, message):
         """
         React to star-deleted signal
         """
+        star = message
+
         # Update starmap
         orb = Orb.query.get(star.id)
         if not orb:
@@ -581,10 +594,12 @@ class Synapse(gevent.server.DatagramServer):
 
         self._distribute_vesicle(message, signed=True)
 
-    def on_planet_created(self, sender, planet):
+    def on_planet_created(self, sender, message):
         """
         React to planet-created signal
         """
+        planet = message
+
         # Update starmap
         orb = Orb("Planet", planet.id, planet.modified)
         self.starmap.add(orb)
@@ -602,10 +617,12 @@ class Synapse(gevent.server.DatagramServer):
 
         self._distribute_vesicle(message, signed=True)
 
-    def on_planet_modified(self, sender, planet):
+    def on_planet_modified(self, sender, message):
         """
         React to planet-modified signal
         """
+        planet = message
+
         # Update starmap
         orb = Orb.query.get(planet.id)
         if not orb:
@@ -631,10 +648,12 @@ class Synapse(gevent.server.DatagramServer):
         else:
             self.logger.warning("Received modification signal from {} on non-modified {}".format(sender, planet))
 
-    def on_planet_deleted(self, sender, planet):
+    def on_planet_deleted(self, sender, message):
         """
         React to star-deleted signal
         """
+        planet = message
+
         # Update starmap
         orb = Orb.query.get(planet.id)
         if not orb:
@@ -655,10 +674,12 @@ class Synapse(gevent.server.DatagramServer):
 
         self._distribute_vesicle(message, signed=True)
 
-    def on_persona_created(self, sender, persona):
+    def on_persona_created(self, sender, message):
         """
         React to persona-created signal
         """
+        persona = message
+
         # Update starmap
         orb = Orb("Persona", persona.id, persona.modified)
         self.starmap.add(orb)
@@ -674,12 +695,14 @@ class Synapse(gevent.server.DatagramServer):
         vesicle = Vesicle(message_type="change_notification", data=data)
         self.logger.debug("Distributing {}".format(vesicle))
 
-        self._distribute_vesicle(message, signed=True)
+        self._distribute_vesicle(message)
 
-    def on_persona_modified(self, sender, persona):
+    def on_persona_modified(self, sender, message):
         """
         React to persona-modified signal
         """
+        persona = message
+
         # Update starmap
         orb = Orb.query.get(persona.id)
         if not orb:
@@ -705,10 +728,12 @@ class Synapse(gevent.server.DatagramServer):
         else:
             self.logger.warning("Received modification signal from {} on non-modified {}".format(sender, persona))
 
-    def on_persona_deleted(self, sender, persona):
+    def on_persona_deleted(self, sender, message):
         """
         React to persona-deleted signal
         """
+        persona = message
+
         # Update starmap
         orb = Orb.query.get(persona.id)
         if not orb:
@@ -729,7 +754,7 @@ class Synapse(gevent.server.DatagramServer):
 
         self._distribute_vesicle(message, signed=True)
 
-    def on_soma_discovered(self, sender, soma):
+    def on_soma_discovered(self, sender, message):
         """
         Add new somas to the somamap
 
@@ -742,6 +767,8 @@ class Synapse(gevent.server.DatagramServer):
             "last_seen": datetime LAST_SEEN
         }
         """
+        soma = message
+
         try:
             soma_id = soma['id']
             host = soma['host']
@@ -750,7 +777,7 @@ class Synapse(gevent.server.DatagramServer):
             connectable = soma['connectable']
             last_seen = soma['last_seen']
         except KeyError, e:
-            self.logger.error("Invalid soma information: {}".format(e))
+            self.logger.error("Invalid souma information: {}".format(e))
 
         self.somamap[soma_id] = {
             "host": host,
@@ -762,7 +789,7 @@ class Synapse(gevent.server.DatagramServer):
         }
 
         self.request_starmap(soma_id)
-        self.logger.info("Discovered new soma {}@{}".format(soma_id, source_format(host, port)))
+        self.logger.info("Discovered new souma {}@{}".format(soma_id[:6], source_format(host, port)))
 
     def request_starmap(self, soma_id):
         """
@@ -773,8 +800,8 @@ class Synapse(gevent.server.DatagramServer):
             raise KeyError("Soma {} not found".format(soma_id[:6]))
         s = self.somamap[soma_id]
 
-        self.logger.info("Requesting starmap from soma {} ({})".format(soma_id[:6],
-            source_format(s['address'], s['port_external'])))
+        self.logger.info("Requesting starmap from souma {} ({})".format(soma_id[:6],
+                         source_format(s['address'], s['port_external'])))
 
         vesicle = Vesicle("starmap_request", data=dict())
         self._send_vesicle(vesicle, soma_id, signed=True)

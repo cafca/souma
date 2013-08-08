@@ -50,7 +50,7 @@ uploads.configure_uploads(app, (attachments))
 # Flask is configured to route logging events only to the console if it is in debug
 # mode. This overrides this setting and enables a new logging handler which prints
 # to the shell.
-loggers = [app.logger, logging.getLogger('synapse')]
+loggers = [app.logger, logging.getLogger('synapse'), logging.getLogger('e-synapse')]
 console_handler = logging.StreamHandler(stream=sys.stdout)
 console_handler.setFormatter(logging.Formatter(app.config['LOG_FORMAT']))
 
