@@ -63,6 +63,7 @@ for l in loggers:
 # Log configuration info
 app.logger.info(
     "\n".join(["{:=^80}".format(" SOMA CONFIGURATION "),
+              "{:>12}: {}".format("souma", app.config['SOMA_ID'][:6]),
               "{:>12}: {}".format("web ui", "disabled" if app.config['NO_UI'] else app.config['LOCAL_ADDRESS']),
               "{:>12}: {}:{}".format(
                   "synapse",

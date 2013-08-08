@@ -1,9 +1,10 @@
 import json
 import logging
+import os
 import requests
 
 from nucleus import notification_signals
-from nucleus.models import Persona
+from nucleus.models import Persona, Souma
 from web_ui import app
 
 API_VERSION = 0
@@ -20,6 +21,7 @@ class ElectricalSynapse(object):
         self.logger.setLevel(app.config['LOG_LEVEL'])
 
         # Core setup
+        self.souma = Souma.query.filter("sign_private != ''").first()
         self.host = "http://{host}".format(host=host)
         self.session = requests.Session()
         self._peers = dict()
@@ -139,13 +141,25 @@ class ElectricalSynapse(object):
         if method not in HTTP_METHODS_1 and method not in HTTP_METHODS_2:
             raise ValueError("Invalid request method {}".form(method))
 
-        if payload and not isinstance(payload, dict):
-            raise ValueError("Payload must be a dictionary type")
+        if payload:
+            if not isinstance(payload, dict):
+                raise ValueError("Payload must be a dictionary type")
+            try:
+                payload = json.encode(payload)
+            except ValueError, e:
+                raise ValueError("Error encoding payload of {}:\n{}".format(self, e))
+        else:
+            payload = None
 
         # Construct URL
         url_elems = [self.host, str(API_VERSION)]
         url_elems.extend(endpoint)
         url = "/".join(url_elems)
+
+        # Authentication parameters
+        params['souma_id'] = self.souma.id
+        params['rand'] = os.urandom(16)
+        params['auth'] = self.souma.sign("".join([self.souma.id, params['rand'], url, payload]))
 
         # Make request
         errors = list()

@@ -4,17 +4,24 @@ import gevent
 
 from web_ui import app, db
 from gevent.wsgi import WSGIServer
+from sqlalchemy.exc import OperationalError
+
+from nucleus.models import Souma
 from synapse.models import Starmap
 from synapse import Synapse
-from sqlalchemy.exc import OperationalError
 
 # Initialize database
 try:
-    db.session.execute("SELECT * FROM 'starmap' LIMIT 1")
+    local_souma = Souma.query.filter('sign_private != ""').first()
 except OperationalError:
-    app.logger.info("Initializing database")
+    app.logger.info("Setting up Nucleus")
     db.create_all()
-    db.session.add(Starmap(app.config['SOMA_ID']))
+
+    local_souma = Souma(id=app.config['SOMA_ID'])
+    local_souma.generate_keys()
+    local_souma.starmap = Starmap(app.config['SOMA_ID'])
+
+    db.session.add(local_souma)
     db.session.commit()
 
 if app.config['USE_DEBUG_SERVER']:

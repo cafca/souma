@@ -37,6 +37,8 @@ class Persona(Serializable, db.Model):
     sign_private = db.Column(db.Text)
     sign_public = db.Column(db.Text)
     modified = db.Column(db.DateTime, default=datetime.datetime.now(), onupdate=datetime.datetime.now())
+
+    # TODO: Is this needed?
     soma_id = db.Column(db.String(32), db.ForeignKey('starmap.id'))
     soma = db.relationship('Starmap', backref="personas", primaryjoin='starmap.c.id==persona.c.soma_id')
 
@@ -199,3 +201,70 @@ class LinkPlanet(Planet):
     __mapper_args__ = {
         'polymorphic_identity': 'link'
     }
+
+
+class Souma(Serializable, db.Model):
+    """A physical machine in the Souma network"""
+
+    __tablename__ = "souma"
+    id = db.Column(db.String(32), primary_key=True)
+
+    crypt_private = db.Column(db.Text)
+    crypt_public = db.Column(db.Text)
+    sign_private = db.Column(db.Text)
+    sign_public = db.Column(db.Text)
+
+    starmap_id = db.Column(db.String(32), db.ForeignKey('starmap.id'))
+    starmap = db.relationship('Starmap')
+
+    def generate_keys(self):
+        """ Generate new RSA keypairs for signing and encrypting. Commit to DB afterwards! """
+
+        # TODO: Store keys encrypted
+        rsa1 = RsaPrivateKey.Generate()
+        self.sign_private = str(rsa1)
+        self.sign_public = str(rsa1.public_key)
+
+        rsa2 = RsaPrivateKey.Generate()
+        self.crypt_private = str(rsa2)
+        self.crypt_public = str(rsa2.public_key)
+
+    def encrypt(self, data):
+        """ Encrypt data using RSA """
+
+        if self.crypt_public == "":
+            raise ValueError("Error encrypting: No public encryption key found for {}".format(self))
+
+        key_public = RsaPublicKey.Read(self.crypt_public)
+        return key_public.Encrypt(data)
+
+    def decrypt(self, cypher):
+        """ Decrypt cyphertext using RSA """
+
+        if self.crypt_private == "":
+            raise ValueError("Error decrypting: No private encryption key found for {}".format(self))
+
+        key_private = RsaPrivateKey.Read(self.crypt_private)
+        return key_private.Decrypt(cypher)
+
+    def sign(self, data):
+        """ Sign data using RSA """
+        from base64 import b64encode
+
+        if self.sign_private == "":
+            raise ValueError("Error signing: No private signing key found for {}".format(self))
+
+        key_private = RsaPrivateKey.Read(self.sign_private)
+        signature = key_private.Sign(data)
+        return b64encode(signature)
+
+    def verify(self, data, signature_b64):
+        """ Verify a signature using RSA """
+        from base64 import b64decode
+
+        if self.sign_public == "":
+            raise ValueError("Error verifying: No public signing key found for {}".format(self))
+
+        signature = b64decode(signature_b64)
+        key_public = RsaPublicKey.Read(self.sign_public)
+        return key_public.Verify(data, signature)
