@@ -3,6 +3,8 @@ import logging
 import os
 import requests
 
+from Crypto import Random
+
 from nucleus import notification_signals
 from nucleus.models import Persona, Souma
 from web_ui import app
@@ -26,6 +28,9 @@ class ElectricalSynapse(object):
         self.session = requests.Session()
         self._peers = dict()
         self._sessions = dict()
+
+        # PyCrypto random number generator for authentication
+        self.rng = Random.new()
 
         # Setup signals
         self.soma_discovered = notification_signals.signal('soma-discovered')
@@ -158,7 +163,7 @@ class ElectricalSynapse(object):
 
         # Authentication parameters
         params['souma_id'] = self.souma.id
-        params['rand'] = os.urandom(16)
+        params['rand'] = self.rng.read(16)
         params['auth'] = self.souma.sign("".join([self.souma.id, params['rand'], url, payload]))
 
         # Make request
