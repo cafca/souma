@@ -261,7 +261,7 @@ def activate_persona(id):
         app.logger.error("Tried to activate foreign persona")
         flash("That is not you!")
     else:
-        app.logger.info("Activated persona {}".format(id))
+        app.logger.info("Activated {}".format(p))
         session['active_persona'] = id
     return redirect(url_for('universe'))
 
@@ -289,7 +289,7 @@ def create_star():
         db.session.commit()
 
         flash('New star created!')
-        app.logger.info('Created new star {}'.format(new_star.id))
+        app.logger.info('Created new {}'.format(new_star))
 
         if 'picture' in request.files and request.files['picture'].filename != "":
             # compute hash
@@ -312,7 +312,7 @@ def create_star():
             # commit
             db.session.add(new_star)
             db.session.commit()
-            app.logger.info("Attached planet {} to new star".format(planet))
+            app.logger.info("Attached {} to new {}".format(planet, new_star))
 
         if 'link' in request.form and request.form['link'] != "":
             link_hash = sha256(request.form['link']).hexdigest()[:32]
@@ -327,7 +327,7 @@ def create_star():
             new_star.planets.append(planet)
             db.session.add(new_star)
             db.session.commit()
-            app.logger.info("Attached planet {} to new star".format(planet))
+            app.logger.info("Attached {} to new {}".format(planet, new_star))
 
         # Create certificate
         data = dict({

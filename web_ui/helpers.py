@@ -19,10 +19,10 @@ class Serializable():
             return {
                 c.name: str(getattr(self, c.name)) for c in self.__table__.columns if c not in exclude}
 
-    def json(self, exclude=[]):
+    def json(self, exclude=[], include=None):
         """Return this object JSON encoded"""
         import json
-        return json.dumps(self.export(exclude), indent=4)
+        return json.dumps(self.export(exclude=exclude, include=include), indent=4)
 
 
 def score(star_object):

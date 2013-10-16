@@ -31,7 +31,7 @@ class Vesicle(object):
         self.message_type = message_type
         self.payload = payload
         self.reply_to = reply_to
-        self.send_attributes = ("message_type", "payload", "reply_to", "enc", "soma_id")
+        self.send_attributes = set(["message_type", "payload", "reply_to", "enc", "soma_id"])
         self.signature = signature
         self.soma_id = soma_id
 

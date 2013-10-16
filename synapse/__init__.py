@@ -524,7 +524,7 @@ class Synapse(gevent.server.DatagramServer):
         orb = Orb("Star", star.id, star.modified, star.creator.id)
         self.starmap.add(orb)
 
-        # distribute notification_message
+        # distribute change_notification
         data = dict({
             "object_type": "Star",
             "object_id": star.id,
@@ -533,9 +533,11 @@ class Synapse(gevent.server.DatagramServer):
         })
 
         vesicle = Vesicle(message_type="change_notification", data=data)
+        vesicle.author_id = star.creator.id
+
         self.logger.debug("Distributing {}".format(vesicle))
 
-        self._distribute_vesicle(message, signed=True)
+        self._distribute_vesicle(vesicle, signed=True)
 
     def on_star_modified(self, sender, message):
         """
@@ -561,6 +563,8 @@ class Synapse(gevent.server.DatagramServer):
             })
 
             vesicle = Vesicle(message_type="change_notification", data=data)
+            vesicle.author_id = star.creator.id
+
             self.logger.debug("Distributing {}".format(vesicle))
 
             self._distribute_vesicle(message, signed=True)
@@ -590,6 +594,8 @@ class Synapse(gevent.server.DatagramServer):
         })
 
         vesicle = Vesicle(message_type="change_notification", data=data)
+        vesicle.author_id = star.creator.id
+
         self.logger.debug("Distributing {}".format(vesicle))
 
         self._distribute_vesicle(message, signed=True)
@@ -613,6 +619,8 @@ class Synapse(gevent.server.DatagramServer):
         })
 
         vesicle = Vesicle(message_type="change_notification", data=data)
+        vesicle.author_id = planet.creator.id
+
         self.logger.debug("Distributing {}".format(vesicle))
 
         self._distribute_vesicle(message, signed=True)
@@ -642,6 +650,8 @@ class Synapse(gevent.server.DatagramServer):
             })
 
             vesicle = Vesicle(message_type="change_notification", data=data)
+            vesicle.author_id = planet.creator.id
+
             self.logger.debug("Distributing {}".format(vesicle))
 
             self._distribute_vesicle(message, signed=True)
@@ -670,6 +680,7 @@ class Synapse(gevent.server.DatagramServer):
         })
 
         vesicle = Vesicle(message_type="change_notification", data=data)
+        vesicle.author_id = planet.creator.id
         self.logger.debug("Distributing {}".format(vesicle))
 
         self._distribute_vesicle(message, signed=True)
@@ -722,6 +733,7 @@ class Synapse(gevent.server.DatagramServer):
             })
 
             vesicle = Vesicle(message_type="change_notification", data=data)
+            vesicle.author_id = persona.id
             self.logger.debug("Distributing {}".format(vesicle))
 
             self._distribute_vesicle(message, signed=True)
@@ -750,6 +762,7 @@ class Synapse(gevent.server.DatagramServer):
         })
 
         vesicle = Vesicle(message_type="change_notification", data=data)
+        vesicle.author_id = persona.id
         self.logger.debug("Distributing {}".format(vesicle))
 
         self._distribute_vesicle(message, signed=True)
@@ -804,7 +817,7 @@ class Synapse(gevent.server.DatagramServer):
                          source_format(s['address'], s['port_external'])))
 
         vesicle = Vesicle("starmap_request", data=dict())
-        self._send_vesicle(vesicle, soma_id, signed=True)
+        self._send_vesicle(vesicle, soma_id)
 
     def request_object(self, object_type, object_id, soma_id):
         """
@@ -819,8 +832,7 @@ class Synapse(gevent.server.DatagramServer):
             "object_id": object_id
         })
 
-        self._send_vesicle(vesicle, soma_id, signed=True)
+        self._send_vesicle(vesicle, soma_id)
 
     def shutdown(self):
         self.pool.kill()
-    

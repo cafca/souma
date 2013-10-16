@@ -180,6 +180,9 @@ class Planet(Serializable, db.Model):
         'polymorphic_on': kind
     }
 
+    def __repr__(self):
+        return "<Planet:{} [{}]>".format(self.kind, self.id[:6])
+
 
 class PicturePlanet(Planet):
     """A Picture attachment"""
@@ -217,6 +220,9 @@ class Souma(Serializable, db.Model):
     starmap_id = db.Column(db.String(32), db.ForeignKey('starmap.id'))
     starmap = db.relationship('Starmap')
 
+    def __str__(self):
+        return "<Souma [{}]>".format(self.id[:6])
+
     def generate_keys(self):
         """ Generate new RSA keypairs for signing and encrypting. Commit to DB afterwards! """
 
@@ -249,22 +255,22 @@ class Souma(Serializable, db.Model):
 
     def sign(self, data):
         """ Sign data using RSA """
-        from base64 import b64encode
+        from base64 import urlsafe_b64encode
 
         if self.sign_private == "":
             raise ValueError("Error signing: No private signing key found for {}".format(self))
 
         key_private = RsaPrivateKey.Read(self.sign_private)
         signature = key_private.Sign(data)
-        return b64encode(signature)
+        return urlsafe_b64encode(signature)
 
     def verify(self, data, signature_b64):
         """ Verify a signature using RSA """
-        from base64 import b64decode
+        from base64 import urlsafe_b64decode
 
         if self.sign_public == "":
             raise ValueError("Error verifying: No public signing key found for {}".format(self))
 
-        signature = b64decode(signature_b64)
+        signature = urlsafe_b64decode(signature_b64)
         key_public = RsaPublicKey.Read(self.sign_public)
         return key_public.Verify(data, signature)

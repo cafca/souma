@@ -54,7 +54,7 @@ if 'SOMA_PASSWORD_HASH_{}'.format(LOCAL_PORT) in os.environ:
 else:
     PASSWORD_HASH = None
 
-LOG_LEVEL = logging.INFO
+LOG_LEVEL = logging.DEBUG
 LOG_FORMAT = (
     '%(name)s :: %(module)s [%(pathname)s:%(lineno)d]\n' +
     '%(message)s\n')
