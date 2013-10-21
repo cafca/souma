@@ -55,9 +55,12 @@ class Synapse(gevent.server.DatagramServer):
         # Core setup
         self.starmap = Starmap.query.get(app.config['SOMA_ID'])
         self.vesicle_pool = gevent.pool.Pool(10)
-        self.electrical = ElectricalSynapse()
 
-        # Connect to soma
+        # Connect to glia
+        self.electrical = ElectricalSynapse()
+        self.electrical.login_all()
+
+        # Connect to souma
         self._connect_signals()
 
     def _create_starmap(self):

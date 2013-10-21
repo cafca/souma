@@ -413,35 +413,35 @@ def debug():
 @app.route('/find-people', methods=['GET', 'POST'])
 def find_people():
     """Search for and follow people"""
+    from synapse.electrical import ElectricalSynapse
+
     form = FindPeopleForm(request.form)
     found = None
     error = None
 
     if request.method == 'POST' and form.validate():
         # Compile message
-        email = request.form['email']
+        address = request.form['email']
+        payload = {
+            "email_hash": [sha256(address).hexdigest(), ]
+        }
 
-        # Send message
-        headers = {"Content-Type": "application/json"}
-        url = "http://{host}/find-people".format(host=app.config['LOGIN_SERVER'])
-        r = requests.post(url, message.json(), headers=headers)
+        # Create a temporary electrical synapse to make a synchronous glia request
+        electrical = ElectricalSynapse()
+        resp, errors = electrical.find_persona(address)
 
-        # Read response
-        try:
-            resp = r.json()
-        except ValueError:
-            app.logger.info("Error retrieving results: {}".format(r.data))
-            flash("Server error: Please try again.")
+        # TODO: This should flash an error message. It doesn't.
+        if errors:
+            flash("Server error: {}".format(", ".join(errors)))
 
-        # TODO: Use message_errors() instead
-        if resp and resp['data'] and 'found' in resp['data']:
-            found = resp['data']['found']
+        elif resp and resp['personas']:
+            found = resp['personas']
 
             for p in found:
-                if Persona.query.get(p['persona_id']) is None:
+                if Persona.query.get(p['id']) is None:
                     app.logger.info("Storing new Persona {}".format(p['persona_id']))
                     p_new = Persona(
-                        id=p['persona_id'],
+                        id=p['id'],
                         username=p['username'],
                         email=email,
                         crypt_public=p['crypt_public'],
@@ -449,7 +449,7 @@ def find_people():
                     db.session.add(p_new)
                     db.session.commit()
         else:
-            error = "No record for {}. Check the spelling!".format(email)
+            error = "No record for {}. Check the spelling!".format(address)
 
     return render_template('find_people.html', form=form, found=found, error=error)
 

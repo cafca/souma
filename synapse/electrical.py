@@ -76,9 +76,6 @@ class ElectricalSynapse(object):
         except KeyError, e:
             self.logger.warning("Received invalid server status: Missing {}".format(e))
 
-        # Login all owned personas
-        self.login_all()
-
     def _get_session(self, persona):
         """
         Return the current session id for persona or create a new session

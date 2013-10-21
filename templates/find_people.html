@@ -38,13 +38,13 @@
         <tbody>
             {% for p in found %}
             <tr>
-                <td><a href="{{ url_for('persona', id=p.persona_id) }}" class="btn btn-link">
+                <td><a href="{{ url_for('persona', id=p.id) }}" class="btn btn-link">
                     <i class="icon-circle-blank"></i>
                     {{p.username}}
-                    <{{p.persona_id|truncate(8, True, end="")}}>
+                    <{{p.id|truncate(8, True, end="")}}>
                 </a></td>
                 <td>
-                    <form action="{{ url_for('add_contact', persona_id=p.persona_id)}}" method="POST">
+                    <form action="{{ url_for('add_contact', persona_id=p.id)}}" method="POST">
                         <button class="btn btn-small" type="submit">Follow</button>
                     </form>
                 </td>
