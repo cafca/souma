@@ -8,6 +8,7 @@ from base64 import b64encode, b64decode
 from Crypto import Random
 from dateutil.parser import parse as dateutil_parse
 from gevent import Greenlet
+from hashlib import sha256
 from operator import itemgetter
 
 from nucleus import notification_signals, ERROR
@@ -52,6 +53,7 @@ class ElectricalSynapse(object):
 
         # Register souma if neccessary
         if errors:
+            # Check for SOMA_NOT_FOUND error code in server response
             if ERROR["SOUMA_NOT_FOUND"](None)[0] in map(itemgetter(0), server_info["meta"]["errors"]):
                 if self.souma_register():
                     server_info, errors = self._request_resource("GET", [])
@@ -313,9 +315,9 @@ class ElectricalSynapse(object):
                 "connectable"
         """
 
-        self.logger.info("Requesting persona record for email hash {}".format(address))
+        self.logger.info("Requesting persona record for email-address {}".format(address))
 
-        app.logger.info("Searching Glia for {}".format(",".join(addresses)))
+        app.logger.info("Searching Glia for {}".format(address))
         payload = {
             "email_hash": [sha256(address).hexdigest(), ]
         }
