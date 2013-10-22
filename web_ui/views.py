@@ -231,14 +231,6 @@ def create_persona():
         db.session.add(p)
         db.session.commit()
 
-        # Distribute "birth" certificate
-        data = dict({
-            "object_type": "Persona",
-            "object_id": uuid,
-            "change": "insert",
-            "change_time": p.modified.isoformat()
-        })
-
         persona_created.send(create_persona, message=p)
 
         flash("New persona {} created!".format(p.username))
@@ -328,14 +320,6 @@ def create_star():
             db.session.add(new_star)
             db.session.commit()
             app.logger.info("Attached {} to new {}".format(planet, new_star))
-
-        # Create certificate
-        data = dict({
-            "object_type": "Star",
-            "object_id": uuid,
-            "change": "insert",
-            "change_time": new_star.modified.isoformat()
-        })
 
         star_created.send(create_star, message=new_star)
 
@@ -439,11 +423,11 @@ def find_people():
 
             for p in found:
                 if Persona.query.get(p['id']) is None:
-                    app.logger.info("Storing new Persona {}".format(p['persona_id']))
+                    app.logger.info("Storing new Persona {}".format(p['id']))
                     p_new = Persona(
                         id=p['id'],
                         username=p['username'],
-                        email=email,
+                        email=address,
                         crypt_public=p['crypt_public'],
                         sign_public=p['sign_public'])
                     db.session.add(p_new)

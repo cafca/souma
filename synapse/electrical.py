@@ -199,7 +199,6 @@ class ElectricalSynapse(object):
         headers['Glia-Souma'] = self.souma.id
         headers['Glia-Rand'] = b64encode(self.rng.read(16))
         headers['Glia-Auth'] = self.souma.sign("".join([str(self.souma.id), headers['Glia-Rand'], url, payload_json]))
-        # self.logger.debug("Authenticating\nID: {}\nRand: {}\nPath: {}\nPayload: {}".format(self.souma.id, headers['Glia-Rand'], url, payload_json))
 
         # Make request
         errors = list()
