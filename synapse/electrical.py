@@ -19,6 +19,28 @@ API_VERSION = 0
 API_VERSION_LONG = 0.1
 
 
+class GliaAuth(requests.auth.AuthBase):
+    """Attaches HTTP Glia Authentication to the given Request object."""
+    def __init__(self, souma, payload=None):
+        self.souma = souma
+        self.payload = payload if payload is not None else str()
+        self.rng = Random.new()
+
+    def __call__(self, r):
+        # modify and return the request
+        rand = self.rng.read(16)
+
+        r.headers['Glia-Souma'] = self.souma.id
+        r.headers['Glia-Rand'] = rand
+        r.headers['Glia-Auth'] = self.souma.sign("".join([
+            str(self.souma.id), 
+            rand, 
+            r.url, 
+            self.payload
+        ]))
+        return r
+
+
 class ElectricalSynapse(object):
     """
     Handle connection to HTTP endpoints
@@ -34,9 +56,6 @@ class ElectricalSynapse(object):
         self.session = requests.Session()  # Session object to use for requests
         self._peers = dict()
         self._sessions = dict()  # Holds session info for owned Personas (see _get_session(), _set_session()
-
-        # PyCrypto random number generator for authentication
-        self.rng = Random.new()
 
         # Setup signals
         self.soma_discovered = notification_signals.signal('soma-discovered')
@@ -70,8 +89,7 @@ class ElectricalSynapse(object):
                           "{:>12}: {} ({})".format("status", server_info["server_status"][0]["status_message"], server_info["server_status"][0]["status_code"]),
                           "{:>12}: {}".format("server id", server_info["server_status"][0]["id"]),
                           "{:>12}: {}".format("personas", server_info["server_status"][0]["personas_registered"]),
-                          "{:>12}: {}".format("stars", server_info["server_status"][0]["stars_stored"]),
-                          "{:>12}: {}".format("planets", server_info["server_status"][0]["planets_stored"])
+                          "{:>12}: {}".format("vesicles", server_info["server_status"][0]["vesicles_stored"])
                           ]))
         except KeyError, e:
             self.logger.warning("Received invalid server status: Missing {}".format(e))
@@ -114,7 +132,7 @@ class ElectricalSynapse(object):
             errors(list): A list of error messages
         """
 
-        self.logger.error("{msg}:\n{list}".format(msg=msg, list="\n* ".join(errors)))
+        self.logger.error("{msg}:\n{list}".format(msg=msg, list="\n* ".join(str(e) for e in errors)))
 
     def _keepalive(self, persona):
         """
@@ -125,21 +143,21 @@ class ElectricalSynapse(object):
 
         self.logger.info("Sending keepalive for {}".format(persona))
 
-        session_id = self._get_session(persona)
-        resp, errors = self._request_resource("GET", ["personas", session_id])
+        session_id = self._get_session(persona)["id"]
+        resp, errors = self._request_resource("GET", ["sessions", session_id])
 
         if errors:
             self._log_errors("Error requesting keepalive for {}".format(persona), errors)
 
             # Login if session is invalid
-            if synapse.SESSION_INVALID in r['errors']:
+            if ERROR["SESSION_INVALID"] in resp['meta']['errors']:
                 self.login(persona)
         else:
-            session_id = r['sessions'][0]['id']
-            timeout = r['sessions'][0]['timeout']
+            session_id = resp['sessions'][0]['id']
+            timeout = resp['sessions'][0]['timeout']
             self._set_session(persona, session_id, timeout)
 
-            self.queue_keepalive(persona)
+            self._queue_keepalive(persona)
 
     def _queue_keepalive(self, persona, timeout=900):
         """
@@ -147,7 +165,7 @@ class ElectricalSynapse(object):
         """
 
         buf = 10  # seconds
-        remaining = (self._get_session(persona)['timeout'] - datetime.datetime.now()).seconds
+        remaining = (self._get_session(persona)['timeout'] - datetime.datetime.now()).seconds - buf
         if (remaining - buf) < 0:
             remaining = 2
 
@@ -186,21 +204,15 @@ class ElectricalSynapse(object):
             except ValueError, e:
                 raise ValueError("Error encoding payload of {}:\n{}".format(self, e))
         else:
-            payload_json = str()  # Needs to be a string for auth to work
+            payload_json = None
 
         # Construct URL
         url_elems = [self.host, "v"+str(API_VERSION)]
         url_elems.extend(endpoint)
         url = "/".join(url_elems) + "/"
-        self.logger.debug("{} {}".format(method, url))
-
-        # Authentication headers
-        headers = dict()
-        headers['Glia-Souma'] = self.souma.id
-        headers['Glia-Rand'] = b64encode(self.rng.read(16))
-        headers['Glia-Auth'] = self.souma.sign("".join([str(self.souma.id), headers['Glia-Rand'], url, payload_json]))
 
         # Make request
+        headers = dict()
         errors = list()
         parsing_failed = False
         http_errors = False
@@ -208,10 +220,12 @@ class ElectricalSynapse(object):
         call = getattr(self.session, method.lower())
         try:
             if method in HTTP_METHODS_1:
-                r = call(url, headers=headers, params=params)
+                self.logger.debug("{} {}".format(method, url))
+                r = call(url, headers=headers, params=params, auth=GliaAuth(souma=self.souma))
             else:
+                self.logger.debug("{} {}\n{}".format(method, url, payload_json))
                 headers['Content-Type'] = "application/json"
-                r = call(url, payload_json, headers=headers, params=params)
+                r = call(url, payload_json, headers=headers, params=params, auth=GliaAuth(souma=self.souma, payload=payload_json))
             r.raise_for_status()
         except requests.exceptions.RequestException, e:
             http_errors = True
@@ -236,7 +250,10 @@ class ElectricalSynapse(object):
             for error in resp['meta']['errors']:
                 error_strings.append("{}: {}".format(error[0], error[1]))
 
-        # TODO: Remove this
+        # Don't return empty error_strings if parsing server errors has failed, return client-side errors instead
+        elif errors:
+            error_strings = errors
+
         # Log all errors
         if errors:
             self.logger.error("{} {} failed.\nParam: {}\nPayload: {}\nErrors:\n* {}".format(
@@ -267,7 +284,7 @@ class ElectricalSynapse(object):
             self.logger.info("{} has no peers. Peerlist update cancelled.".format(persona))
         else:
             # ask glia server for peer info
-            resp, errors = self._request_resource("GET", ["sessions"], params={'ids': peer_ids})
+            resp, errors = self._request_resource("GET", ["sessions"], params={'ids': ",".join(peer_ids)})
             # TODO: Remove peers that are no longer online
 
             if errors:
@@ -332,6 +349,31 @@ class ElectricalSynapse(object):
             for p in persona_set:
                 self.persona_login(p)
 
+
+    def myelin_store(self, vesicle):
+        """
+        Store a Vesicle in Myelin
+
+        Parameters:
+            vesicle (Vesicle) The vesicle to be stored
+
+        Returns:
+            list List of error strings if such occurred
+        """
+        self.logger.info("Storing {} in Myelin".format(vesicle))
+
+        data = {
+            "vesicles": [vesicle.json(), ]
+        }
+
+        resp, errors = self._request_resource("PUT", ["myelin", "vesicles", vesicle.id], payload=data)
+
+        if errors:
+            self._log_errors("Error storing {}".format(vesicle), errors)
+            return errors
+        else:
+            self.logger.info("Successfully stored {}".format(vesicle))
+
     def on_persona_created(self, sender, message):
         """Register new personas with glia-server"""
         persona = message
@@ -343,7 +385,8 @@ class ElectricalSynapse(object):
 
     def on_persona_deleted(self, sender, message):
         """Delete persona from glia-server"""
-        self.logger.warning("on_persona_deleted not yet implemented")
+        persona = message
+        self.persona_unregister(persona)
 
     def persona_info(self, persona_id):
         """
@@ -528,8 +571,10 @@ class ElectricalSynapse(object):
             self.logger.info("Successfully registered {} with server".format(self.souma))
             return True
 
+
     def shutdown(self):
         """
         Terminate connections and logout
         """
-        pass
+        for p in self._sessions:
+            self.persona_logout(p['id'])

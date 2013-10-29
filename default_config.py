@@ -29,8 +29,9 @@ SYNAPSE_PORT = LOCAL_PORT + 50
 LOGIN_SERVER = "app.soma:24500"
 # Uncomment this to use Heroku server
 #LOGIN_SERVER = "glia.herokuapp.com:80"
+ENABLE_MYELIN = True
 
-OPERATOR_ID = "operator"
+OPERATOR_ID = "operator"  # TODO: Safe to remove this?
 
 DATABASE = 'ark_{}.db'.format(LOCAL_PORT)
 SQLALCHEMY_DATABASE_URI = "sqlite:///" + DATABASE

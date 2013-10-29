@@ -5,9 +5,27 @@ from flask import url_for
 from hashlib import sha256
 from keyczar.keys import RsaPrivateKey, RsaPublicKey
 from web_ui import db
-from web_ui.helpers import Serializable, epoch_seconds
+from web_ui.helpers import epoch_seconds
 from sqlalchemy import ForeignKey
 from sqlalchemy.exc import OperationalError
+
+
+class Serializable():
+    """ Make SQLAlchemy models json serializable"""
+    def export(self, exclude=[], include=None):
+        """Return this object as a dict"""
+        if include:
+            return {
+                field: str(getattr(self, field)) for field in include}
+        else:
+            return {
+                c.name: str(getattr(self, c.name)) for c in self.__table__.columns if c not in exclude}
+
+    def json(self, exclude=[], include=None):
+        """Return this object JSON encoded"""
+        import json
+        return json.dumps(self.export(exclude=exclude, include=include), indent=4)
+
 
 #
 # Setup follower relationship on Persona objects
@@ -274,3 +292,10 @@ class Souma(Serializable, db.Model):
         signature = urlsafe_b64decode(signature_b64)
         key_public = RsaPublicKey.Read(self.sign_public)
         return key_public.Verify(data, signature)
+
+class DBVesicle(db.Model):   
+    """Store the canonical representation of a Vesicle"""
+
+    __tablename__ = "vesicle"
+    id = db.Column(db.String(32), primary_key=True)
+    json = db.Column(db.Text)

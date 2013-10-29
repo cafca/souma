@@ -138,6 +138,9 @@ class Synapse(gevent.server.DatagramServer):
             author = Persona.query.get(vesicle.author_id) if author is None else author
             vesicle.encrypt(author, recipients=recipients)
 
+        if app.config["ENABLE_MYELIN"]:
+            self.electrical.myelin_store(vesicle)
+
         for soma_id in self.somamap.iterkeys():
             # TODO: Check whether that peer has the message already
             self.message_pool.spawn(self.send_vesicle, vesicle, soma_id)
@@ -302,7 +305,7 @@ class Synapse(gevent.server.DatagramServer):
 
         if object_type not in OBJECT_TYPES:
             errors.append("Unknown object type: {}".format(object_type))
-
+            
         if errors:
             self.logger.error("Malformed object received\n{}".format("\n".join(errors)))
 
@@ -358,8 +361,8 @@ class Synapse(gevent.server.DatagramServer):
         object_type = None
 
         try:
-            object_id = message.data["object_id"]
-            object_type = message.data["object_type"]
+            object_id = vesicle.data["object_id"]
+            object_type = vesicle.data["object_type"]
         except KeyError, e:
             errors.append("missing key ({})".format(vesicle, e))
 
@@ -570,7 +573,7 @@ class Synapse(gevent.server.DatagramServer):
 
             self.logger.debug("Distributing {}".format(vesicle))
 
-            self._distribute_vesicle(message, signed=True)
+            self._distribute_vesicle(vesicle, signed=True)
         else:
             self.logger.warning("Received modification signal from {} on non-modified {}".format(sender, star))
 
@@ -601,7 +604,7 @@ class Synapse(gevent.server.DatagramServer):
 
         self.logger.debug("Distributing {}".format(vesicle))
 
-        self._distribute_vesicle(message, signed=True)
+        self._distribute_vesicle(vesicle, signed=True)
 
     def on_planet_created(self, sender, message):
         """
@@ -626,7 +629,7 @@ class Synapse(gevent.server.DatagramServer):
 
         self.logger.debug("Distributing {}".format(vesicle))
 
-        self._distribute_vesicle(message, signed=True)
+        self._distribute_vesicle(vesicle, signed=True)
 
     def on_planet_modified(self, sender, message):
         """
@@ -657,7 +660,7 @@ class Synapse(gevent.server.DatagramServer):
 
             self.logger.debug("Distributing {}".format(vesicle))
 
-            self._distribute_vesicle(message, signed=True)
+            self._distribute_vesicle(vesicle, signed=True)
         else:
             self.logger.warning("Received modification signal from {} on non-modified {}".format(sender, planet))
 
@@ -686,7 +689,7 @@ class Synapse(gevent.server.DatagramServer):
         vesicle.author_id = planet.creator.id
         self.logger.debug("Distributing {}".format(vesicle))
 
-        self._distribute_vesicle(message, signed=True)
+        self._distribute_vesicle(vesicle, signed=True)
 
     def on_persona_created(self, sender, message):
         """
@@ -709,7 +712,7 @@ class Synapse(gevent.server.DatagramServer):
         vesicle = Vesicle(message_type="change_notification", data=data)
         self.logger.debug("Distributing {}".format(vesicle))
 
-        self._distribute_vesicle(message)
+        self._distribute_vesicle(vesicle)
 
     def on_persona_modified(self, sender, message):
         """
@@ -739,7 +742,7 @@ class Synapse(gevent.server.DatagramServer):
             vesicle.author_id = persona.id
             self.logger.debug("Distributing {}".format(vesicle))
 
-            self._distribute_vesicle(message, signed=True)
+            self._distribute_vesicle(vesicle, signed=True)
         else:
             self.logger.warning("Received modification signal from {} on non-modified {}".format(sender, persona))
 
@@ -768,7 +771,7 @@ class Synapse(gevent.server.DatagramServer):
         vesicle.author_id = persona.id
         self.logger.debug("Distributing {}".format(vesicle))
 
-        self._distribute_vesicle(message, signed=True)
+        self._distribute_vesicle(vesicle, signed=True)
 
     def on_soma_discovered(self, sender, message):
         """
