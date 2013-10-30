@@ -29,7 +29,9 @@ class GliaAuth(requests.auth.AuthBase):
     def __call__(self, r):
         # modify and return the request
         rand = self.rng.read(16)
-
+        
+        # app.logger.debug("Authenticating {}\nID: {}\nRand: {}\nPath: {}\nPayload: {}".format(r, str(self.souma.id), rand, r.url, self.payload))
+        
         r.headers['Glia-Souma'] = self.souma.id
         r.headers['Glia-Rand'] = rand
         r.headers['Glia-Auth'] = self.souma.sign("".join([
