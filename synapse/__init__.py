@@ -1,3 +1,4 @@
+import datetime
 import logging
 import gevent
 import requests
@@ -6,12 +7,12 @@ from dateutil.parser import parse as dateutil_parse
 from gevent.pool import Pool
 from gevent.server import DatagramServer
 
-from nucleus import notification_signals
-from nucleus.models import Persona, Star
+from nucleus import notification_signals, source_format
+from nucleus.models import Persona, Star, Planet
 from nucleus.vesicle import Vesicle
 from synapse.electrical import ElectricalSynapse
 from synapse.models import Starmap, Orb
-from web_ui import app
+from web_ui import app, db
 
 ALLOWED_MESSAGE_TYPES = [
     "change_notification",
@@ -22,7 +23,7 @@ ALLOWED_MESSAGE_TYPES = [
 ]
 
 CHANGE_TYPES = ("create", "update", "delete")
-OBJECT_TYPES = ("star", "planet", "persona")
+OBJECT_TYPES = ("Star", "Planet", "Persona")
 
 PERSONA_NOT_FOUND = 0
 SESSION_INVALID = 1
@@ -57,7 +58,7 @@ class Synapse(gevent.server.DatagramServer):
         self.vesicle_pool = gevent.pool.Pool(10)
 
         # Connect to glia
-        self.electrical = ElectricalSynapse()
+        self.electrical = ElectricalSynapse(self)
         self.electrical.login_all()
 
         # Connect to souma
@@ -130,13 +131,20 @@ class Synapse(gevent.server.DatagramServer):
                         encrypted for these recipients.
         """
 
-        if signed:
+        self.logger.debug("Distributing {} {} to {} recipients {}".format(
+            "signed" if signed else "unsigned",
+            vesicle,
+            len(recipients) if recipients is not None else "0", 
+            "via Myelin" if app.config["ENABLE_MYELIN"] else ""))
+
+        if hasattr(vesicle, "author_id") and vesicle.author_id is not None:
             author = Persona.query.get(vesicle.author_id)
-            vesicle.sign(author)
 
         if recipients:
-            author = Persona.query.get(vesicle.author_id) if author is None else author
             vesicle.encrypt(author, recipients=recipients)
+
+        if signed:
+            vesicle.sign(author)
 
         if app.config["ENABLE_MYELIN"]:
             self.electrical.myelin_store(vesicle)
@@ -298,8 +306,8 @@ class Synapse(gevent.server.DatagramServer):
         errors = list()
 
         try:
-            object_type = message.data["object_type"]
-            obj = message.data["object"]
+            object_type = vesicle.data["object_type"]
+            obj = vesicle.data["object"]
         except KeyError, e:
             errors.append("Missing key: {}".format(e))
 
@@ -308,47 +316,46 @@ class Synapse(gevent.server.DatagramServer):
             
         if errors:
             self.logger.error("Malformed object received\n{}".format("\n".join(errors)))
+        else:
+            # Handle answer
+            # TODO: Handle updates
+            if object_type == "Star":
+                o = Star.query.get(obj['id'])
+                if o is None:
+                    o = Star(obj["id"], obj["text"], obj["creator_id"])
 
-        # Handle answer
-        # TODO: Handle updates
-        if object_type == "Star":
-            o = Star.query.get(obj['id'])
-            if o is None:
-                o = Star(obj["id"], obj["text"], obj["creator_id"])
+                    orb = Orb.query.get(o.id)
+                    if not orb:
+                        orb = Orb("Star", o.id, o.modified, obj["creator_id"])
+                    # buggy...
+                    #self.starmap.add(orb)
 
-                orb = Orb.query.get(o.id)
-                if not orb:
-                    orb = Orb("Star", o.id, o.modified, obj["creator_id"])
-                # buggy...
-                #self.starmap.add(orb)
+                    db.session.add(o)
+                    db.session.commit()
+                    self.logger.info("Added new {}".format(o))
+                else:
+                    self.logger.warning("Received already existing {}".format(o))
+            elif object_type == "Persona":
+                o = Persona.query.get(obj['id'])
+                if o is None:
+                    o = Persona(
+                        id=obj["id"],
+                        username=obj["username"],
+                        email=obj["email"],
+                        sign_public=obj["sign_public"],
+                        crypt_public=obj["crypt_public"],
+                    )
 
-                db.session.add(o)
-            else:
-                self.logger.warning("[{}] Received already existing {}".format(
-                    self.source_format(address), o))
-        elif object_type == "Persona":
-            o = Persona.query.get(obj['id'])
-            if o is None:
-                o = Persona(
-                    id=obj["id"],
-                    username=obj["username"],
-                    email=obj["email"],
-                    sign_public=obj["sign_public"],
-                    crypt_public=obj["crypt_public"],
-                )
+                    orb = Orb.query.get(o.id)
+                    if not orb:
+                        orb = Orb("Persona", o.id, o.modified)
+                    #self.starmap.add(orb)
 
-                orb = Orb.query.get(o.id)
-                if not orb:
-                    orb = Orb("Persona", o.id, o.modified)
-                #self.starmap.add(orb)
-
-                db.session.add(o)
-            else:
-                self.logger.warning("[{}] Received already existing {}".format(
-                    self.source_format(address), o))
-        db.session.commit()
-        self.logger.info("[{}] Received {}".format(
-            self.source_format(address), o))
+                    db.session.add(o)
+                    db.session.commit()
+                    self.logger.info("Added new {}".format(o))
+                else:
+                    self.logger.warning("Received already existing {}".format(o))
 
     def handle_object_request(self, vesicle):
         """
@@ -397,7 +404,7 @@ class Synapse(gevent.server.DatagramServer):
         vesicle = Vesicle("object", data)
 
         # Send response
-        self.send_message(address, message)
+        self.send_message(address, vesicle)
         self.logger.info("Sent {object_type} {object_id} to {address}".format(
             object_type=object_type,
             object_id=object_id,
@@ -413,7 +420,7 @@ class Synapse(gevent.server.DatagramServer):
         if not vesicle:
             return
 
-        if vesicle.soma_id not in self.somamap:
+        if vesicle.soma_id not in self.somamap and address is not None:
             # Test connectable
             sock = socket.socket(type=socket.SOCK_DGRAM)
             sock.connect(address)
@@ -424,7 +431,7 @@ class Synapse(gevent.server.DatagramServer):
             except socket.error:
                 connectable = False
 
-            self.somamap[soma_id] = {
+            self.somamap[vesicle.soma_id] = {
                 "host": address[0],
                 "port_external": address[1],
                 "port_internal": vesicle.reply_to,
@@ -433,13 +440,22 @@ class Synapse(gevent.server.DatagramServer):
                 "last_seen": datetime.datetime.now()
             }
 
-            logging.info("Encountered new soma ({})".format(self.somamap[soma_id][:6]))
+            logging.info("Encountered new soma ({})".format(self.somamap[vesicle.soma_id][:6]))
 
-        #
-        #
-        # DECRYPT AND CHECK SIGNATURE
-        #
-        #
+        # Decrypt if neccessary
+        if vesicle.encrypted():
+            reader_persona = None
+            for p in Persona.query.filter('sign_private != ""'):
+                if p.id in vesicle.keycrypt.keys():
+                    reader_persona = p
+                    continue
+
+            if reader_persona:
+                vesicle.decrypt(p)
+                self.logger.info("Decryption of {} successful: {}".format(vesicle, vesicle.data))
+            else:
+                self.logger.error("Could not decrypt {}. No recipient found in owned personas.".format(vesicle))
+                return
 
         # Call handler depending on message type
         if vesicle.message_type in ALLOWED_MESSAGE_TYPES:
@@ -518,7 +534,7 @@ class Synapse(gevent.server.DatagramServer):
         self.message_pool.spawn(self._send_vesicle, vesicle, address, signed=True)
 
     def on_new_contact(self, sender, message):
-        logging.warning("New contact signal received from {}: {}".format(sender, message))
+        logging.warning("New contact signal received from {}: Not implemented.\n{}".format(sender, message))
 
     def on_star_created(self, sender, message):
         """
@@ -530,20 +546,16 @@ class Synapse(gevent.server.DatagramServer):
         orb = Orb("Star", star.id, star.modified, star.creator.id)
         self.starmap.add(orb)
 
-        # distribute change_notification
+        # distribute star in vesicle
         data = dict({
-            "object_type": "Star",
-            "object_id": star.id,
-            "change": "create",
-            "change_time": star.modified.isoformat()
+            "object": star.export(),
+            "object_type": "Star"
         })
 
-        vesicle = Vesicle(message_type="change_notification", data=data)
+        vesicle = Vesicle(message_type="object", data=data)
         vesicle.author_id = star.creator.id
 
-        self.logger.debug("Distributing {}".format(vesicle))
-
-        self._distribute_vesicle(vesicle, signed=True)
+        self._distribute_vesicle(vesicle, signed=True, recipients=star.creator.contacts)
 
     def on_star_modified(self, sender, message):
         """
@@ -587,9 +599,9 @@ class Synapse(gevent.server.DatagramServer):
         # Update starmap
         orb = Orb.query.get(star.id)
         if not orb:
-            raise NameError("Orb {} not found".format(orb))
-        db.session.delete(orb)
-        db.session.commit()
+            self.logger.error("Orb {} not found".format(orb))
+            db.session.delete(orb)
+            db.session.commit()
 
         # distribute notification_message
         data = dict({

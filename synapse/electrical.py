@@ -33,7 +33,7 @@ class GliaAuth(requests.auth.AuthBase):
         # app.logger.debug("Authenticating {}\nID: {}\nRand: {}\nPath: {}\nPayload: {}".format(r, str(self.souma.id), rand, r.url, self.payload))
         
         r.headers['Glia-Souma'] = self.souma.id
-        r.headers['Glia-Rand'] = rand
+        r.headers['Glia-Rand'] = b64encode(rand)
         r.headers['Glia-Auth'] = self.souma.sign("".join([
             str(self.souma.id), 
             rand, 
@@ -46,13 +46,18 @@ class GliaAuth(requests.auth.AuthBase):
 class ElectricalSynapse(object):
     """
     Handle connection to HTTP endpoints
+
+    Parameters:
+        parent (Synapse) A Synapse object to which received Vesicles will be passed
+        host (String) The IP address of a Glia server to connect to
     """
 
-    def __init__(self, host=app.config['LOGIN_SERVER']):
+    def __init__(self, parent, host=app.config['LOGIN_SERVER']):
         self.logger = logging.getLogger('e-synapse')
         self.logger.setLevel(app.config['LOG_LEVEL'])
 
         # Core setup
+        self.synapse = parent
         self.souma = Souma.query.filter("sign_private != ''").first()  # The Souma which hosts this Synapse
         self.host = "http://{host}".format(host=host)  # The Glia server to connect to
         self.session = requests.Session()  # Session object to use for requests
@@ -152,7 +157,7 @@ class ElectricalSynapse(object):
             self._log_errors("Error requesting keepalive for {}".format(persona), errors)
 
             # Login if session is invalid
-            if ERROR["SESSION_INVALID"] in resp['meta']['errors']:
+            if ERROR["INVALID_SESSION"] in resp['meta']['errors']:
                 self.login(persona)
         else:
             session_id = resp['sessions'][0]['id']
@@ -351,6 +356,30 @@ class ElectricalSynapse(object):
             for p in persona_set:
                 self.persona_login(p)
 
+    def myelin_receive(self, recipient, interval=None):
+        """
+        Receive vesicles from Myelin for this recipient
+
+        Parameters:
+            recipient (Persona) The channel on which to listen on
+            interval (int) If set to an amount of seconds, the function will repeatedly be called again in this interval
+        """
+        self.logger.info("Updating Myelin of {} at {} second intervals".format(recipient, interval))
+
+        params = None  # TODO: Request a specific range according to the most recent vescile received from myelin
+        resp, errors = self._request_resource("GET", ["myelin", "recipient", recipient.id], params, None)
+
+        if errors:
+            self._log_errors("Error receiving from Myelin", errors)
+        else:
+            for v in resp["vesicles"]:
+                self.logger.info("Myelin received: \n{}".format(v))
+                self.synapse.handle_vesicle(v, None)
+
+        if interval is not None:
+            update = Greenlet(self.myelin_receive, recipient, interval)
+            update.start_later(interval)
+
 
     def myelin_store(self, vesicle):
         """
@@ -405,7 +434,7 @@ class ElectricalSynapse(object):
 
     def persona_login(self, persona):
         """
-        Login a persona on the server, register if not existing
+        Login a persona on the server, register if not existing. Start myelinated reception if activated.
 
         Returns:
             str -- new session id
@@ -430,7 +459,8 @@ class ElectricalSynapse(object):
                     self.logger.error("Failed logging in / registering {}.".format(persona))
                     return None
                 else:
-                    return self._get_session(persona)["session_id"]
+                    session = self._get_session(persona)
+                    return session["id"]
         try:
             auth = info["personas"][0]["auth"]
         except KeyError, e:
@@ -455,12 +485,17 @@ class ElectricalSynapse(object):
             session_id = resp["sessions"][0]['id']
             timeout = resp["sessions"][0]['timeout']
 
+            self.logger.info("Persona {} logged in until {}".format(persona, timeout))
             self._set_session(persona, session_id, timeout)
             self._queue_keepalive(persona)
             self._update_peer_list(persona)
+            if app.config["ENABLE_MYELIN"]:
+                self.myelin_receive(persona, interval=app.config["MYELIN_POLLING_INTERVAL"])
 
-            self.logger.info("Persona {} logged in until {}".format(persona, timeout))
-            return session_id
+            return {
+                "id": session_id,
+                "timeout": timeout
+            }
 
     def persona_logout(self, persona):
         """
@@ -525,6 +560,8 @@ class ElectricalSynapse(object):
         self._set_session(persona, session_id, timeout)
         self._update_peer_list(persona)
         self._queue_keepalive(persona)
+        if app.config["ENABLE_MYELIN"]:
+            self.myelin_receive(persona, interval=app.config["MYELIN_POLLING_INTERVAL"])
 
     def persona_unregister(self, persona):
         """

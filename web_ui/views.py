@@ -411,7 +411,7 @@ def find_people():
         }
 
         # Create a temporary electrical synapse to make a synchronous glia request
-        electrical = ElectricalSynapse()
+        electrical = ElectricalSynapse(None)
         resp, errors = electrical.find_persona(address)
 
         # TODO: This should flash an error message. It doesn't.
@@ -453,7 +453,7 @@ def add_contact(persona_id):
         new_contact.send(add_contact, message={'new_contact': persona, 'author': author})
 
         flash("Added {} to {}'s address book".format(persona.username, author.username))
-        app.logger.info("Added {} to {}'s contacts".format(persona, author))
+        app.logger.info("Added {} to {}'s contacts: {}".format(persona, author, author.contacts))
         return redirect(url_for('persona', id=persona.id))
 
     return render_template('add_contact.html', form=form, persona=persona)

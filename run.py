@@ -2,12 +2,14 @@
 
 import gevent
 
+from web_ui import app, db
+
+from gevent.wsgi import WSGIServer
 from sqlalchemy.exc import OperationalError
 
 from nucleus.models import Souma
 from synapse.models import Starmap
 from synapse import Synapse
-from web_ui import app, db
 
 # Initialize database
 try:
@@ -37,7 +39,7 @@ else:
     # Web UI
     if not app.config['NO_UI']:
         app.logger.info("Starting Web-UI")
-        local_server = gevent.wsgi.WSGIServer(('', app.config['LOCAL_PORT']), app)
+        local_server = WSGIServer(('', app.config['LOCAL_PORT']), app)
         local_server.start()
 
     shutdown.wait()

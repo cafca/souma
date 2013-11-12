@@ -1,13 +1,15 @@
 import datetime
 import os
 
+from base64 import b64encode, b64decode
 from flask import url_for
 from hashlib import sha256
 from keyczar.keys import RsaPrivateKey, RsaPublicKey
-from web_ui import db
-from web_ui.helpers import epoch_seconds
 from sqlalchemy import ForeignKey
 from sqlalchemy.exc import OperationalError
+
+from web_ui import db
+from web_ui.helpers import epoch_seconds
 
 
 class Serializable():
@@ -97,17 +99,17 @@ class Persona(Serializable, db.Model):
         """ Encrypt data using RSA """
 
         key_public = RsaPublicKey.Read(self.crypt_public)
-        return key_public.Encrypt(data)
+        return b64encode(key_public.Encrypt(data))
 
     def decrypt(self, cypher):
         """ Decrypt cyphertext using RSA """
 
+        cypher = b64decode(cypher)
         key_private = RsaPrivateKey.Read(self.crypt_private)
         return key_private.Decrypt(cypher)
 
     def sign(self, data):
         """ Sign data using RSA """
-        from base64 import b64encode
 
         key_private = RsaPrivateKey.Read(self.sign_private)
         signature = key_private.Sign(data)
@@ -115,7 +117,6 @@ class Persona(Serializable, db.Model):
 
     def verify(self, data, signature_b64):
         """ Verify a signature using RSA """
-        from base64 import b64decode
 
         signature = b64decode(signature_b64)
         key_public = RsaPublicKey.Read(self.sign_public)
@@ -131,15 +132,13 @@ class Star(Serializable, db.Model):
     created = db.Column(db.DateTime, default=datetime.datetime.now())
     modified = db.Column(db.DateTime, default=datetime.datetime.now(), onupdate=datetime.datetime.now())
 
-    planets = db.relationship(
-        'Planet',
+    planets = db.relationship('Planet',
         secondary='satellites',
         backref=db.backref('starmap'),
         primaryjoin="satellites.c.star_id==star.c.id",
         secondaryjoin="satellites.c.planet_id==planet.c.id")
 
-    creator = db.relationship(
-        'Persona',
+    creator = db.relationship('Persona',
         backref=db.backref('starmap'),
         primaryjoin="Persona.id==Star.creator_id")
 

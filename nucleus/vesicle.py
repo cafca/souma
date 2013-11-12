@@ -2,8 +2,9 @@ import json
 import datetime
 import logging
 
+from base64 import b64encode, b64decode
 from hashlib import sha256
-from keyczar.keys import AesKey
+from keyczar.keys import AesKey, HmacKey
 from uuid import uuid4
 
 from nucleus.models import Persona
@@ -23,18 +24,19 @@ class Vesicle(object):
 
     """
 
-    def __init__(self, message_type, id=None, data=None, payload=None, signature=None, created=None, keycrypt=None, enc=DEFAULT_ENCODING, reply_to=SYNAPSE_PORT, soma_id=app.config["SOMA_ID"]):
+    def __init__(self, message_type, id=None, data=None, payload=None, signature=None, author_id=None, created=None, keycrypt=None, enc=DEFAULT_ENCODING, reply_to=SYNAPSE_PORT, soma_id=app.config["SOMA_ID"]):
         self.id = id if id is not None else uuid4().hex
         self._hashcode = None
         self.created = created
-        self.data = data
+        self.data = data  # The data contained in the vesicle as a Python Dict object
         self.enc = enc
         self.keycrypt = keycrypt
         self.message_type = message_type
-        self.payload = payload
+        self.payload = payload  # The data contained in the vesicle in JSON encoded firn
         self.reply_to = reply_to
         self.send_attributes = set(["message_type", "id", "payload", "reply_to", "enc", "soma_id"])
         self.signature = signature
+        self.author_id = author_id
         self.soma_id = soma_id
 
     def __str__(self):
@@ -42,7 +44,7 @@ class Vesicle(object):
         Return string identifier
         """
 
-        if hasattr(self, "author_id"):
+        if hasattr(self, "author_id") and self.author_id is not None:
             p = Persona.query.get(self.author_id)
             if p is not None:
                 author = p.username
@@ -61,26 +63,36 @@ class Vesicle(object):
         """
 
         # Validate state
-        if self.data == "" or self.data is None:
-            raise ValueError("Cannot encrypt empty vesicle {} (empty data field)".format(self))
+        if self.encrypted():
+            raise ValueError("Cannot encrypt already encrypted {}".format(self))
 
-        # Generate a string representation of the message data
-        data = json.encode(self.data)
+        # Retrieve a string representation of the message data
+        if self.payload is not None:
+            payload = self.payload
+        else:
+            if self.data == "" or self.data is None:
+                raise ValueError("Cannot encrypt empty {} (`data` and `payload` fields are empty)".format(self))
+            payload = json.dumps(self.data)
 
         # Compute its SHA256 hash code
-        self._hashcode = sha256(data)
+        self._hashcode = sha256(payload).hexdigest()[:32]
 
         # Generate an AES key with key=h
-        key = AesKey(self._hashcode, author.hmac_key, AES_BYTES)
 
-        # Encrypt data using the AES key
-        payload = key.encrypt(data)
+        # AES uses HMAC to authenticate its output. Usually this requires a key different from the
+        # AES encryption key. Here I derive it from the AES key because authentication is already 
+        # provided by the separate RSA signature.
+        # TODO: Ask someone whether this is a good idea
+        key = AesKey(self._hashcode, HmacKey(self._hashcode), AES_BYTES)
 
-        self.payload = payload
+        # Encrypt payload using the AES key
+        payload_encrypted = b64encode(key.Encrypt(payload))
+
+        self.payload = payload_encrypted
         self.data = None
         self.author_id = author.id
         self.enc = "{version}-AES-{bytes}".format(version=self.enc.split("-")[0], bytes=AES_BYTES)
-        self.send_attributes.union(set(["author_id", "keycrypt"]))
+        self.send_attributes = self.send_attributes.union(set(["author_id", "keycrypt"]))
 
         for r in recipients:
             self.add_recipient(r)
@@ -101,10 +113,6 @@ class Vesicle(object):
         if not self.encrypted():
             raise ValueError("Cannot decrypt {}: Already plaintext.".format(self))
 
-        author = Persona.query.get(self.author_id)
-        if not author:
-            raise NameError("Author of vesicle {} could not be found: Decryption failed.".format(self))
-
         if not reader_persona.id in self.keycrypt.keys():
             raise KeyError("No key found decrypting {} for {}".format(self, reader_persona))
 
@@ -115,11 +123,11 @@ class Vesicle(object):
             h = reader_persona.decrypt(self.keycrypt[reader_persona.id])
             self._hashcode = h
 
-        # Generate the AES key
-        key = AesKey(h, author.hmac_key, AES_BYTES)
+        # Generate the AES key (see encrypt() above)
+        key = AesKey(h, HmacKey(self._hashcode), AES_BYTES)
 
         # Decrypt the data
-        data = key.decrypt(self.payload)
+        data = key.Decrypt(b64decode(self.payload))
 
         # Decode JSON
         self.data = json.loads(data)
@@ -144,7 +152,7 @@ class Vesicle(object):
 
         self.signature = author.sign(self.payload)
         self.author_id = author.id
-        self.send_attributes.union({"signature", "author_id"})
+        self.send_attributes = self.send_attributes.union(set(["signature", "author_id"]))
 
     def signed(self):
         """
@@ -169,17 +177,18 @@ class Vesicle(object):
         if not self.encrypted():
             raise Exception("Can not add recipients to plaintext vesicles")
 
-        if not self.decrypted():
-            raise Exception("Vesicle must be decrypted for adding recipients")
-
-        if recipient.id in self.keycrypt.keys():
-            raise KeyError("Persona {} is already a recipient of {}".format(recipient, self))
-
         if not self._hashcode:
             raise KeyError("Hashcode not found")
 
-        key = recipient.encrypt(self._hashcode)
-        self.keycrypt[recipient.id] = key
+        if not hasattr(self, "keycrypt") or self.keycrypt is None:
+            self.keycrypt = dict()
+
+        if recipient.id not in self.keycrypt.keys():
+            key = recipient.encrypt(self._hashcode)
+            self.keycrypt[recipient.id] = key
+            app.logger.info("Added {} as a recipient of {}".format(recipient, self))
+        else:
+            app.logger.info("{} is already a recipient of {}".format(recipient, self))
 
     def remove_recipient(self, recipient):
         """
@@ -188,6 +197,7 @@ class Vesicle(object):
         @param recipient Persona instance to be removed from the keycrypt
         """
         del self.keycrypt[recipient.id]
+        app.logger.info("Removed {} as a recipient of {}".format(recipient, self))
 
     def json(self):
         """
@@ -220,7 +230,7 @@ class Vesicle(object):
 
         msg = json.loads(data)
 
-        version, encoding = msg["enc"].split("-")
+        version, encoding = msg["enc"].split("-", 1)
         if version != VESICLE_VERSION:
             raise ValueError("Unknown protocol version: {} \nExpecting: {}".format(version, VESICLE_VERSION))
 
@@ -238,14 +248,17 @@ class Vesicle(object):
                     message_type=msg["message_type"],
                     id=msg["id"],
                     payload=msg["payload"],
-                    signature=msg["signature"],
                     keycrypt=msg["keycrypt"],
                     created=msg["created"],
                     reply_to=msg["reply_to"],
                     enc=msg["enc"])
+
+            if "signature" in msg:
+                vesicle.signature = msg["signature"]
+                vesicle.author_id = msg["author_id"]
         except KeyError, e:
             app.logger.error("Vesicle malformed: missing key\n{}".format(e))
-            return None
+            return KeyError(e)
 
         # Verify signature
         if vesicle.signature is not None and not vesicle.signed():

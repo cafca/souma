@@ -22,3 +22,6 @@ logger = logging.getLogger('nucleus')
 # Source formatting helper
 source_format = lambda address: None if address is None else \
     "{host}:{port}".format(host=address[0], port=address[1])
+
+class InvalidSignatureError(Exception):
+    pass

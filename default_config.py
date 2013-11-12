@@ -29,7 +29,14 @@ SYNAPSE_PORT = LOCAL_PORT + 50
 LOGIN_SERVER = "app.soma:24500"
 # Uncomment this to use Heroku server
 #LOGIN_SERVER = "glia.herokuapp.com:80"
+
+# Setting this to True will automatically upload all vesicles to Myelin, and
+# enable periodic polling of the Myelin for new Vesicles sent to one of the 
+# Personas controlled by this Souma
 ENABLE_MYELIN = True
+
+# The interval at which the Myelin will be polled for new Vesicles
+MYELIN_POLLING_INTERVAL = 15
 
 OPERATOR_ID = "operator"  # TODO: Safe to remove this?
 
