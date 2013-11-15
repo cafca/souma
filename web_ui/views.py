@@ -416,7 +416,7 @@ def find_people():
 
         # TODO: This should flash an error message. It doesn't.
         if errors:
-            flash("Server error: {}".format(", ".join(errors)))
+            flash("Server error: {}".format(", ".join(str(errors))))
 
         elif resp and resp['personas']:
             found = resp['personas']
