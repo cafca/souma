@@ -25,3 +25,6 @@ source_format = lambda address: None if address is None else \
 
 class InvalidSignatureError(Exception):
     pass
+
+class PersonaNotFoundError(Exception):
+    pass

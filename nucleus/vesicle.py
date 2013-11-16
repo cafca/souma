@@ -7,6 +7,7 @@ from hashlib import sha256
 from keyczar.keys import AesKey, HmacKey
 from uuid import uuid4
 
+from nucleus import PersonaNotFoundError
 from nucleus.models import Persona
 from web_ui import app, db
 
@@ -164,7 +165,7 @@ class Vesicle(object):
 
         author = Persona.query.get(self.author_id)
         if not author:
-            raise NameError("Signature of {} could not be verified: author not found.".format(self))
+            raise PersonaNotFoundError(self.author_id)
 
         return author.verify(self.payload, self.signature)
 
