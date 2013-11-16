@@ -339,23 +339,13 @@ def delete_star(id):
     if s is None:
         abort(404)
 
-    # Create deletion request
-    data = dict({
-        "object_type": "Star",
-        "object_id": s.id,
-        "change": "delete",
-        "change_time": datetime.datetime.now().isoformat()
-    })
-
-    # Distribute deletion request
-    star_deleted.send(delete_star, message=s)
-
-    # Delete instance from db
-    db.session.delete(s)
+    s.set_state(-2)
+    db.session.add(s)
     db.session.commit()
 
-    app.logger.info("Deleted star {}".format(id))
+    star_deleted.send(delete_star, message=s)
 
+    app.logger.info("Deleted star {}".format(id))
     return redirect(url_for('debug'))
 
 
@@ -416,7 +406,7 @@ def find_people():
 
         # TODO: This should flash an error message. It doesn't.
         if errors:
-            flash("Server error: {}".format(", ".join(str(errors))))
+            flash("Server error: {}".format(str(errors)))
 
         elif resp and resp['personas']:
             found = resp['personas']
