@@ -190,7 +190,7 @@ def persona(id):
     """ Render home view of a persona """
 
     persona = Persona.query.filter_by(id=id).first_or_404()
-    starmap = Star.query.filter_by(creator_id=id)[:4]
+    starmap = Star.query.filter(Star.creator_id == id, Star.state >= 0)[:4]
 
     # TODO: Use new layout system
     vizier = Vizier([
@@ -352,7 +352,7 @@ def delete_star(id):
 @app.route('/')
 def universe():
     """ Render the landing page """
-    stars = Star.query.all()
+    stars = Star.query.filter(Star.state >= 0).all()
     pm = PageManager()
     page = pm.auto_layout(stars)
 
@@ -368,7 +368,7 @@ def universe():
 @app.route('/s/<id>/', methods=['GET'])
 def star(id):
     """ Display a single star """
-    star = Star.query.filter_by(id=id).first_or_404()
+    star = Star.query.filter(Star.id==id, Star.state >= 0).first_or_404()
     creator = Persona.query.filter_by(id=id)
 
     return render_template('star.html', layout="star", star=star, creator=creator)
