@@ -25,7 +25,7 @@ class Vesicle(object):
 
     """
 
-    def __init__(self, message_type, id=None, data=None, payload=None, signature=None, author_id=None, created=None, keycrypt=None, enc=DEFAULT_ENCODING, reply_to=SYNAPSE_PORT, soma_id=app.config["SOMA_ID"]):
+    def __init__(self, message_type, id=None, data=None, payload=None, signature=None, author_id=None, created=None, keycrypt=None, enc=DEFAULT_ENCODING, reply_to=SYNAPSE_PORT, souma_id=app.config["SOUMA_ID"]):
         self.id = id if id is not None else uuid4().hex
         self._hashcode = None
         self.created = created
@@ -35,10 +35,10 @@ class Vesicle(object):
         self.message_type = message_type
         self.payload = payload  # The data contained in the vesicle in JSON encoded firn
         self.reply_to = reply_to
-        self.send_attributes = set(["message_type", "id", "payload", "reply_to", "enc", "soma_id"])
+        self.send_attributes = set(["message_type", "id", "payload", "reply_to", "enc", "souma_id"])
         self.signature = signature
         self.author_id = author_id
-        self.soma_id = soma_id
+        self.souma_id = souma_id
 
     def __str__(self):
         """

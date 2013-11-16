@@ -63,10 +63,10 @@ if len(app.config['SECRET_KEY']) != 24:
 
 
 # Generate ID used to identify this machine
-app.config['SOMA_ID'] = SHA256.new(app.config['SECRET_KEY']+str(app.config['LOCAL_PORT'])).hexdigest()[:32]
+app.config['SOUMA_ID'] = SHA256.new(app.config['SECRET_KEY']+str(app.config['LOCAL_PORT'])).hexdigest()[:32]
 
-if 'SOMA_PASSWORD_HASH_{}'.format(app.config['LOCAL_PORT']) in os.environ:
-    app.config['PASSWORD_HASH'] = os.environ['SOMA_PASSWORD_HASH_{}'.format(LOCAL_PORT)]
+if 'SOUMA_PASSWORD_HASH_{}'.format(app.config['LOCAL_PORT']) in os.environ:
+    app.config['PASSWORD_HASH'] = os.environ['SOUMA_PASSWORD_HASH_{}'.format(LOCAL_PORT)]
 else:
     app.config['PASSWORD_HASH'] = None
 
@@ -106,8 +106,8 @@ for l in loggers:
 
 # Log loaded configuration info
 app.logger.info(
-    "\n".join(["{:=^80}".format(" SOMA CONFIGURATION "),
-              "{:>12}: {}".format("souma", app.config['SOMA_ID'][:6]),
+    "\n".join(["{:=^80}".format(" SOUMA CONFIGURATION "),
+              "{:>12}: {}".format("souma", app.config['SOUMA_ID'][:6]),
               "{:>12}: {}".format("web ui", "disabled" if app.config['NO_UI'] else app.config['LOCAL_ADDRESS']),
               "{:>12}: {}:{}".format(
                   "synapse",

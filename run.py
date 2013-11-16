@@ -15,12 +15,12 @@ from synapse import Synapse
 try:
     local_souma = Souma.query.filter('sign_private != ""').first()
 except OperationalError:
-    app.logger.info("Setting up Nucleus for Souma<{}>".format(app.config['SOMA_ID'][:6]))
+    app.logger.info("Setting up Nucleus for Souma<{}>".format(app.config['SOUMA_ID'][:6]))
     db.create_all()
 
-    local_souma = Souma(id=app.config['SOMA_ID'])
+    local_souma = Souma(id=app.config['SOUMA_ID'])
     local_souma.generate_keys()
-    local_souma.starmap = Starmap(app.config['SOMA_ID'])
+    local_souma.starmap = Starmap(app.config['SOUMA_ID'])
 
     db.session.add(local_souma)
     db.session.commit()

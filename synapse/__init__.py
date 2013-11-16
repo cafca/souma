@@ -34,10 +34,10 @@ class Synapse(gevent.server.DatagramServer):
     Handles connections with peers
     """
 
-    # Somamap contains information about all online somas
+    # Soumamap contains information about all online soumas
     #
     # It contains values such as:
-    # SOMA_ID: {
+    # SOUMA_ID: {
     #     "host": string IP_ADDRESS,
     #     "port_external": int PORT_NUMBER_OF_INCOMING_CONNECTIONS,
     #     "port_internal": int PORT_USED_BY_PEER_TO_SEND_VESICLES,
@@ -45,7 +45,7 @@ class Synapse(gevent.server.DatagramServer):
     #     "starmap": STARMAP
     #     "last_seen": datetime LAST_SEEN
     # }
-    somamap = dict()
+    soumamap = dict()
 
     def __init__(self, address):
         DatagramServer.__init__(self, address)
@@ -54,7 +54,7 @@ class Synapse(gevent.server.DatagramServer):
         self.logger.setLevel(app.config['LOG_LEVEL'])
 
         # Core setup
-        self.starmap = Starmap.query.get(app.config['SOMA_ID'])
+        self.starmap = Starmap.query.get(app.config['SOUMA_ID'])
         self.vesicle_pool = gevent.pool.Pool(10)
 
         # Connect to glia
@@ -66,7 +66,7 @@ class Synapse(gevent.server.DatagramServer):
 
     def _create_starmap(self):
         """
-        Create a starmap listing all contents of the connected soma
+        Create a starmap listing all contents of the connected souma
         """
 
         stars = Star.query.all()
@@ -118,7 +118,7 @@ class Synapse(gevent.server.DatagramServer):
 
         signal('new-contact').connect(self.on_new_contact)
 
-        signal('soma-discovered').connect(self.on_soma_discovered)
+        signal('souma-discovered').connect(self.on_souma_discovered)
 
     def _distribute_vesicle(self, vesicle, signed=False, recipients=None):
         """
@@ -149,25 +149,25 @@ class Synapse(gevent.server.DatagramServer):
         if app.config["ENABLE_MYELIN"]:
             self.electrical.myelin_store(vesicle)
 
-        for soma_id in self.somamap.iterkeys():
+        for souma_id in self.soumamap.iterkeys():
             # TODO: Check whether that peer has the message already
-            self.message_pool.spawn(self.send_vesicle, vesicle, soma_id)
+            self.message_pool.spawn(self.send_vesicle, vesicle, souma_id)
 
-    def _send_vesicle(self, vesicle, soma_id, signed=False, recipients=None):
+    def _send_vesicle(self, vesicle, souma_id, signed=False, recipients=None):
         """
-        Transmit @param vesicle to specified @param soma_id
+        Transmit @param vesicle to specified @param souma_id
 
-        @param soma_id recipient of the vesicle
+        @param souma_id recipient of the vesicle
         @param signed like _distribute_vesicle
         @param recipients like _distribute_vesicle
         """
         from gevent import socket
 
-        if soma_id not in self.somamap.keys():
-            self.logger.error("send_vesicle: soma {} not found".format(soma_id))
+        if souma_id not in self.soumamap.keys():
+            self.logger.error("send_vesicle: souma {} not found".format(souma_id))
             return
         else:
-            address = (self.somamap[soma_id]["host"], self.somamap[soma_id]["port_external"])
+            address = (self.soumamap[souma_id]["host"], self.soumamap[souma_id]["port_external"])
 
         if signed:
             author = Persona.query.get(vesicle.author_id)
@@ -413,7 +413,7 @@ class Synapse(gevent.server.DatagramServer):
 
     def handle_vesicle(self, data, address):
         """
-        Parse received vesicles, update somamap and call handler
+        Parse received vesicles, update soumamap and call handler
         """
 
         try:
@@ -430,7 +430,7 @@ class Synapse(gevent.server.DatagramServer):
         if not vesicle:
             return
 
-        if vesicle.soma_id not in self.somamap and address is not None:
+        if vesicle.souma_id not in self.soumamap and address is not None:
             # Test connectable
             sock = socket.socket(type=socket.SOCK_DGRAM)
             sock.connect(address)
@@ -441,7 +441,7 @@ class Synapse(gevent.server.DatagramServer):
             except socket.error:
                 connectable = False
 
-            self.somamap[vesicle.soma_id] = {
+            self.soumamap[vesicle.souma_id] = {
                 "host": address[0],
                 "port_external": address[1],
                 "port_internal": vesicle.reply_to,
@@ -450,7 +450,7 @@ class Synapse(gevent.server.DatagramServer):
                 "last_seen": datetime.datetime.now()
             }
 
-            logging.info("Encountered new soma ({})".format(self.somamap[vesicle.soma_id][:6]))
+            logging.info("Encountered new souma ({})".format(self.soumamap[vesicle.souma_id][:6]))
 
         # Decrypt if neccessary
         if vesicle.encrypted():
@@ -478,7 +478,7 @@ class Synapse(gevent.server.DatagramServer):
         """
 
         # TODO validate response
-        soma_remote_id = message.data['soma_id']
+        souma_remote_id = message.data['souma_id']
         remote_starmap = message.data['starmap']
 
         log_starmap = "\n".join(["- <{} {}>".format(
@@ -487,10 +487,10 @@ class Synapse(gevent.server.DatagramServer):
         self.logger.info("Scanning starmap of {} orbs from {}\n{}".format(
             len(remote_starmap), self.source_format(address), log_starmap))
 
-        # Get or create copy of remote Soma's starmap
-        local_starmap = Starmap.query.get(soma_remote_id)
+        # Get or create copy of remote Souma's starmap
+        local_starmap = Starmap.query.get(souma_remote_id)
         if local_starmap is None:
-            local_starmap = Starmap(soma_remote_id)
+            local_starmap = Starmap(souma_remote_id)
             db.session.add(local_starmap)
 
         request_objects = list()  # list of objects to be downloaded
@@ -513,7 +513,7 @@ class Synapse(gevent.server.DatagramServer):
             if (orb_type == 'Star' and Star.query.get(orb_id) is None) \
               or (orb_type == "Persona" and Persona.query.get(orb_id) is None) \
               or (orb_type == "Planet" and Planet.query.get(orb_id) is None):
-                request_objects.append((orb_type, orb_id, soma_remote_id))
+                request_objects.append((orb_type, orb_id, souma_remote_id))
             # Also download if the remote version is newer
             # elif orb_modifed > orb_local.modified:
             #     request_objects.append((orb_type, orb_id, address))
@@ -526,8 +526,8 @@ class Synapse(gevent.server.DatagramServer):
         db.session.commit()
 
         # Spawn requests
-        for orb_type, orb_id, soma_remote_id in request_objects:
-            self.message_pool.spawn(self.request_object, orb_type, orb_id, soma_remote_id)
+        for orb_type, orb_id, souma_remote_id in request_objects:
+            self.message_pool.spawn(self.request_object, orb_type, orb_id, souma_remote_id)
 
     def handle_starmap_request(self, vesicle):
         """
@@ -535,7 +535,7 @@ class Synapse(gevent.server.DatagramServer):
         """
 
         vesicle = Vesicle("starmap", data={
-            'soma_id': app.config['SOMA_ID'],
+            'souma_id': app.config['SOUMA_ID'],
             'starmap': self._create_starmap()
         })
 
@@ -610,6 +610,7 @@ class Synapse(gevent.server.DatagramServer):
         orb = Orb.query.get(star.id)
         if not orb:
             self.logger.error("Orb {} not found".format(orb))
+        else:
             db.session.delete(orb)
             db.session.commit()
 
@@ -795,12 +796,12 @@ class Synapse(gevent.server.DatagramServer):
 
         self._distribute_vesicle(vesicle, signed=True)
 
-    def on_soma_discovered(self, sender, message):
+    def on_souma_discovered(self, sender, message):
         """
-        Add new somas to the somamap
+        Add new soumas to the soumamap
 
-        soma = {
-            "id": string SOMA_ID
+        souma = {
+            "id": string SOUMA_ID
             "host": string IP_ADDRESS,
             "port_external": int PORT_NUMBER_OF_INCOMING_CONNECTIONS,
             "port_internal": int PORT_USED_BY_PEER_TO_SEND_VESICLES,
@@ -808,19 +809,19 @@ class Synapse(gevent.server.DatagramServer):
             "last_seen": datetime LAST_SEEN
         }
         """
-        soma = message
+        souma = message
 
         try:
-            soma_id = soma['id']
-            host = soma['host']
-            port_external = soma['port_external']
-            port_internal = soma['port_internal']
-            connectable = soma['connectable']
-            last_seen = soma['last_seen']
+            souma_id = souma['id']
+            host = souma['host']
+            port_external = souma['port_external']
+            port_internal = souma['port_internal']
+            connectable = souma['connectable']
+            last_seen = souma['last_seen']
         except KeyError, e:
             self.logger.error("Invalid souma information: {}".format(e))
 
-        self.somamap[soma_id] = {
+        self.soumamap[souma_id] = {
             "host": host,
             "port_external": port_external,
             "port_internal": port_internal,
@@ -829,27 +830,27 @@ class Synapse(gevent.server.DatagramServer):
             "last_seen": dateutil_parse(last_seen)
         }
 
-        self.request_starmap(soma_id)
-        self.logger.info("Discovered new souma {}@{}".format(soma_id[:6], source_format(host, port)))
+        self.request_starmap(souma_id)
+        self.logger.info("Discovered new souma {}@{}".format(souma_id[:6], source_format(host, port)))
 
-    def request_starmap(self, soma_id):
+    def request_starmap(self, souma_id):
         """
-        Request a starmap from the given @param soma_id
+        Request a starmap from the given @param souma_id
         """
 
-        if not soma_id in self.somamap:
-            raise KeyError("Soma {} not found".format(soma_id[:6]))
-        s = self.somamap[soma_id]
+        if not souma_id in self.soumamap:
+            raise KeyError("Souma {} not found".format(souma_id[:6]))
+        s = self.soumamap[souma_id]
 
-        self.logger.info("Requesting starmap from souma {} ({})".format(soma_id[:6],
+        self.logger.info("Requesting starmap from souma {} ({})".format(souma_id[:6],
                          source_format(s['address'], s['port_external'])))
 
         vesicle = Vesicle("starmap_request", data=dict())
-        self._send_vesicle(vesicle, soma_id)
+        self._send_vesicle(vesicle, souma_id)
 
-    def request_object(self, object_type, object_id, soma_id):
+    def request_object(self, object_type, object_id, souma_id):
         """
-        Try retrieving object @param object_id of kind @param object_type from @param soma_id
+        Try retrieving object @param object_id of kind @param object_type from @param souma_id
         """
 
         self.logger.info("Requesting <{object_type} {object_id}> from {source}".format(
@@ -860,7 +861,7 @@ class Synapse(gevent.server.DatagramServer):
             "object_id": object_id
         })
 
-        self._send_vesicle(vesicle, soma_id)
+        self._send_vesicle(vesicle, souma_id)
 
     def shutdown(self):
         self.pool.kill()

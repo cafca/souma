@@ -60,8 +60,8 @@ class Persona(Serializable, db.Model):
     modified = db.Column(db.DateTime, default=datetime.datetime.now(), onupdate=datetime.datetime.now())
 
     # TODO: Is this needed?
-    soma_id = db.Column(db.String(32), db.ForeignKey('starmap.id'))
-    soma = db.relationship('Starmap', backref="personas", primaryjoin='starmap.c.id==persona.c.soma_id')
+    souma_id = db.Column(db.String(32), db.ForeignKey('starmap.id'))
+    souma = db.relationship('Starmap', backref="personas", primaryjoin='starmap.c.id==persona.c.souma_id')
 
     def __init__(self, id, username, email=None, sign_private=None, sign_public=None,
                  crypt_private=None, crypt_public=None):

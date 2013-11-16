@@ -65,7 +65,7 @@ class ElectricalSynapse(object):
         self._sessions = dict()  # Holds session info for owned Personas (see _get_session(), _set_session()
 
         # Setup signals
-        self.soma_discovered = notification_signals.signal('soma-discovered')
+        self.souma_discovered = notification_signals.signal('souma-discovered')
         notification_signals.signal('persona-created').connect(self.on_persona_created)
         notification_signals.signal('persona-modified').connect(self.on_persona_modified)
         notification_signals.signal('persona-deleted').connect(self.on_persona_deleted)
@@ -79,7 +79,7 @@ class ElectricalSynapse(object):
 
         # Register souma if neccessary
         if errors:
-            # Check for SOMA_NOT_FOUND error code in server response
+            # Check for SOUMA_NOT_FOUND error code in server response
             if ERROR["SOUMA_NOT_FOUND"](None)[0] in map(itemgetter(0), server_info["meta"]["errors"]):
                 if self.souma_register():
                     server_info, errors = self._request_resource("GET", [])
@@ -314,7 +314,7 @@ class ElectricalSynapse(object):
 
                     if soumas:
                         for souma in soumas:
-                            self.soma_discovered.send(self._update_peer_list, message=souma)
+                            self.souma_discovered.send(self._update_peer_list, message=souma)
                     else:
                         offline += 1
                         self.logger.info("No online souma found for {}".format(contacts.get(p_id)))
