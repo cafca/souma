@@ -8,6 +8,7 @@ from keyczar.keys import RsaPrivateKey, RsaPublicKey
 from sqlalchemy import ForeignKey
 from sqlalchemy.exc import OperationalError
 
+from nucleus import STAR_STATES
 from web_ui import db
 from web_ui.helpers import epoch_seconds
 
@@ -131,6 +132,7 @@ class Star(Serializable, db.Model):
     text = db.Column(db.Text)
     created = db.Column(db.DateTime, default=datetime.datetime.now())
     modified = db.Column(db.DateTime, default=datetime.datetime.now(), onupdate=datetime.datetime.now())
+    state = db.Column(db.Integer, default=0)
 
     planets = db.relationship('Planet',
         secondary='satellites',
@@ -159,6 +161,34 @@ class Star(Serializable, db.Model):
         return "<Star {}: {}>".format(
             self.creator_id[:6],
             (ascii_text[:24] if len(ascii_text) <= 24 else ascii_text[:22] + ".."))
+
+    def get_state(self):
+        """
+        Return publishing state of this star.
+
+        Returns:
+            One of:
+                (-2, "deleted")
+                (-1, "unavailable")
+                (0, "published")
+                (1, "draft")
+                (2, "private")
+                (3, "updating")
+        """
+        return STAR_STATES[self.state]
+
+    def set_state(self, new_state):
+        """
+        Set the publishing state of this star
+
+        Parameters:
+            new_state (int) code of the new state as defined in nucleus.STAR_STATES
+        """
+        if not isinstance(new_state, int) or new_state not in STAR_STATES.keys():
+            raise ValueError("{} ({}) is not a valid star state").format(
+                new_state, type(new_state))
+        else:
+            self.state = new_state
 
     def get_absolute_url(self):
         return url_for('star', id=self.id)

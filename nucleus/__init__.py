@@ -23,6 +23,16 @@ logger = logging.getLogger('nucleus')
 source_format = lambda address: None if address is None else \
     "{host}:{port}".format(host=address[0], port=address[1])
 
+# Possible states of stars
+STAR_STATES = {
+    -2: (-2, "deleted"),
+    -1: (-1, "unavailable"),
+    0: (0, "published"),
+    1: (1, "draft"),
+    2: (2, "private"),
+    3: (3, "updating")
+}
+
 class InvalidSignatureError(Exception):
     pass
 
