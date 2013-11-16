@@ -10,6 +10,7 @@
             <th>Creator</th>
             <th>Modified</th>
             <th>Created</th>
+            <th>State</th>
             <th></th>
         </tr>
     </thead>
@@ -19,9 +20,14 @@
         <td>{{ star.id }}</td>
         <td>{{ star.text }}</td>
         <td>{{ star.creator.username}}</td>
-        <td>{{ star.modified }}</td>
-        <td>{{ star.created}} </td>
-        <td><a class="btn" href="{{ url_for('delete_star', id=star.id) }}">Delete</a></td>
+        <td>{{ star.modified | naturaltime }}</td>
+        <td>{{ star.created | naturaltime}} </td>
+        <td>{{ star.get_state()[1] | capitalize}}</td>
+        {% if star.state >= 0 %}
+            <td><a class="btn" href="{{ url_for('delete_star', id=star.id) }}">Delete</a></td>
+        {% else %}
+            <td>&nbsp;</td>
+        {% endif %}
       </tr>
       {% endfor %}
     </tbody>
