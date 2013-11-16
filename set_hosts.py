@@ -17,7 +17,7 @@ else:
     # Is this really the place on all systems other than Windows?
     HOSTSFILE = '/etc/hosts'
 
-SOMA_ENTRY = "127.0.0.1 app.soma"
+SOMA_ENTRY = "127.0.0.1 app.souma"
 entry_found = False
 
 

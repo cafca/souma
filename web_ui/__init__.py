@@ -1,50 +1,93 @@
 import logging
+import os
 import sys
 import argparse
 
-from flask import Flask
+from Crypto.Hash import SHA256
+from flask import Flask, json
 from flask.ext.sqlalchemy import SQLAlchemy
 from flaskext import uploads
 from humanize import naturaltime
 from werkzeug.contrib.cache import SimpleCache
 
+
 # Initialize Flask app
-app = Flask('soma')
+app = Flask('souma')
+
+# Load config from /default_config.py
 app.config.from_object("default_config")
 app.jinja_env.filters['naturaltime'] = naturaltime
 
+
 # Parse command line arguments
-parser = argparse.ArgumentParser(description='Start Soma client')
-parser.add_argument(
-    '--no_ui',
+parser = argparse.ArgumentParser(description='Start Souma client')
+parser.add_argument('--no_ui',
     default=False,
     action="store_true",
     help="skip starting the web ui server")
 
-parser.add_argument(
-    '-p',
+parser.add_argument('-p',
     '--port',
-    default=app.config['LOCAL_PORT'],
     type=int,
     help='run synapse on this port')
 
-parser.add_argument(
-    '-g',
+parser.add_argument('-g',
     '--glia',
     default=app.config['LOGIN_SERVER'],
     help="glia server")
 
 args = parser.parse_args()
-app.config['LOCAL_PORT'] = args.port
 app.config['NO_UI'] = args.no_ui
 app.config['LOGIN_SERVER'] = args.glia
+
+if args.port is not None:
+  app.config['LOCAL_PORT'] = args.port
+  app.config['LOCAL_ADDRESS'] = "{}:{}".format(app.config['LOCAL_HOSTNAME'], args.port)
+  app.config['SYNAPSE_PORT'] = args.port + 50
+  app.config['DATABASE'] = 'souma_{}.db'.format(app.config['LOCAL_PORT'])
+  app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///" + app.config['DATABASE']
+
+
+# Load/set secret key
+try:
+    with open('secret_key', 'rb') as f:
+        app.config['SECRET_KEY'] = f.read()
+except IOError:
+    app.config['SECRET_KEY'] = os.urandom(24)
+    with open('secret_key', 'wb') as f:
+        f.write(app.config['SECRET_KEY'])
+
+if len(app.config['SECRET_KEY']) != 24:
+    raise ValueError('Secret key must be 24 bytes, not {}'.format(
+      len(app.config['SECRET_KEY'])))
+
+
+# Generate ID used to identify this machine
+app.config['SOMA_ID'] = SHA256.new(app.config['SECRET_KEY']+str(app.config['LOCAL_PORT'])).hexdigest()[:32]
+
+if 'SOMA_PASSWORD_HASH_{}'.format(app.config['LOCAL_PORT']) in os.environ:
+    app.config['PASSWORD_HASH'] = os.environ['SOMA_PASSWORD_HASH_{}'.format(LOCAL_PORT)]
+else:
+    app.config['PASSWORD_HASH'] = None
+
+
+# Load layout definitions
+try:
+    with open(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'layouts.json')) as f:
+        app.config['LAYOUT_DEFINITIONS'] = json.load(f)
+except IOError, e:
+    logging.error("Failed loading layout definitions")
+    app.config['LAYOUT_DEFINITIONS'] = dict()
+
 
 # Setup SQLAlchemy database
 db = SQLAlchemy(app)
 
+
 # Setup attachment access
 attachments = uploads.UploadSet('attachments', uploads.IMAGES)
 uploads.configure_uploads(app, (attachments))
+
 
 # Setup loggers
 # Flask is configured to route logging events only to the console if it is in debug
@@ -60,7 +103,8 @@ for l in loggers:
     l.addHandler(console_handler)
     l.propagate = False  # setting this to true triggers the root logger
 
-# Log configuration info
+
+# Log loaded configuration info
 app.logger.info(
     "\n".join(["{:=^80}".format(" SOMA CONFIGURATION "),
               "{:>12}: {}".format("souma", app.config['SOMA_ID'][:6]),
@@ -71,6 +115,7 @@ app.logger.info(
                   app.config['SYNAPSE_PORT']),
               "{:>12}: {}".format("database", app.config['DATABASE']),
               "{:>12}: {}".format("glia server", app.config['LOGIN_SERVER'])]))
+
 
 # Setup Cache
 cache = SimpleCache()
