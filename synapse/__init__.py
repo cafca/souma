@@ -9,7 +9,7 @@ from gevent.server import DatagramServer
 
 from nucleus import notification_signals, source_format
 from nucleus.models import Persona, Star, Planet
-from nucleus.vesicle import Vesicle
+from nucleus.vesicle import Vesicle, PersonaNotFoundError
 from synapse.electrical import ElectricalSynapse
 from synapse.models import Starmap, Orb
 from web_ui import app, db
@@ -416,7 +416,17 @@ class Synapse(gevent.server.DatagramServer):
         Parse received vesicles, update somamap and call handler
         """
 
-        vesicle = Vesicle.read(data)
+        try:
+            vesicle = Vesicle.read(data)
+        except PersonaNotFoundError, e:
+            self.logger.info("Received Vesicle from unknown Persona, trying to retrieve Persona info.")
+            resp, errors = self.electrical.persona_info(e[0])
+            if errors:
+                self.logger.warning("Could not retrieve unknown Persona from server:\n{}".format(", ".join(errors)))
+                return
+            else:
+                vesicle = Vesicle.read(data)
+
         if not vesicle:
             return
 

@@ -13,7 +13,7 @@ from operator import itemgetter
 
 from nucleus import notification_signals, ERROR
 from nucleus.models import Persona, Souma
-from web_ui import app
+from web_ui import app, db
 
 API_VERSION = 0
 API_VERSION_LONG = 0.1
@@ -104,6 +104,14 @@ class ElectricalSynapse(object):
     def _get_session(self, persona):
         """
         Return the current session id for persona or create a new session
+
+        Parameters:
+            persona (Persona): A persona object to be logged in
+
+        Returns:
+            dict A dictionary with keys `id`, containing a session id and
+                `timeout` containing a datetime object for the session's
+                timeout
         """
         if persona.id in self._sessions:
             return self._sessions[persona.id]
@@ -263,8 +271,8 @@ class ElectricalSynapse(object):
 
         # Log all errors
         if errors:
-            self.logger.error("{} {} failed.\nParam: {}\nPayload: {}\nErrors:\n* {}".format(
-                method, endpoint, params, payload_json, "\n* ".join(str(e) for e in errors)))
+            self.logger.error("{} {} / {} failed.\nParam: {}\nPayload: {}\nErrors:\n* {}".format(
+                method, endpoint, r.url, params, payload_json, "\n* ".join(str(e) for e in errors)))
 
         return (resp, error_strings)
 
@@ -376,6 +384,7 @@ class ElectricalSynapse(object):
                 self.logger.info("Myelin received: \n{}".format(v))
                 self.synapse.handle_vesicle(v, None)
 
+        # Schedule this method to be called in again in interval seconds
         if interval is not None:
             update = Greenlet(self.myelin_receive, recipient, interval)
             update.start_later(interval)
@@ -421,16 +430,42 @@ class ElectricalSynapse(object):
 
     def persona_info(self, persona_id):
         """
-        Return a dictionary containing info about a persona
+        Return a dictionary containing info about a persona, storing it in the db as well.
 
         Parameters:
             persona_id (str): Persona ID
 
         Returns:
-            dict persona's public profile and auth_token for authentication
+            tuple 0: persona's public profile and auth_token for authentication
+                as a dict, 1: list of errors while requesting from server
         """
         self.logger.info("Requesting info_dict for <Persona [{}]>".format(persona_id[:6]))
-        return self._request_resource("GET", ["personas", persona_id])
+        resp, errors = self._request_resource("GET", ["personas", persona_id])
+
+        if errors:
+            self._log_errors("Error retrieving Persona profile for ID: {}".format(persona_id), errors)
+        else:
+            pinfo = resp["personas"][0]
+
+            p = Persona.query.get(persona_id)
+            if p is None:
+                try:
+                    p = Persona(persona_id, 
+                        username=pinfo["username"],
+                        email=pinfo.get("email"), 
+                        sign_public=pinfo["sign_public"],
+                        crypt_public=pinfo["crypt_public"])
+                    db.session.add(p)
+                    db.session.commit()
+                except KeyError, e:
+                    self.logger.warning("Missing key in server response for storing new Persona: {}".format(e))
+                    errors.append("Missing key in server response for storing new Persona: {}".format(e))
+            else:
+                # TODO: Update persona info
+                pass
+
+        return resp, errors
+
 
     def persona_login(self, persona):
         """
