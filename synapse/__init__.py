@@ -237,9 +237,6 @@ class Synapse(gevent.server.DatagramServer):
         except ValueError:
             errors.append("malformed change time: {}".format(change_time))
 
-        if not vesicle.signed():
-            errors.append("Invalid or missing signature")
-
         if len(errors) > 0:
             self.logger.error("Malformed change notification\n{}".format("\n".join(errors)))
             return
@@ -247,25 +244,38 @@ class Synapse(gevent.server.DatagramServer):
         # Check whether the changed object exists locally
         if object_type == "Star":
             o = Star.query.get(object_id)
+            authority = o.creator
         elif object_type == "Persona":
             o = Persona.query.get(object_id)
+            authority = o
         elif object_type == "Planet":
             o = Planet.query.get(object_id)
+            authority = o.creator
+
+        # Check authority
+        if not vesicle.signed() or vesicle.author_id != authority.id:
+            self.logger.warning("Unauthorized change request received! ({})".format(vesicle))
 
         # Reflect changes if neccessary
-        if change == "delete":
-            # TODO: Verify authority
-
-            if o is None:
-                self.logger.info("<{} {}> deleted (no local copy)".format(
-                    object_type, object_id[:6]))
+        elif change == "delete":
+            if object_type == "Star":
+                if o is None or o.state < 0:
+                    self.logger.info("<Star [{}]> deleted (no local copy)".format(object_id[:6]))
+                else:
+                    o.set_state(-2)
+                    db.session.add(o)
+                    self.logger.info("Deleted {}".format(o))
             else:
-                db.session.delete(o)
-                self.starmap.remove(o)
-                db.session.add(self.starmap)
-                db.session.commit()
-                self.logger.info("<{} {}> deleted".format(
-                    object_type, object_id[:6]))
+                if o is None:
+                    self.logger.info("<{} [{}]> deleted (no local copy)".format(
+                        object_type, object_id[:6]))
+                else:
+                    # self.starmap.remove(o)
+                    # db.session.add(self.starmap)
+                    # db.session.commit()
+                    db.session.delete(o)
+                    self.logger.info("<{} {}> deleted".format(
+                        object_type, object_id[:6]))
 
         elif change == "insert":
             # Object already exists locally
@@ -627,7 +637,7 @@ class Synapse(gevent.server.DatagramServer):
 
         self.logger.debug("Distributing {}".format(vesicle))
 
-        self._distribute_vesicle(vesicle, signed=True)
+        self._distribute_vesicle(vesicle, signed=True, recipients=star.creator.contacts)
 
     def on_planet_created(self, sender, message):
         """
