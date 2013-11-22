@@ -244,26 +244,36 @@ class Synapse(gevent.server.DatagramServer):
         # Check whether the changed object exists locally
         if object_type == "Star":
             o = Star.query.get(object_id)
-            authority = o.creator
         elif object_type == "Persona":
             o = Persona.query.get(object_id)
-            authority = o
         elif object_type == "Planet":
             o = Planet.query.get(object_id)
-            authority = o.creator
 
-        # Check authority
-        if not vesicle.signed() or vesicle.author_id != authority.id:
-            self.logger.warning("Unauthorized change request received! ({})".format(vesicle))
+        # Check authority if original object exists
+        if o is not None:
+            authority = o if object_type == "Persona" else o.creator
+            if vesicle.author_id != authority.id:
+                self.logger.warning("Unauthorized change request received! ({})".format(vesicle))
+
+        # Check signature
+        if not vesicle.signed():
+            self.logger.warning("Signature error on change request! ({})".format(vesicle))
 
         # Reflect changes if neccessary
         elif change == "delete":
             if object_type == "Star":
-                if o is None or o.state < 0:
-                    self.logger.info("<Star [{}]> deleted (no local copy)".format(object_id[:6]))
+                if o is None:
+                    deleted_star = Star(id=object_id, text=None, creator=None)
+                    deleted_star.set_state(-2)
+                    db.session.add(deleted_star)
+                    db.session.commit()
+                    self.logger.info("<Star [{}]> marked deleted (no local copy available)".format(object_id[:6]))
+                elif o.state == -2:
+                    self.logger.info("<Star [{}]> is already deleted".format(object_id[:6]))
                 else:
                     o.set_state(-2)
                     db.session.add(o)
+                    db.session.commit()
                     self.logger.info("Deleted {}".format(o))
             else:
                 if o is None:
@@ -424,6 +434,16 @@ class Synapse(gevent.server.DatagramServer):
     def handle_vesicle(self, data, address):
         """
         Parse received vesicles, update soumamap and call handler
+
+        Args:
+            data (String): JSON encoded Vesicle
+            address (Tuple): Address of the Vesicle's sender for replies
+                0 -- IP
+                1 -- PORT 
+
+        Returns:
+            Vesicle: The Vesicle that was decrypted and loaded
+            None: If no Vesicle could be loaded
         """
 
         try:
@@ -438,6 +458,7 @@ class Synapse(gevent.server.DatagramServer):
                 vesicle = Vesicle.read(data)
 
         if not vesicle:
+            self.logger.error("Failed handling Vesicle due to decoding error")
             return
 
         if vesicle.souma_id not in self.soumamap and address is not None:
@@ -477,10 +498,16 @@ class Synapse(gevent.server.DatagramServer):
                 self.logger.error("Could not decrypt {}. No recipient found in owned personas.".format(vesicle))
                 return
 
+        # Store locally
+        myelinated = True if address is None else False
+        vesicle.save(myelin=myelinated, json=data)
+
         # Call handler depending on message type
         if vesicle.message_type in ALLOWED_MESSAGE_TYPES:
             handler = getattr(self, "handle_{}".format(vesicle.message_type))
             handler(vesicle)
+
+        return vesicle
 
     def handle_starmap(self, vesicle):
         """

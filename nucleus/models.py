@@ -63,6 +63,9 @@ class Persona(Serializable, db.Model):
     souma_id = db.Column(db.String(32), db.ForeignKey('starmap.id'))
     souma = db.relationship('Starmap', backref="personas", primaryjoin='starmap.c.id==persona.c.souma_id')
 
+    # Myelin offset stores the date at which the last Vesicle receieved from Myelin was created
+    myelin_offset = db.Column(db.DateTime)
+
     def __init__(self, id, username, email=None, sign_private=None, sign_public=None,
                  crypt_private=None, crypt_public=None):
 
@@ -322,9 +325,12 @@ class Souma(Serializable, db.Model):
         key_public = RsaPublicKey.Read(self.sign_public)
         return key_public.Verify(data, signature)
 
-class DBVesicle(db.Model):   
-    """Store the canonical representation of a Vesicle"""
+class DBVesicle(db.Model):
+    """Store the representation of a Vesicle"""
 
-    __tablename__ = "vesicle"
+    __tablename__ = "dbvesicle"
     id = db.Column(db.String(32), primary_key=True)
     json = db.Column(db.Text)
+    created = db.Column(db.DateTime)
+    author_id = db.Column(db.String(32))
+    source_id = db.Column(db.String(32))

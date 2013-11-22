@@ -1,14 +1,15 @@
 import json
 import datetime
 import logging
+import iso8601
 
 from base64 import b64encode, b64decode
 from hashlib import sha256
 from keyczar.keys import AesKey, HmacKey
 from uuid import uuid4
 
-from nucleus import PersonaNotFoundError
-from nucleus.models import Persona
+from nucleus import PersonaNotFoundError, InvalidSignatureError
+from nucleus.models import Persona, DBVesicle
 from web_ui import app, db
 
 VESICLE_VERSION = "0.1"
@@ -226,7 +227,16 @@ class Vesicle(object):
         """
         Create a vesicle instance from its JSON representation
 
-        @param data JSON representation obtained from a vesicle instance's json() method
+        Args:
+            data (String): JSON representation of a Vesicle
+
+        Returns:
+            Vesicle: The newly read Vesicle object
+
+        Raises:
+            ValueError: Unknown protocol version or malformed created timestamp
+            KeyError: Missing key in vesicle JSON
+            InvalidSignatureError: Does not match author_id's pubkey
         """
 
         msg = json.loads(data)
@@ -241,7 +251,7 @@ class Vesicle(object):
                     message_type=msg["message_type"],
                     id=msg["id"],
                     payload=msg["payload"],
-                    created=msg["created"],
+                    created=iso8601.parse_date(msg["created"]).replace(tzinfo=None),
                     reply_to=msg["reply_to"],
                     enc=msg["enc"])
             else:
@@ -250,7 +260,7 @@ class Vesicle(object):
                     id=msg["id"],
                     payload=msg["payload"],
                     keycrypt=msg["keycrypt"],
-                    created=msg["created"],
+                    created=iso8601.parse_date(msg["created"]).replace(tzinfo=None),
                     reply_to=msg["reply_to"],
                     enc=msg["enc"])
 
@@ -260,42 +270,51 @@ class Vesicle(object):
         except KeyError, e:
             app.logger.error("Vesicle malformed: missing key\n{}".format(e))
             return KeyError(e)
+        except iso8601.ParseError, e:
+            app.logger.error("Vesicle malformed: Error parsing date ({})".format(e))
+            return ValueError("Vesicle malformed: Error parsing date ({})".format(e))
 
         # Verify signature
         if vesicle.signature is not None and not vesicle.signed():
-            raise ValueError("Invalid signature on {}".format(vesicle))
+            raise InvalidSignatureError("Invalid signature on {}".format(vesicle))
 
         return vesicle
 
     @staticmethod
     def load(self, id):
         """Read a Vesicle back from the local database"""
-        json = DBVesicle.query.get(id)
+        v = DBVesicle.query.get(id)
         if v:
-            return Vesicle.read(json)
+            return Vesicle.read(v.json)
         else:
             raise KeyError("<Vesicle [{}]> could not be found".format(id[:6]))
 
-    def save(self):
-        """Save this Vesicle to the local Database, overwriting any previous versions"""
+    def save(self, myelin=False, json=None):
+        
+        """
+        Save this Vesicle to the local Database, overwriting any previous versions
+
+        Parameters:
+            myelin (Bool): Set True if this was received from Myelin
+            json (String): Value to store as JSON instead of automatically generated JSON
+        """
 
         if self.payload is None:
             raise TypeError("Cannot store Vesicle without payload ({}). Please encrypt or sign.".format(self))
+
+        if json is None:
+            json = self.json()
 
         v = DBVesicle.query.get(self.id)
         if v is None:
             app.logger.info("Storing {} in database".format(self))
             v = DBVesicle(
                 id=self.id,
-                json=self.json()
+                json=json,
+                source_id=self.souma_id if not myelin else "myelin",
+                author_id=self.author_id if 'author_id' in dir(self) else None
             )
+            db.session.add(v)
+            db.session.commit()
         else:
-            app.logger.info("Storing new version of {} in database".format(self))
-            v.json = self.json()
-
-        db.session.add(v)
-        db.session.commit()
-
-
-
-
+            app.logger.info("Didn't save {}. Already existing in database.".format(self))

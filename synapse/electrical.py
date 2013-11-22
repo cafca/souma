@@ -12,7 +12,7 @@ from hashlib import sha256
 from operator import itemgetter
 
 from nucleus import notification_signals, ERROR
-from nucleus.models import Persona, Souma
+from nucleus.models import Persona, Souma, DBVesicle
 from web_ui import app, db
 
 API_VERSION = 0
@@ -364,29 +364,50 @@ class ElectricalSynapse(object):
             for p in persona_set:
                 self.persona_login(p)
 
-    def myelin_receive(self, recipient, interval=None):
+    def myelin_receive(self, recipient_id, interval=None):
         """
-        Receive vesicles from Myelin for this recipient
+        Request Vesicles directed at recipient from Myelin and pass them on to Synapse for handling.
 
         Parameters:
-            recipient (Persona) The channel on which to listen on
+            recipient_id (String) The ID of the Persona for which to listen
             interval (int) If set to an amount of seconds, the function will repeatedly be called again in this interval
         """
+        recipient = Persona.query.get(recipient_id)
+        if not recipient:
+            self.logger.error("Could not find Persona {}".format(recipient_id))
+            return
+        
         self.logger.info("Updating Myelin of {} at {} second intervals".format(recipient, interval))
+        params = dict()
 
-        params = None  # TODO: Request a specific range according to the most recent vescile received from myelin
+        # Determine offset
+        offset = recipient.myelin_offset
+        if offset is not None:
+            self.logger.info("Last vesicle received at {}".format(offset))
+            params["offset"] = str(recipient.myelin_offset)
+
         resp, errors = self._request_resource("GET", ["myelin", "recipient", recipient.id], params, None)
 
         if errors:
             self._log_errors("Error receiving from Myelin", errors)
         else:
-            for v in resp["vesicles"]:
+            for v in reversed(resp["vesicles"]):
                 self.logger.info("Myelin received: \n{}".format(v))
-                self.synapse.handle_vesicle(v, None)
+                vesicle = self.synapse.handle_vesicle(v, None)
+                if offset is None or vesicle.created > offset:
+                    offset = vesicle.created
+
+        # Update recipient's offset if a more recent Vesicle has been received
+        if offset is not None:
+            if recipient.myelin_offset is None or offset > recipient.myelin_offset:
+                recipient.myelin_offset = offset
+                db.session.add(recipient)
+                db.session.commit()
+
 
         # Schedule this method to be called in again in interval seconds
         if interval is not None:
-            update = Greenlet(self.myelin_receive, recipient, interval)
+            update = Greenlet(self.myelin_receive, recipient_id, interval)
             update.start_later(interval)
 
 
@@ -525,7 +546,7 @@ class ElectricalSynapse(object):
             self._queue_keepalive(persona)
             self._update_peer_list(persona)
             if app.config["ENABLE_MYELIN"]:
-                self.myelin_receive(persona, interval=app.config["MYELIN_POLLING_INTERVAL"])
+                self.myelin_receive(persona.id, interval=app.config["MYELIN_POLLING_INTERVAL"])
 
             return {
                 "id": session_id,
@@ -596,7 +617,7 @@ class ElectricalSynapse(object):
         self._update_peer_list(persona)
         self._queue_keepalive(persona)
         if app.config["ENABLE_MYELIN"]:
-            self.myelin_receive(persona, interval=app.config["MYELIN_POLLING_INTERVAL"])
+            self.myelin_receive(persona.id, interval=app.config["MYELIN_POLLING_INTERVAL"])
 
     def persona_unregister(self, persona):
         """
