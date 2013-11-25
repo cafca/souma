@@ -14,6 +14,7 @@ from synapse.electrical import ElectricalSynapse
 from synapse.models import Starmap, Orb
 from web_ui import app, db
 
+# These are Vesicle options which are recognized by this Synapse
 ALLOWED_MESSAGE_TYPES = [
     "change_notification",
     "object_request",
@@ -25,13 +26,24 @@ ALLOWED_MESSAGE_TYPES = [
 CHANGE_TYPES = ("create", "update", "delete")
 OBJECT_TYPES = ("Star", "Planet", "Persona")
 
-PERSONA_NOT_FOUND = 0
-SESSION_INVALID = 1
-
 
 class Synapse(gevent.server.DatagramServer):
     """
-    Handles connections with peers
+    A Synapse object reacts to local changes in the database and informs
+    peers of Personas local to this machine about it. It also receives
+    messages from them and updates the local database accordingly. 
+
+    Synapse is a UDP server/client and can also use its ElectricalSynapse
+    to exchange information using the Glia/Myelin server.
+
+    Initializing a Synapse object logs in all connected Personas and starts
+    listening on the specified port for UDP connections.
+
+    Args:
+        address (Tuple)
+            0 -- (String) The IP-address this Synapse should listen on.
+                Using '0.0.0.0' binds to a public IP address.
+            1 -- (String) The port number to listen on.
     """
 
     # Soumamap contains information about all online soumas
@@ -61,12 +73,12 @@ class Synapse(gevent.server.DatagramServer):
         self.electrical = ElectricalSynapse(self)
         self.electrical.login_all()
 
-        # Connect to souma
+        # Connect to nucleus
         self._connect_signals()
 
     def _create_starmap(self):
         """
-        Create a starmap listing all contents of the connected souma
+        Create a starmap listing all contents of the local Souma
         """
 
         stars = Star.query.all()
@@ -99,7 +111,7 @@ class Synapse(gevent.server.DatagramServer):
 
     def _connect_signals(self):
         """
-        Connect to Blinker signals
+        Connect to Blinker signals which are registered in nucleus.__init__
         """
 
         signal = notification_signals.signal
@@ -122,13 +134,18 @@ class Synapse(gevent.server.DatagramServer):
 
     def _distribute_vesicle(self, vesicle, signed=False, recipients=None):
         """
-        Distribute vesicle to online peers
+        Distribute vesicle to all online peers. Uses Myelin if enabled.
 
-        @param vesicle Contains content and an author.
-        @param signed If signed=True vesicle is encrypted given that vesicle.author_id is found
-                        locally. Otherwise a NameError is thrown.
-        @param recipients A list of persona objects. If this is set the vesicle is
-                        encrypted for these recipients.
+        Args:
+            vesicle (Vesicle): The message to transmit.
+            signed (Bool): Set to True to sign using the Persona
+                specified in vesicle.author_id
+            recipients (List): List of Persona objects. If recipients is not
+                empty, the Vesicle is encrypted and the key is transmitted for
+                this list of Personas.
+
+        Returns:
+            Vesicle: The (signed and encrypted) Vesicle object
         """
 
         self.logger.debug("Distributing {} {} to {} recipients {}".format(
@@ -153,13 +170,18 @@ class Synapse(gevent.server.DatagramServer):
             # TODO: Check whether that peer has the message already
             self.message_pool.spawn(self.send_vesicle, vesicle, souma_id)
 
+        return vesicle
+
     def _send_vesicle(self, vesicle, souma_id, signed=False, recipients=None):
         """
-        Transmit @param vesicle to specified @param souma_id
+        Transmit a Vesicle to a specific Souma
 
-        @param souma_id recipient of the vesicle
-        @param signed like _distribute_vesicle
-        @param recipients like _distribute_vesicle
+        Args:
+            vesicle (Vesicle): This Vesicle is transmitted
+            souma_id (String): The ID of the recipient Souma
+            signed (Bool): If True, the Vesicle is signed by vesicle.author_id
+            recipients (List): List of Persona objects. If specified, the Vesicle
+                is encrypted and a key is transmitted for these Personas.
         """
         from gevent import socket
 
@@ -196,7 +218,14 @@ class Synapse(gevent.server.DatagramServer):
 
     def handle(self, data, address):
         """
-        Handle incoming connections
+        Handle incoming connections. This method gets called when a UDP
+        connection sends data to this Souma
+
+        Args:
+            data (String): Received raw data
+            address (Tuple): Source address
+                0 -- IP address
+                1 -- Port number
         """
         self.logger.debug("Incoming message\nSource:{}\nLength:{} {}\nContent:{}".format(
             source_format(address),
@@ -214,7 +243,11 @@ class Synapse(gevent.server.DatagramServer):
 
     def handle_change_notification(self, vesicle):
         """
-        Act on received change notifications
+        Act on received change notifications by updating the local instance
+        of the changed object.
+
+        Args:
+            vesicle (Vesicle): The received change_notification Vesicle
         """
         # Verify vesicle
         errors = list()
@@ -319,7 +352,10 @@ class Synapse(gevent.server.DatagramServer):
 
     def handle_object(self, vesicle):
         """
-        Act on received objects
+        Act on received objects by storing them if they aren't yet.
+
+        Args:
+            vesicle (Vesicle): Vesicle containing the new object
         """
 
         # Validate response
@@ -379,7 +415,10 @@ class Synapse(gevent.server.DatagramServer):
 
     def handle_object_request(self, vesicle):
         """
-        Act on received object requests
+        Act on received object requests by sending the object in question back
+
+        Args:
+            vesicle (Vesicle): Vesicle containing metadata about the object
         """
 
         # Validate vesicle
