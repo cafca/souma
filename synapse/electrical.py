@@ -321,6 +321,29 @@ class ElectricalSynapse(object):
 
                 self.logger.info("Updated peer list: {}/{} online".format(len(resp["sessions"])-offline, len(resp)))
 
+    def get_persona(self, persona_id):
+        """Returns a Persona object for persona_id, loading it from Glia if neccessary
+
+        Args:
+            persona_id (String): ID of the required Persona
+
+        Returns:
+            Persona: If a record was found
+            None: If no record was found
+        """
+        persona = Persona.query.get(persona_id)
+
+        if persona:
+            return persona
+        else:
+            resp, errors = self.persona_info(persona_id)
+
+            if errors or (resp and "personas" in resp and len(resp["personas"])==0):
+                self._log_errors("Error requesting Persona {} from server".format(persona_id), errors)
+                return None
+            else:
+                persona = Persona.query.get(persona_id)
+                return persona
 
     def find_persona(self, address):
         """
