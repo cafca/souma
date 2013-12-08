@@ -50,7 +50,6 @@ class MessageTest(unittest.TestCase):
 		repr = self.message.json()
 		self.assertTrue("signature" in repr)
 		
-	
 	def test_read(self):
 		pass
 		
