@@ -65,14 +65,14 @@ class Persona(Serializable, db.Model):
 
     # Myelin offset stores the date at which the last Vesicle receieved from Myelin was created
     myelin_offset = db.Column(db.DateTime)
-	
-	# TODO: How to HBTM?!
-	groups = db.relationship(
+    
+    # TODO: How to HBTM?!
+    groups = db.relationship(
         'Group',
         secondary='groups',
         primaryjoin='groups.c.left_id==persona.c.id',
         secondaryjoin='groups.c.right_id==group.c.id')
-	
+    
 
     def __init__(self, id, username, email=None, sign_private=None, sign_public=None,
                  crypt_private=None, crypt_public=None):
@@ -157,15 +157,15 @@ class Star(Serializable, db.Model):
 
     creator_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
 
-	# TODO: check 1:n relationship correctness
-	group = db.relationship(
-		'Group',
-		backref=db.backref('posts'), 
-		primaryjoin = 'Group.id==Star.group_id'
-	)
+    # TODO: check 1:n relationship correctness
+    group = db.relationship(
+        'Group',
+        backref=db.backref('posts'), 
+        primaryjoin = 'Group.id==Star.group_id'
+    )
 
-	group_id = db.Column(db.String(32), db.ForeignKey('group.id'))
-	
+    group_id = db.Column(db.String(32), db.ForeignKey('group.id'))
+    
     def __init__(self, id, text, creator):
         self.id = id
         # TODO: Attach multiple items as 'planets'
@@ -353,31 +353,31 @@ class DBVesicle(db.Model):
     source_id = db.Column(db.String(32))
 
 class Group(Serializable, db.Model):
-	""" 
-		Represents an entity that is comprised of users collaborating on
-		stars 
-	"""
-	
-	__tablename__ = "group"
-	id = db.Column(db.String(32), primary_key=True)
-	groupname = db.Column(db.String(80))
-	description = db.Column(db.Column(db.Text)) #TODO: var length column?
-	
-	# Make this work if needed!
-"""	
-	members = db.relationship(
-		"Persona",
-		backref="groups",
-		primaryjoin='group.c.id==persona.c.?????_id' # TODO:How to HBTM?!
-	)
-	posts = db.relationship(
-		"Star",
-		backref="group",
-		primaryjoin="star.c.id==group.c.?????_id" # TODO: How to 1:n?!
-	)
-"""
+    """ 
+        Represents an entity that is comprised of users collaborating on
+        stars 
+    """
+    
+    __tablename__ = "group"
+    id = db.Column(db.String(32), primary_key=True)
+    groupname = db.Column(db.String(80))
+    description = db.Column(db.Text)    #TODO: var length column?
+    
+    # Make this work if needed!
+    """    
+    members = db.relationship(
+        "Persona",
+        backref="groups",
+        primaryjoin='group.c.id==persona.c.?????_id' # TODO:How to HBTM?!
+    )
+    posts = db.relationship(
+        "Star",
+        backref="group",
+        primaryjoin="star.c.id==group.c.?????_id" # TODO: How to 1:n?!
+    )
+    """
 
-	def __init__(self, id, name, description):
-		self.id = id
-		self.groupname = name
-		self.description = description
+    def __init__(self, id, name, description):
+        self.id = id
+        self.groupname = name
+        self.description = description

@@ -211,7 +211,7 @@ def persona(id):
 
 @app.route('/p/create', methods=['GET', 'POST'])
 def create_persona():
-   """ Render page for creating new persona """
+    """ Render page for creating new persona """
     from uuid import uuid4
 
     form = Create_persona_form()
@@ -451,32 +451,32 @@ def add_contact(persona_id):
 
 @app.route('/g/<id>/', methods=['GET'])
 def group(id):
-	""" Render home view of a group """
-	
-	group = Group.query.filter_by(id=id).first_or_404()
-	# TODO: Why is persona(...) using [:4], should we do the same here?
-	starmap = Star.query.filter(Star.group_id == id, Star.state >= 0)[:4]
-	
-	# TODO: Use new layout system
+    """ Render home view of a group """
+    
+    group = Group.query.filter_by(id=id).first_or_404()
+    # TODO: Why is persona(...) using [:4], should we do the same here?
+    starmap = Star.query.filter(Star.group_id == id, Star.state >= 0)[:4]
+    
+    # TODO: Use new layout system
     vizier = Vizier([
         [1, 5, 6, 2],
         [1, 1, 6, 4],
         [7, 1, 2, 2],
         [7, 3, 2, 2],
         [7, 5, 2, 2]])
-		
+        
     return render_template(
         'group.html',
         layout="group", #TODO: Where's that one from?! web_ui/layouts.json?
         vizier=vizier,
         group=group,
-		starmap=starmap)	
-	
+        starmap=starmap)    
+    
 
 @app.route('/g/create', methods=['GET', 'POST'])
 def create_group():
     """ Render page for creating new group """
-	
+    
     from uuid import uuid4
 
     form = Create_group_form()

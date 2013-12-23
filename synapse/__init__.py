@@ -911,11 +911,11 @@ class Synapse(gevent.server.DatagramServer):
         self.request_starmap(souma_id)
         self.logger.info("Discovered new souma {}@{}".format(souma_id[:6], source_format(host, port)))
 
-	def on_group_created(self, sender, message):
-		# TODO: Implement how to react on blinker notification
-		pass	
-	
-	def request_starmap(self, souma_id):
+    def on_group_created(self, sender, message):
+        # TODO: Implement how to react on blinker notification
+        pass    
+    
+    def request_starmap(self, souma_id):
         """
         Request a starmap from the given @param souma_id
         """
@@ -932,7 +932,7 @@ class Synapse(gevent.server.DatagramServer):
 
 
 
-	def request_object(self, object_type, object_id, souma_id):
+    def request_object(self, object_type, object_id, souma_id):
         """
         Try retrieving object @param object_id of kind @param object_type from @param souma_id
         """
