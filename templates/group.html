@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% import "macros/star.html" as star_macros %}
+{% import "macros/planet.html" as planet_macros %}
+
+
+{% block content %}
+<section class="{{vizier.get_cell()}}">
+    <span class="content">
+        <h1>{{group.groupname}}</h1>
+        <p>Description: {{group.description}}</p>
+    </span>
+</section>
+
+{% for star in starmap %}
+    {% for planet in star.planets %}
+    <section class='{{vizier.get_cell()}}'>
+        {{ planet_macros.planet(planet, False)}}
+    </section>
+    {% endfor %}
+
+    <section class="{%if star.planets|length() >= 1 %}image-overlay{% endif %} {{vizier.get_cell()}}">
+        {{ star_macros.star(star) }}
+    </section>
+{% endfor %}
+
+{% endblock %}
