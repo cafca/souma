@@ -67,11 +67,12 @@ class Persona(Serializable, db.Model):
     myelin_offset = db.Column(db.DateTime)
     
     # TODO: How to HBTM?!
-    groups = db.relationship(
-        'Group',
-        secondary='groups',
-        primaryjoin='groups.c.left_id==persona.c.id',
-        secondaryjoin='groups.c.right_id==group.c.id')
+    
+    # groups = db.relationship(
+        # 'Group',
+        # secondary='groups',
+        # primaryjoin='groups.c.left_id==persona.c.id',
+        # secondaryjoin='groups.c.right_id==group.c.id')
     
 
     def __init__(self, id, username, email=None, sign_private=None, sign_public=None,
