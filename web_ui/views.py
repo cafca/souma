@@ -381,8 +381,15 @@ def debug():
     stars = Star.query.all()
     personas = Persona.query.all()
     planets = Planet.query.all()
+    groups = Group.query.all()
 
-    return render_template('debug.html', stars=stars, personas=personas, planets=planets)
+    return render_template(
+        'debug.html',
+        stars=stars,
+        personas=personas,
+        planets=planets,
+        groups=groups
+    )
 
 
 @app.route('/find-people', methods=['GET', 'POST'])
@@ -502,6 +509,15 @@ def create_group():
         'create_group.html',
         form=form,
         next=url_for('create_group'))
+        
+@app.route('/g/', methods=['GET'])
+def groups():
+    groups = Group.query.all()
+
+    return render_template(
+        'groups.html',
+        groups=groups
+    )
 
 class Vizier():
     """Old layout system. Use Pagemanager instead"""

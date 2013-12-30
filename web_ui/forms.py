@@ -23,7 +23,7 @@ class Create_group_form(Form):
     """ Generate form for creating a group """
     
     groupname = TextField('Group name', validators=[Required(), ])
-    text = TextField('Description', validators=[Required(), ], widget=widgets.TextArea())
+    description = TextField('Description', validators=[Required(), ], widget=widgets.TextArea())
     
     
 class FindPeopleForm(Form):

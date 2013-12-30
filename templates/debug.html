@@ -82,4 +82,26 @@
       {% endfor %}
     </tbody>
 </table>  
+
+<h1>Groups</h1>
+<table class="table">
+    <thead>
+        <tr>
+            <th>ID</id>
+            <th>Groupname</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+      {% for group in groups %}
+      <tr>
+        <td>{{ group.id }}</td>
+        <td>{{ group.groupname }}</td>
+        <td>{{ group.description }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+</table>  
+
+
 {%endblock%}
