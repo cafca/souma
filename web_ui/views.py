@@ -277,7 +277,8 @@ def create_star():
         new_star = Star(
             uuid,
             request.form['text'],
-            request.form['creator'])
+            request.form['creator'],
+            request.form['group_id'])
         db.session.add(new_star)
         db.session.commit()
 
@@ -456,14 +457,28 @@ def add_contact(persona_id):
 
     return render_template('add_contact.html', form=form, persona=persona)
 
+
 @app.route('/g/<id>/', methods=['GET'])
 def group(id):
     """ Render home view of a group """
-    
+
     group = Group.query.filter_by(id=id).first_or_404()
+
+    # Load author drop down contents
+    controlled_personas = Persona.query.filter(Persona.sign_private != None).all()
+    creator_choices = [(p.id, p.username) for p in controlled_personas]
+    active_persona = Persona.query.get(session['active_persona'])
+
+    form = Create_star_form(default_creator=session['active_persona'])
+    form.creator.choices = creator_choices
+
+    # Fill in group-id to be used in star creation
+    form.group_id = group.id
+
     # TODO: Why is persona(...) using [:4], should we do the same here?
+    # TODO: Why not use group.posts ???
     starmap = Star.query.filter(Star.group_id == id, Star.state >= 0)[:4]
-    
+
     # TODO: Use new layout system
     vizier = Vizier([
         [1, 5, 6, 2],
@@ -471,19 +486,21 @@ def group(id):
         [7, 1, 2, 2],
         [7, 3, 2, 2],
         [7, 5, 2, 2]])
-        
+
     return render_template(
         'group.html',
-        layout="group", #TODO: Where's that one from?! web_ui/layouts.json?
+        layout="group",  # TODO: Where's that one from?! web_ui/layouts.json?
         vizier=vizier,
         group=group,
-        starmap=starmap)    
-    
+        starmap=starmap,
+        active_persona=active_persona,
+        form=form)
+
 
 @app.route('/g/create', methods=['GET', 'POST'])
 def create_group():
     """ Render page for creating new group """
-    
+
     from uuid import uuid4
 
     form = Create_group_form()

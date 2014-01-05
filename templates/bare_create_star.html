@@ -1,21 +1,3 @@
-{% extends "base.html" %}
-{% import "macros/star.html" as star_macros %}
-{% import "macros/planet.html" as planet_macros %}
-
-
-{% block content %}
-<section class="col0 row1 w3 h1">
-    <span class="content">
-        <h1>{{group.groupname}}</h1>
-        <p>Description: {{group.description}}</p>
-    </span>
-</section>
-
-<!-- TODO: Make this include work with relative positioning -->
-{#% include 'bare_create_star.html' %#}
-
-
-
 <form method="POST" action="{{url_for('create_star')}}" enctype="multipart/form-data">
     <!-- Main text field -->
     <section class="textarea card col0 row2 w5 h1">
@@ -121,20 +103,3 @@
     </section>
 </form>
 
-
-
-
-
-{% for star in starmap %}
-    {% for planet in star.planets %}
-    <section class='{{vizier.get_cell()}}'>
-        {{ planet_macros.planet(planet, False)}}
-    </section>
-    {% endfor %}
-
-    <section class="{%if star.planets|length() >= 1 %}image-overlay{% endif %} {{vizier.get_cell()}}">
-        {{ star_macros.star(star) }}
-    </section>
-{% endfor %}
-
-{% endblock %}

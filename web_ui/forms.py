@@ -1,4 +1,4 @@
-from flask.ext.wtf import Form, TextField, SelectField, FileField, Required, Email, url, widgets
+from flask.ext.wtf import Form, TextField, SelectField, FileField, HiddenField, Required, Optional, Length, Email, url, widgets
 from flask.ext.wtf.html5 import URLField
 
 
@@ -17,6 +17,7 @@ class Create_star_form(Form):
     picture = FileField('Picture')
     #link = URLField('Link', validators=[url()])
     link = URLField('Link')
+    group_id = HiddenField('', validators=[Optional(), Length(min=32, max=32)])
 
     
 class Create_group_form(Form):

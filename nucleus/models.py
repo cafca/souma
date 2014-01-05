@@ -22,12 +22,15 @@ class Serializable():
                 field: str(getattr(self, field)) for field in include}
         else:
             return {
-                c.name: str(getattr(self, c.name)) for c in self.__table__.columns if c not in exclude}
+                c.name: str(getattr(self, c.name)) for c in
+                self.__table__.columns if c not in exclude
+            }
 
     def json(self, exclude=[], include=None):
         """Return this object JSON encoded"""
         import json
-        return json.dumps(self.export(exclude=exclude, include=include), indent=4)
+        return json.dumps(self.export(exclude=exclude, include=include),
+                          indent=4)
 
 
 #
@@ -143,7 +146,9 @@ class Star(Serializable, db.Model):
     id = db.Column(db.String(32), primary_key=True)
     text = db.Column(db.Text)
     created = db.Column(db.DateTime, default=datetime.datetime.now())
-    modified = db.Column(db.DateTime, default=datetime.datetime.now(), onupdate=datetime.datetime.now())
+    modified = db.Column(db.DateTime,
+                         default=datetime.datetime.now(),
+                         onupdate=datetime.datetime.now())
     state = db.Column(db.Integer, default=0)
 
     planets = db.relationship('Planet',
@@ -157,17 +162,9 @@ class Star(Serializable, db.Model):
         primaryjoin="Persona.id==Star.creator_id")
 
     creator_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
-
-    # TODO: check 1:n relationship correctness
-    group = db.relationship(
-        'Group',
-        backref=db.backref('posts'), 
-        primaryjoin = 'Group.id==Star.group_id'
-    )
-
     group_id = db.Column(db.String(32), db.ForeignKey('group.id'))
-    
-    def __init__(self, id, text, creator):
+
+    def __init__(self, id, text, creator, group_id=None):
         self.id = id
         # TODO: Attach multiple items as 'planets'
         self.text = text
@@ -353,30 +350,30 @@ class DBVesicle(db.Model):
     author_id = db.Column(db.String(32))
     source_id = db.Column(db.String(32))
 
+
 class Group(Serializable, db.Model):
-    """ 
-        Represents an entity that is comprised of users collaborating on
-        stars 
     """
-    
+        Represents an entity that is comprised of users collaborating on
+        stars
+    """
+
     __tablename__ = "group"
     id = db.Column(db.String(32), primary_key=True)
     groupname = db.Column(db.String(80))
     description = db.Column(db.Text)    #TODO: var length column?
-    
+
     # Make this work if needed!
-    """    
+    """
     members = db.relationship(
         "Persona",
         backref="groups",
         primaryjoin='group.c.id==persona.c.?????_id' # TODO:How to HBTM?!
-    )
+    )"""
+
     posts = db.relationship(
         "Star",
-        backref="group",
-        primaryjoin="star.c.id==group.c.?????_id" # TODO: How to 1:n?!
+        backref="group"
     )
-    """
 
     def __init__(self, id, name, description):
         self.id = id
