@@ -33,8 +33,18 @@ STAR_STATES = {
     3: (3, "updating")
 }
 
+# Possible states of 1ups
+ONEUP_STATES = {
+    -1: "disabled",
+    0: "active",
+    1: "unknown creator"
+}
+
 class InvalidSignatureError(Exception):
     pass
 
 class PersonaNotFoundError(Exception):
+    pass
+
+class UnauthorizedError(Exception):
     pass
