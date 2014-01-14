@@ -174,6 +174,8 @@ class Star(Serializable, db.Model):
         else:
             self.creator_id = creator.id
 
+        self.group_id = group_id
+
     def __repr__(self):
         ascii_text = self.text.encode('utf-8')
         return "<Star {}: {}>".format(

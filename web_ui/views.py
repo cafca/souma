@@ -325,6 +325,10 @@ def create_star():
 
         star_created.send(create_star, message=new_star)
 
+        # if new star belongs to a group, show group page
+        if new_star.group_id:
+            return redirect(url_for('group', id=new_star.group_id))
+
         return redirect(url_for('star', id=uuid))
     return render_template('create_star.html', form=form, active_persona=active_persona)
 
@@ -473,7 +477,7 @@ def group(id):
     form.creator.choices = creator_choices
 
     # Fill in group-id to be used in star creation
-    form.group_id = group.id
+    form.group_id.data = group.id
 
     # TODO: Why is persona(...) using [:4], should we do the same here?
     # TODO: Why not use group.posts ???
