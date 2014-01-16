@@ -11,6 +11,7 @@
             <th>Modified</th>
             <th>Created</th>
             <th>State</th>
+            <th>Group</th>
             <th></th>
         </tr>
     </thead>
@@ -23,6 +24,7 @@
         <td>{{ star.modified | naturaltime }}</td>
         <td>{{ star.created | naturaltime}} </td>
         <td>{{ star.get_state()[1] | capitalize}}</td>
+        <td>{{ star.group_id }} </td>
         {% if star.state >= 0 %}
             <td><a class="btn" href="{{ url_for('delete_star', id=star.id) }}">Delete</a></td>
         {% else %}
@@ -82,4 +84,26 @@
       {% endfor %}
     </tbody>
 </table>  
+
+<h1>Groups</h1>
+<table class="table">
+    <thead>
+        <tr>
+            <th>ID</id>
+            <th>Groupname</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+      {% for group in groups %}
+      <tr>
+        <td>{{ group.id }}</td>
+        <td>{{ group.groupname }}</td>
+        <td>{{ group.description }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+</table>  
+
+
 {%endblock%}

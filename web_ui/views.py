@@ -10,7 +10,7 @@ from web_ui import app, cache, db, logged_in, attachments
 from web_ui.forms import *
 from web_ui.helpers import get_active_persona
 from nucleus import notification_signals
-from nucleus.models import Persona, Star, Planet, PicturePlanet, LinkPlanet
+from nucleus.models import Persona, Star, Planet, PicturePlanet, LinkPlanet, Group
 from nucleus.vesicle import Vesicle
 
 # Create blinker signal namespace
@@ -19,6 +19,7 @@ star_deleted = notification_signals.signal('star-deleted')
 persona_created = notification_signals.signal('persona-created')
 contact_request_sent = notification_signals.signal('contact-request-sent')
 new_contact = notification_signals.signal('new-contact')
+group_created = notification_signals.signal('group-created')
 
 
 class PageManager():
@@ -190,7 +191,10 @@ def persona(id):
     """ Render home view of a persona """
 
     persona = Persona.query.filter_by(id=id).first_or_404()
-    starmap = Star.query.filter(Star.creator_id == id, Star.state >= 0)[:4]
+    starmap = Star.query.filter(
+        Star.creator_id == id,
+        Star.state >= 0,
+        Star.group_id == '')[:4]
 
     # TODO: Use new layout system
     vizier = Vizier([
@@ -276,7 +280,8 @@ def create_star():
         new_star = Star(
             uuid,
             request.form['text'],
-            request.form['creator'])
+            request.form['creator'],
+            request.form['group_id'])
         db.session.add(new_star)
         db.session.commit()
 
@@ -323,6 +328,10 @@ def create_star():
 
         star_created.send(create_star, message=new_star)
 
+        # if new star belongs to a group, show group page
+        if new_star.group_id:
+            return redirect(url_for('group', id=new_star.group_id))
+
         return redirect(url_for('star', id=uuid))
     return render_template('create_star.html', form=form, active_persona=active_persona)
 
@@ -352,7 +361,7 @@ def delete_star(id):
 @app.route('/')
 def universe():
     """ Render the landing page """
-    stars = Star.query.filter(Star.state >= 0).all()
+    stars = Star.query.filter(Star.state >= 0, Star.group_id == '').all()
     pm = PageManager()
     page = pm.auto_layout(stars)
 
@@ -380,8 +389,15 @@ def debug():
     stars = Star.query.all()
     personas = Persona.query.all()
     planets = Planet.query.all()
+    groups = Group.query.all()
 
-    return render_template('debug.html', stars=stars, personas=personas, planets=planets)
+    return render_template(
+        'debug.html',
+        stars=stars,
+        personas=personas,
+        planets=planets,
+        groups=groups
+    )
 
 
 @app.route('/find-people', methods=['GET', 'POST'])
@@ -448,6 +464,84 @@ def add_contact(persona_id):
 
     return render_template('add_contact.html', form=form, persona=persona)
 
+
+@app.route('/g/<id>/', methods=['GET'])
+def group(id):
+    """ Render home view of a group """
+
+    group = Group.query.filter_by(id=id).first_or_404()
+
+    # Load author drop down contents
+    controlled_personas = Persona.query.filter(Persona.sign_private != None).all()
+    creator_choices = [(p.id, p.username) for p in controlled_personas]
+    active_persona = Persona.query.get(session['active_persona'])
+
+    form = Create_star_form(default_creator=session['active_persona'])
+    form.creator.choices = creator_choices
+
+    # Fill in group-id to be used in star creation
+    form.group_id.data = group.id
+
+    # TODO: Why is persona(...) using [:4], should we do the same here?
+    # TODO: Why not use group.posts ???
+    starmap = Star.query.filter(Star.group_id == id, Star.state >= 0)[:4]
+
+    # TODO: Use new layout system
+    vizier = Vizier([
+        [1, 5, 6, 2],
+        [1, 1, 6, 4],
+        [7, 1, 2, 2],
+        [7, 3, 2, 2],
+        [7, 5, 2, 2]])
+
+    return render_template(
+        'group.html',
+        layout="group",  # TODO: Where's that one from?! web_ui/layouts.json?
+        vizier=vizier,
+        group=group,
+        starmap=starmap,
+        active_persona=active_persona,
+        form=form)
+
+
+@app.route('/g/create', methods=['GET', 'POST'])
+def create_group():
+    """ Render page for creating new group """
+
+    from uuid import uuid4
+
+    form = Create_group_form()
+    if form.validate_on_submit():
+        # create ID to identify the group across all contexts
+        uuid = uuid4().hex
+
+        # Create group and add to DB
+        g = Group(
+            uuid,
+            request.form['groupname'],
+            request.form['description'])
+
+        db.session.add(g)
+        db.session.commit()
+
+        group_created.send(create_group, message=g)
+
+        flash("New group {} created!".format(g.groupname))
+        return redirect(url_for('group', id=g.id))
+
+    return render_template(
+        'create_group.html',
+        form=form,
+        next=url_for('create_group'))
+        
+@app.route('/g/', methods=['GET'])
+def groups():
+    groups = Group.query.all()
+
+    return render_template(
+        'groups.html',
+        groups=groups
+    )
 
 class Vizier():
     """Old layout system. Use Pagemanager instead"""
