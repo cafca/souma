@@ -2,14 +2,15 @@ import datetime
 import os
 
 from base64 import b64encode, b64decode
-from flask import url_for
+from flask import url_for, session
 from hashlib import sha256
 from keyczar.keys import RsaPrivateKey, RsaPublicKey
 from sqlalchemy import ForeignKey
 from sqlalchemy.exc import OperationalError
+from uuid import uuid4
 
-from nucleus import STAR_STATES
-from web_ui import db
+from nucleus import ONEUP_STATES, STAR_STATES
+from web_ui import app, db
 from web_ui.helpers import epoch_seconds
 
 
@@ -80,6 +81,15 @@ class Persona(Serializable, db.Model):
     def __repr__(self):
         return "<{} [{}]>".format(str(self.username), self.id[:6])
 
+    def controlled(self):
+        """
+        Return True if this Persona has private keys attached
+        """
+        if self.crypt_private is not None and self.sign_private is not None:
+            return True
+        else:
+            return False
+
     def get_email_hash(self):
         """Return sha256 hash of this user's email address"""
         return sha256(self.email).hexdigest()
@@ -126,6 +136,50 @@ class Persona(Serializable, db.Model):
         key_public = RsaPublicKey.Read(self.sign_public)
         return key_public.Verify(data, signature)
 
+class Oneup(Serializable, db.Model):
+    """A 1up is a vote that signals interest in a Star"""
+
+    __tablename__ = "oneup"
+    id = db.Column(db.String(32), primary_key=True, default=uuid4().hex)
+    created = db.Column(db.DateTime, default=datetime.datetime.now())
+    modified = db.Column(db.DateTime, default=datetime.datetime.now(), onupdate=datetime.datetime.now())
+    state = db.Column(db.Integer, default=0)
+
+    creator = db.relationship("Persona",
+        backref=db.backref('oneups'),
+        primaryjoin="Persona.id==Oneup.creator_id")
+    creator_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
+
+    star_id = db.Column(db.String(32), db.ForeignKey('star.id'))
+
+    def __repr__(self):
+        return "<1up <Persona {}> -> <Star {}> ({})>".format(self.creator_id[:6], self.star_id[:6], self.get_state())
+
+    def get_state(self):
+        """
+        Return publishing state of this 1up.
+
+        Returns:
+            One of:
+                "disabled"
+                "active"
+                "unknown creator"
+        """
+        return ONEUP_STATES[self.state]
+
+    def set_state(self, new_state):
+        """
+        Set the publishing state of this 1up
+
+        Parameters:
+            new_state (int) code of the new state as defined in nucleus.ONEUP_STATES
+        """
+        if not isinstance(new_state, int) or new_state not in ONEUP_STATES.keys():
+            raise ValueError("{} ({}) is not a valid 1up state").format(
+                new_state, type(new_state))
+        else:
+            self.state = new_state
+
 
 class Star(Serializable, db.Model):
     """A Star represents a post"""
@@ -136,6 +190,10 @@ class Star(Serializable, db.Model):
     created = db.Column(db.DateTime, default=datetime.datetime.now())
     modified = db.Column(db.DateTime, default=datetime.datetime.now(), onupdate=datetime.datetime.now())
     state = db.Column(db.Integer, default=0)
+
+    oneups = db.relationship('Oneup',
+        backref='star',
+        lazy='dynamic')
 
     planets = db.relationship('Planet',
         secondary='satellites',
@@ -205,6 +263,68 @@ class Star(Serializable, db.Model):
         order = log(max(abs(s), 1), 10)
         sign = 1 if s > 0 else -1 if s < 0 else 0
         return round(order + sign * epoch_seconds(self.created) / 45000, 7)
+
+    def oneupped(self):
+        """
+        Return True if active Persona has 1upped this Star
+        """
+        active_persona = Persona.query.get(session["active_persona"])
+        oneup = self.oneups.filter_by(creator=active_persona).first()
+        if oneup is None or oneup.state < 0:
+            return False
+        else:
+            return True
+
+    def oneup_count(self):
+        """
+        Return the number of verified upvotes this Star has receieved
+
+        Returns:
+            Int: Number of upvotes
+        """
+        from sqlalchemy import func
+        return self.oneups.filter_by(state=0).paginate(1).total
+
+    def toggle_oneup(self, author_id=None):
+        """
+        Toggle 1up for this Star on/off
+
+        Args:
+            author_id (String): Optional Persona ID that issued the 1up. Defaults to active Persona.
+
+        Returns:
+            Oneup: The toggled oneup object
+
+        Raises:
+            PersonaNotFoundError: 1up author not found
+            UnauthorizedError: Author is a foreign Persona
+        """
+        if author_id is None:
+            author = Persona.query.get(session['active_persona'])
+        else:
+            author = Persona.query.get(author_id)
+
+        if author is None:
+            raise PersonaNotFoundError("1up author not found")
+
+        if not author.controlled():
+            raise UnauthorizedError("Can't toggle 1ups with foreign Persona {}".format(author))
+
+        # Check whether 1up has been previously issued
+        oneup = self.oneups.filter_by(creator=author).first()
+        if oneup is not None:
+            old_state = oneup.get_state()
+            oneup.set_state(-1) if oneup.state == 0 else oneup.set_state(0)
+        else:
+            old_state = False
+            oneup = Oneup(star=self, creator=author)
+
+        # Commit 1up
+        db.session.add(oneup)
+        db.session.commit()
+        app.logger.info("{verb} {obj}".format(verb="Toggled" if old_state else "Added", obj=oneup, ))
+
+        return oneup
 
 
 t_satellites = db.Table(

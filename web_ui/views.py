@@ -2,7 +2,7 @@ import os
 import datetime
 import requests
 
-from flask import abort, flash, json, redirect, render_template, request, session, url_for
+from flask import abort, flash, json, redirect, render_template, request, session, url_for, jsonify as json_response
 from hashlib import sha256
 from operator import itemgetter
 
@@ -373,6 +373,27 @@ def star(id):
 
     return render_template('star.html', layout="star", star=star, creator=creator)
 
+@app.route('/s/<star_id>/1up', methods=['POST'])
+def oneup(star_id):
+    """
+    Issue a 1up to a Star using the currently activated Persona
+
+    Args:
+        star_id (string): ID of the Star
+    """
+    star = Star.query.get_or_404(star_id)
+    oneup = star.toggle_oneup()
+    return json_response({
+        "meta": {
+            "oneup_count": star.oneup_count(),
+        },
+        "oneups": [{
+            "id": oneup.id,
+            "creator": oneup.creator.id,
+            "state_value": oneup.state,
+            "state_name": oneup.get_state()
+        }]
+    })
 
 @app.route('/debug/')
 def debug():
