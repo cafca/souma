@@ -9,7 +9,7 @@ from sqlalchemy import ForeignKey
 from sqlalchemy.exc import OperationalError
 from uuid import uuid4
 
-from nucleus import ONEUP_STATES, STAR_STATES
+from nucleus import ONEUP_STATES, STAR_STATES, PersonaNotFoundError, UnauthorizedError
 from web_ui import app, db
 from web_ui.helpers import epoch_seconds
 

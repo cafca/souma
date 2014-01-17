@@ -9,7 +9,7 @@ from operator import itemgetter
 from web_ui import app, cache, db, logged_in, attachments
 from web_ui.forms import *
 from web_ui.helpers import get_active_persona
-from nucleus import notification_signals
+from nucleus import notification_signals, PersonaNotFoundError
 from nucleus.models import Persona, Star, Planet, PicturePlanet, LinkPlanet
 from nucleus.vesicle import Vesicle
 
@@ -382,18 +382,33 @@ def oneup(star_id):
         star_id (string): ID of the Star
     """
     star = Star.query.get_or_404(star_id)
-    oneup = star.toggle_oneup()
-    return json_response({
-        "meta": {
-            "oneup_count": star.oneup_count(),
-        },
-        "oneups": [{
-            "id": oneup.id,
-            "creator": oneup.creator.id,
-            "state_value": oneup.state,
-            "state_name": oneup.get_state()
-        }]
-    })
+    try:
+        oneup = star.toggle_oneup()
+    except PersonaNotFoundError:
+        error_message = "Please activate a Persona for upvoting"
+        oneup = None
+
+    resp = dict()
+    if oneup is None:
+        resp = {
+            "meta": {
+                "oneup_count": star.oneup_count(),
+                "error_message": error_message
+            }
+        }
+    else:
+        resp = {
+            "meta": {
+                "oneup_count": star.oneup_count(),
+            },
+            "oneups": [{
+                "id": oneup.id,
+                "creator": oneup.creator.id,
+                "state_value": oneup.state,
+                "state_name": oneup.get_state()
+            }]
+        }
+    return json_response(resp)
 
 @app.route('/debug/')
 def debug():
