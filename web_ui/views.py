@@ -384,6 +384,9 @@ def oneup(star_id):
     star = Star.query.get_or_404(star_id)
     oneup = star.toggle_oneup()
     return json_response({
+        "meta": {
+            "oneup_count": star.oneup_count(),
+        },
         "oneups": [{
             "id": oneup.id,
             "creator": oneup.creator.id,

@@ -275,6 +275,16 @@ class Star(Serializable, db.Model):
         else:
             return True
 
+    def oneup_count(self):
+        """
+        Return the number of verified upvotes this Star has receieved
+
+        Returns:
+            Int: Number of upvotes
+        """
+        from sqlalchemy import func
+        return self.oneups.filter_by(state=0).paginate(1).total
+
     def toggle_oneup(self, author_id=None):
         """
         Toggle 1up for this Star on/off

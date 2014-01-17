@@ -15,7 +15,9 @@
 <span class="meta">
     <span class="attribute">
         <form action="{{ url_for('oneup', star_id=star.id) }}" method="POST">
-            <button class="oneup btn btn-mini {% if star.oneupped() %}btn-primary{% else %}btn-inverse{% endif %}" id="oneup-{{star.id}}" type="button"><i class="fa fa-white fa-arrow-up"></i></button>
+            <button class="oneup btn btn-mini {% if star.oneupped() %}btn-primary{% else %}btn-inverse{% endif %}" id="oneup-{{star.id}}" type="button">
+                <span class="oneup-count" id="oneup-count-{{star.id}}">{{star.oneup_count()}}</span> <i class="fa fa-white fa-arrow-up"></i>
+            </button>
         </form>
     </span>
 
