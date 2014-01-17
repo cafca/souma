@@ -157,7 +157,7 @@ class Oneup(Serializable, db.Model):
 
     def get_state(self):
         """
-        Return publishing state of this star.
+        Return publishing state of this 1up.
 
         Returns:
             One of:
@@ -169,13 +169,13 @@ class Oneup(Serializable, db.Model):
 
     def set_state(self, new_state):
         """
-        Set the publishing state of this star
+        Set the publishing state of this 1up
 
         Parameters:
-            new_state (int) code of the new state as defined in nucleus.STAR_STATES
+            new_state (int) code of the new state as defined in nucleus.ONEUP_STATES
         """
         if not isinstance(new_state, int) or new_state not in ONEUP_STATES.keys():
-            raise ValueError("{} ({}) is not a valid oneup state").format(
+            raise ValueError("{} ({}) is not a valid 1up state").format(
                 new_state, type(new_state))
         else:
             self.state = new_state
