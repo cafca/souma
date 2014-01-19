@@ -14,9 +14,7 @@ from nucleus.models import Persona, Star, Planet, PicturePlanet, LinkPlanet
 from nucleus.vesicle import Vesicle
 
 # Create blinker signal namespace
-star_created = notification_signals.signal('star-created')
-star_deleted = notification_signals.signal('star-deleted')
-persona_created = notification_signals.signal('persona-created')
+local_model_changed = notification_signals.signal('local-model-changed')
 contact_request_sent = notification_signals.signal('contact-request-sent')
 new_contact = notification_signals.signal('new-contact')
 
@@ -231,7 +229,12 @@ def create_persona():
         db.session.add(p)
         db.session.commit()
 
-        persona_created.send(create_persona, message=p)
+        local_model_changed.send(create_persona, message={
+            "author_id": p.id,
+            "action": "insert",
+            "object_id": p.id,
+            "object_type": "Persona",
+        })
 
         flash("New persona {} created!".format(p.username))
         return redirect(url_for('persona', id=uuid))
@@ -321,7 +324,7 @@ def create_star():
             db.session.commit()
             app.logger.info("Attached {} to new {}".format(planet, new_star))
 
-        star_created.send(create_star, message={
+        local_model_changed.send(create_star, message={
             "author_id": new_star.creator.id,
             "action": "insert",
             "object_id": new_star.id,
@@ -348,7 +351,12 @@ def delete_star(id):
     db.session.add(s)
     db.session.commit()
 
-    star_deleted.send(delete_star, message=s)
+    local_model_changed.send(delete_star, message={
+        "author_id": s.creator.id,
+        "action": "delete",
+        "object_id": s.id,
+        "object_type": "Star",
+    })
 
     app.logger.info("Deleted star {}".format(id))
     return redirect(url_for('debug'))

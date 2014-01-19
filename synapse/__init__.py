@@ -69,16 +69,6 @@ class Synapse(gevent.server.DatagramServer):
         signal = notification_signals.signal
 
         signal('model-changed').connect(self.on_local_model_change)
-        signal('star-modified').connect(self.on_star_modified)
-        signal('star-deleted').connect(self.on_star_deleted)
-
-        signal('planet-created').connect(self.on_planet_created)
-        signal('planet-modified').connect(self.on_planet_modified)
-        signal('planet-deleted').connect(self.on_planet_deleted)
-
-        signal('persona-created').connect(self.on_persona_created)
-        signal('persona-modified').connect(self.on_persona_modified)
-        signal('persona-deleted').connect(self.on_persona_deleted)
 
         signal('new-contact').connect(self.on_new_contact)
 
