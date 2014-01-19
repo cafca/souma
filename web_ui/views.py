@@ -321,7 +321,12 @@ def create_star():
             db.session.commit()
             app.logger.info("Attached {} to new {}".format(planet, new_star))
 
-        star_created.send(create_star, message=new_star)
+        star_created.send(create_star, message={
+            "author_id": new_star.creator.id,
+            "action": "insert",
+            "object_id": new_star.id,
+            "object_type": "Star",
+        })
 
         return redirect(url_for('star', id=uuid))
     return render_template('create_star.html', form=form, active_persona=active_persona)

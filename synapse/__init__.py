@@ -7,7 +7,7 @@ from dateutil.parser import parse as dateutil_parse
 from gevent.pool import Pool
 from gevent.server import DatagramServer
 
-from nucleus import notification_signals, source_format
+from nucleus import notification_signals, source_format, UnauthorizedError, PersonaNotFoundError
 from nucleus.models import Persona, Star, Planet
 from nucleus.vesicle import Vesicle, PersonaNotFoundError
 from synapse.electrical import ElectricalSynapse
@@ -16,14 +16,11 @@ from web_ui import app, db
 
 # These are Vesicle options which are recognized by this Synapse
 ALLOWED_MESSAGE_TYPES = [
-    "change_notification",
-    "object_request",
     "object",
-    "starmap_request",
-    "starmap"
+    "object_request"
 ]
 
-CHANGE_TYPES = ("create", "update", "delete")
+CHANGE_TYPES = ("insert", "update", "delete")
 OBJECT_TYPES = ("Star", "Planet", "Persona")
 
 
@@ -116,7 +113,7 @@ class Synapse(gevent.server.DatagramServer):
 
         signal = notification_signals.signal
 
-        signal('star-created').connect(self.on_star_created)
+        signal('star-created').connect(self.on_local_model_change)
         signal('star-modified').connect(self.on_star_modified)
         signal('star-deleted').connect(self.on_star_deleted)
 
@@ -352,16 +349,18 @@ class Synapse(gevent.server.DatagramServer):
 
     def handle_object(self, vesicle):
         """
-        Act on received objects by storing them if they aren't yet.
+        Handle received object updates by verifying the request and calling
+        an appropriate handler
 
         Args:
-            vesicle (Vesicle): Vesicle containing the new object
+            vesicle (Vesicle): Vesicle containing the object changeset
         """
 
         # Validate response
         errors = list()
 
         try:
+            action = vesicle.data["action"]
             object_type = vesicle.data["object_type"]
             obj = vesicle.data["object"]
         except KeyError, e:
@@ -369,49 +368,62 @@ class Synapse(gevent.server.DatagramServer):
 
         if object_type not in OBJECT_TYPES:
             errors.append("Unknown object type: {}".format(object_type))
+
+        if action not in CHANGE_TYPES:
+            errors.append("Unknown action type '{}'".format(action))
             
         if errors:
             self.logger.error("Malformed object received\n{}".format("\n".join(errors)))
         else:
-            # Handle answer
-            # TODO: Handle updates
-            if object_type == "Star":
-                o = Star.query.get(obj['id'])
-                if o is None:
-                    o = Star(obj["id"], obj["text"], obj["creator_id"])
+            handler = getattr(self, "object_{}".format(action))
+            handler(action, object_type, obj)
 
-                    orb = Orb.query.get(o.id)
-                    if not orb:
-                        orb = Orb("Star", o.id, o.modified, obj["creator_id"])
-                    # buggy...
-                    #self.starmap.add(orb)
+    def object_insert(self, action, object_type, obj):
+        # Handle answer
+        # TODO: Handle updates
+        if object_type == "Star":
+            o = Star.query.get(obj['id'])
+            if o is None:
+                o = Star(obj["id"], obj["text"], obj["creator_id"])
 
-                    db.session.add(o)
-                    db.session.commit()
-                    self.logger.info("Added new {}".format(o))
-                else:
-                    self.logger.warning("Received already existing {}".format(o))
-            elif object_type == "Persona":
-                o = Persona.query.get(obj['id'])
-                if o is None:
-                    o = Persona(
-                        id=obj["id"],
-                        username=obj["username"],
-                        email=obj["email"],
-                        sign_public=obj["sign_public"],
-                        crypt_public=obj["crypt_public"],
-                    )
+                orb = Orb.query.get(o.id)
+                if not orb:
+                    orb = Orb("Star", o.id, o.modified, obj["creator_id"])
+                # buggy...
+                #self.starmap.add(orb)
 
-                    orb = Orb.query.get(o.id)
-                    if not orb:
-                        orb = Orb("Persona", o.id, o.modified)
-                    #self.starmap.add(orb)
+                db.session.add(o)
+                db.session.commit()
+                self.logger.info("Added new {}".format(o))
+            else:
+                self.logger.warning("Received already existing {}".format(o))
+        elif object_type == "Persona":
+            o = Persona.query.get(obj['id'])
+            if o is None:
+                o = Persona(
+                    id=obj["id"],
+                    username=obj["username"],
+                    email=obj["email"],
+                    sign_public=obj["sign_public"],
+                    crypt_public=obj["crypt_public"],
+                )
 
-                    db.session.add(o)
-                    db.session.commit()
-                    self.logger.info("Added new {}".format(o))
-                else:
-                    self.logger.warning("Received already existing {}".format(o))
+                orb = Orb.query.get(o.id)
+                if not orb:
+                    orb = Orb("Persona", o.id, o.modified)
+                #self.starmap.add(orb)
+
+                db.session.add(o)
+                db.session.commit()
+                self.logger.info("Added new {}".format(o))
+            else:
+                self.logger.warning("Received already existing {}".format(o))
+
+    def object_update(self, action, object_type, obj):
+        pass
+
+    def object_delete(self, action, object_type, obj):
+        pass
 
     def handle_object_request(self, vesicle):
         """
@@ -621,6 +633,52 @@ class Synapse(gevent.server.DatagramServer):
 
     def on_new_contact(self, sender, message):
         logging.warning("New contact signal received from {}: Not implemented.\n{}".format(sender, message))
+
+    def on_local_model_change(self, sender, message):
+        """
+        React to model changes reported from the web-ui by transmitting
+        appropriate messages to peers
+
+        Args:
+            sender(object): Sender of the Blinker signal
+            message(dict): Changeset containing keys in CHANGESET_REQUIRED_FIELDS
+
+        Raises:
+            KeyError: Missing key from Changeset
+            ValueError: Changeset contains illegal value
+        """
+        CHANGESET_REQUIRED_FIELDS = ["author_id", "action", "object_id", "object_type"]
+
+        # Verify changeset
+        for k in CHANGESET_REQUIRED_FIELDS:
+            if k not in message.keys():
+                raise KeyError("Missing key: '{}'".format(k))
+
+        if message["action"] not in CHANGE_TYPES:
+            raise ValueError("Unknown action: '{}'".format(message["action"]))
+
+        if message["object_type"] not in OBJECT_TYPES:
+            raise ValueError("Object type {} not supported".format(message["object_type"]))
+
+        # Get the object's class from globals
+        obj_class = globals()[message["object_type"]]
+        obj = obj_class.query.get(message["object_id"])
+
+        if not obj:
+            # TODO: Use different exception type
+            raise Exception("Could not find {} {}".format(obj_class, message["object_id"]))
+
+        # Send Vesicle
+        data = dict({
+            "action": message["action"],
+            "object": obj.export(),
+            "object_type": message["object_type"]
+        })
+
+        vesicle = Vesicle(message_type="object", data=data)
+        vesicle.author_id = message["author_id"]
+
+        self._distribute_vesicle(vesicle, signed=True, recipients=message["author"].contacts)
 
     def on_star_created(self, sender, message):
         """
@@ -908,21 +966,6 @@ class Synapse(gevent.server.DatagramServer):
 
         self.request_starmap(souma_id)
         self.logger.info("Discovered new souma {}@{}".format(souma_id[:6], source_format(host, port)))
-
-    def request_starmap(self, souma_id):
-        """
-        Request a starmap from the given @param souma_id
-        """
-
-        if not souma_id in self.soumamap:
-            raise KeyError("Souma {} not found".format(souma_id[:6]))
-        s = self.soumamap[souma_id]
-
-        self.logger.info("Requesting starmap from souma {} ({})".format(souma_id[:6],
-                         source_format(s['address'], s['port_external'])))
-
-        vesicle = Vesicle("starmap_request", data=dict())
-        self._send_vesicle(vesicle, souma_id)
 
     def request_object(self, object_type, object_id, souma_id):
         """
