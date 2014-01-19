@@ -458,19 +458,17 @@ class ElectricalSynapse(object):
         else:
             self.logger.info("Successfully stored {}".format(vesicle))
 
-    def on_persona_created(self, sender, message):
-        """Register new personas with glia-server"""
-        persona = message
-        self.persona_register(persona)
+    def on_local_model_changed(self, sender, message):
+        """Check if Personas were changed and call register / unregister method"""
+        if message["object_type"] == "Persona":
+            persona = Persona.query.get(message["object_id"])
 
-    def on_persona_modified(self, sender, message):
-        """Update persona info on glia-server when changed"""
-        self.logger.warning("on_persona_modified not yet implemented")
-
-    def on_persona_deleted(self, sender, message):
-        """Delete persona from glia-server"""
-        persona = message
-        self.persona_unregister(persona)
+            if message["action"] == "insert":
+                self.persona_register(persona)
+            elif message["action"] == "update":
+                self.logger.warning("Updating Persona profiles not yet supported")
+            elif message["action"] == "delete":
+                self.persona_unregister(persona)
 
     def persona_info(self, persona_id):
         """
