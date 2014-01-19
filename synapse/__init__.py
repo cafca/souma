@@ -5,7 +5,6 @@ import requests
 
 from dateutil.parser import parse as dateutil_parse
 from gevent.pool import Pool
-from gevent.server import DatagramServer
 
 from nucleus import notification_signals, source_format, UnauthorizedError, PersonaNotFoundError
 from nucleus.models import Persona, Star, Planet
@@ -24,28 +23,14 @@ CHANGE_TYPES = ("insert", "update", "delete")
 OBJECT_TYPES = ("Star", "Planet", "Persona")
 
 
-class Synapse(gevent.server.DatagramServer):
+class Synapse():
     """
-    A Synapse object reacts to local changes in the database and informs
-    peers of Personas local to this machine about it. It also receives
-    messages from them and updates the local database accordingly. 
-
-    Synapse is a UDP server/client and can also use its ElectricalSynapse
-    to exchange information using the Glia/Myelin server.
-
-    Initializing a Synapse object logs in all connected Personas and starts
-    listening on the specified port for UDP connections.
-
-    Args:
-        address (Tuple)
-            0 -- (String) The IP-address this Synapse should listen on.
-                Using '0.0.0.0' binds to a public IP address.
-            1 -- (String) The port number to listen on.
+    A Synapse reacts to local changes in the database and transmits
+    them to each Persona's peers using the Myelin API. It also keeps 
+    Glia up to date on all Persona's managed by this Souma.
     """
 
-    def __init__(self, address):
-        DatagramServer.__init__(self, address)
-
+    def __init__(self):
         self.logger = logging.getLogger('synapse')
         self.logger.setLevel(app.config['LOG_LEVEL'])
 
@@ -69,7 +54,6 @@ class Synapse(gevent.server.DatagramServer):
         signal = notification_signals.signal
 
         signal('local-model-changed').connect(self.on_local_model_change)
-
         signal('new-contact').connect(self.on_new_contact)
 
     def _distribute_vesicle(self, vesicle, signed=False, recipients=None):

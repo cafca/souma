@@ -33,8 +33,7 @@ else:
 
     # Synapse
     app.logger.info("Starting Synapses")
-    synapse = Synapse(('0.0.0.0', app.config['SYNAPSE_PORT']))
-    synapse.start()
+    synapse = Synapse()
 
     # Web UI
     if not app.config['NO_UI']:
