@@ -28,12 +28,14 @@ class PageManager():
         self.screen_size = (12.0, 8.0)
 
     def auto_layout(self, stars):
-        """Return a layout for given stars in a list of css class, star pairs."""
+        """Return a layout for given stars in a list of css class, star pairs.
+        """
+
         # Rank stars by score
         stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
 
-        # Find best layout by filling each one with stars and determining which one
-        # gives the best score
+        # Find best layout by filling each one with stars
+        # and determining which one gives the best score
         layout_scores = dict()
         for layout in self.layouts:
             # print("\nLayout: {}".format(layout['name']))
@@ -482,9 +484,7 @@ def group(id):
     # Fill in group-id to be used in star creation
     form.group_id.data = group.id
 
-    # TODO: Why is persona(...) using [:4], should we do the same here?
-    # TODO: Why not use group.posts ???
-    starmap = Star.query.filter(Star.group_id == id, Star.state >= 0)[:4]
+    starmap = group.posts
 
     # TODO: Use new layout system
     vizier = Vizier([

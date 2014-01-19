@@ -362,8 +362,7 @@ class Group(Serializable, db.Model):
     __tablename__ = "group"
     id = db.Column(db.String(32), primary_key=True)
     groupname = db.Column(db.String(80))
-    description = db.Column(db.Text)    #TODO: var length column?
-
+    description = db.Column(db.Text)
     # Make this work if needed!
     """
     members = db.relationship(
@@ -372,9 +371,11 @@ class Group(Serializable, db.Model):
         primaryjoin='group.c.id==persona.c.?????_id' # TODO:How to HBTM?!
     )"""
 
+    # returns only active posts
     posts = db.relationship(
         "Star",
-        backref="group"
+        backref="group",
+        primaryjoin="and_(Group.id==Star.group_id, Star.state>=0)"
     )
 
     def __init__(self, id, name, description):
