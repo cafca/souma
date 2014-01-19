@@ -43,19 +43,6 @@ class Synapse(gevent.server.DatagramServer):
             1 -- (String) The port number to listen on.
     """
 
-    # Soumamap contains information about all online soumas
-    #
-    # It contains values such as:
-    # SOUMA_ID: {
-    #     "host": string IP_ADDRESS,
-    #     "port_external": int PORT_NUMBER_OF_INCOMING_CONNECTIONS,
-    #     "port_internal": int PORT_USED_BY_PEER_TO_SEND_VESICLES,
-    #     "connectable": bool BEHIND_FIREWALL?,
-    #     "starmap": STARMAP
-    #     "last_seen": datetime LAST_SEEN
-    # }
-    soumamap = dict()
-
     def __init__(self, address):
         DatagramServer.__init__(self, address)
 
@@ -73,38 +60,6 @@ class Synapse(gevent.server.DatagramServer):
         # Connect to nucleus
         self._connect_signals()
 
-    def _create_starmap(self):
-        """
-        Create a starmap listing all contents of the local Souma
-        """
-
-        stars = Star.query.all()
-        personas = Persona.query.all()
-        planets = Planet.query.all()
-
-        new_starmap = dict()
-        for star in stars:
-            new_starmap[star.id] = {
-                "type": "Star",
-                "creator": star.creator_id,
-                "modified": star.modified.isoformat()
-            }
-
-        for persona in personas:
-            new_starmap[persona.id] = {
-                "type": "Persona",
-                "creator": None,
-                "modified": persona.modified.isoformat()
-            }
-
-        for planet in planets:
-            new_starmap[planet.id] = {
-                "type": "Planet",
-                "creator": None,
-                "modified": planet.modified.isoformat()
-            }
-
-        return new_starmap
 
     def _connect_signals(self):
         """
@@ -113,7 +68,7 @@ class Synapse(gevent.server.DatagramServer):
 
         signal = notification_signals.signal
 
-        signal('star-created').connect(self.on_local_model_change)
+        signal('model-changed').connect(self.on_local_model_change)
         signal('star-modified').connect(self.on_star_modified)
         signal('star-deleted').connect(self.on_star_deleted)
 
@@ -238,115 +193,6 @@ class Synapse(gevent.server.DatagramServer):
             sock.send("OK")
             self.logger.error("Malformed request: too short ({} bytes)\n{}".format(len(data), data))
 
-    def handle_change_notification(self, vesicle):
-        """
-        Act on received change notifications by updating the local instance
-        of the changed object.
-
-        Args:
-            vesicle (Vesicle): The received change_notification Vesicle
-        """
-        # Verify vesicle
-        errors = list()
-        try:
-            change = vesicle.data["change"]
-            object_type = vesicle.data["object_type"]
-            object_id = vesicle.data["object_id"]
-            change_time = vesicle.data["change_time"]
-        except KeyError, e:
-            errors.append("missing key\n{}".format(e))
-
-        if change not in CHANGE_TYPES:
-            errors.append("unknown change type: {}".format(change))
-
-        if object_type not in OBJECT_TYPES:
-            errors.append("unknown object type: {}".format(object_type))
-
-        try:
-            change_time = dateutil_parse(change_time)
-        except ValueError:
-            errors.append("malformed change time: {}".format(change_time))
-
-        if len(errors) > 0:
-            self.logger.error("Malformed change notification\n{}".format("\n".join(errors)))
-            return
-
-        # Check whether the changed object exists locally
-        if object_type == "Star":
-            o = Star.query.get(object_id)
-        elif object_type == "Persona":
-            o = Persona.query.get(object_id)
-        elif object_type == "Planet":
-            o = Planet.query.get(object_id)
-
-        # Check authority if original object exists
-        if o is not None:
-            authority = o if object_type == "Persona" else o.creator
-            if vesicle.author_id != authority.id:
-                self.logger.warning("Unauthorized change request received! ({})".format(vesicle))
-
-        # Check signature
-        if not vesicle.signed():
-            self.logger.warning("Signature error on change request! ({})".format(vesicle))
-
-        # Reflect changes if neccessary
-        elif change == "delete":
-            if object_type == "Star":
-                if o is None:
-                    deleted_star = Star(id=object_id, text=None, creator=None)
-                    deleted_star.set_state(-2)
-                    db.session.add(deleted_star)
-                    db.session.commit()
-                    self.logger.info("<Star [{}]> marked deleted (no local copy available)".format(object_id[:6]))
-                elif o.state == -2:
-                    self.logger.info("<Star [{}]> is already deleted".format(object_id[:6]))
-                else:
-                    o.set_state(-2)
-                    db.session.add(o)
-                    db.session.commit()
-                    self.logger.info("Deleted {}".format(o))
-            else:
-                if o is None:
-                    self.logger.info("<{} [{}]> deleted (no local copy)".format(
-                        object_type, object_id[:6]))
-                else:
-                    # self.starmap.remove(o)
-                    # db.session.add(self.starmap)
-                    # db.session.commit()
-                    db.session.delete(o)
-                    self.logger.info("<{} {}> deleted".format(
-                        object_type, object_id[:6]))
-
-        elif change == "insert":
-            # Object already exists locally
-            if o is not None:
-                self.logger.info("{} already exists.".format(o))
-
-            # Request object
-            else:
-                self.logger.info("New <{} {}> available".format(object_type, object_id[:6]))
-                # TODO: Check if we even want to have this thing, also below in update
-                self.request_object(object_type, object_id, address)
-
-        elif change == "update":
-
-            #
-            # untested
-            #
-
-            self.logger.info("Updated {} {} available".format(object_type, object_id))
-            if o is None:
-                self.request_object(object_type, object_id, address)
-            else:
-                # Check if this is a newer version
-                if o.modified < change_time:
-                    self.request_object(object_type, object_id, address)
-                else:
-                    self.logger.debug("Updated {object_type} {object_id} is obsolete \
-                        (Remote modified: {remote} Local modified: {local}".format(
-                        object_type=object_type,
-                        object_id=object_id, remote=change_time, local=o.modified))
-
     def handle_object(self, vesicle):
         """
         Handle received object updates by verifying the request and calling
@@ -363,6 +209,7 @@ class Synapse(gevent.server.DatagramServer):
             action = vesicle.data["action"]
             object_type = vesicle.data["object_type"]
             obj = vesicle.data["object"]
+            author_id = vesicle.author_id
         except KeyError, e:
             errors.append("Missing key: {}".format(e))
 
@@ -371,14 +218,18 @@ class Synapse(gevent.server.DatagramServer):
 
         if action not in CHANGE_TYPES:
             errors.append("Unknown action type '{}'".format(action))
-            
+
+        author = Persona.query.get(author_id)
+        if not author:
+            errors.append("Author {} not found".format(author_id))
+
         if errors:
             self.logger.error("Malformed object received\n{}".format("\n".join(errors)))
         else:
             handler = getattr(self, "object_{}".format(action))
-            handler(action, object_type, obj)
+            handler(author, action, object_type, obj)
 
-    def object_insert(self, action, object_type, obj):
+    def object_insert(self, author, action, object_type, obj):
         # Handle answer
         # TODO: Handle updates
         if object_type == "Star":
@@ -419,11 +270,65 @@ class Synapse(gevent.server.DatagramServer):
             else:
                 self.logger.warning("Received already existing {}".format(o))
 
-    def object_update(self, action, object_type, obj):
-        pass
+    def object_update(self, author, action, object_type, obj):
+        # Verify message
+        for k in ["id", "modified"]:
+            if k not in obj.keys():
+                raise KeyError("Missing '{}' in object description".format(k))
 
-    def object_delete(self, action, object_type, obj):
-        pass
+        try:
+            change_time = dateutil_parse(obj["modified"])
+        except ValueError:
+            self.logger.error("Malformed change time: {}".format(obj["modified"]))
+            return
+
+        # Retrieve local object copy
+
+        # Get the object's class from globals
+        obj_class = globals()[object_type]
+        o = obj_class.query.get(obj["id"])
+
+        if o is None:
+            self.logger.info("Received update for nonexistent object")
+        else:
+            if o.modified < change_time:
+                # TODO: Handle update
+                self.logger.info("Received update - not applied({})".format(obj))
+            else:
+                self.logger.info("Received obsolete update ({})".format(obj))
+
+    def object_delete(self, author, action, object_type, obj):
+        # Verify message
+        for k in ["id", ]:
+            if k not in obj.keys():
+                raise KeyError("Missing '{}' in object description".format(k))
+
+        # Get the object's class from globals
+        obj_class = globals()[object_type]
+        o = obj_class.query.get(obj["id"])
+
+        if object_type == "Star":
+                if o is None:
+                    deleted_star = Star(id=obj["id"], text=None, creator=None)
+                    deleted_star.set_state(-2)
+                    db.session.add(deleted_star)
+                    db.session.commit()
+                    self.logger.info("<Star [{}]> marked deleted (no local copy available)".format(obj["id"][:6]))
+                elif o.state == -2:
+                    self.logger.info("<Star [{}]> is already deleted".format(obj["id"][:6]))
+                else:
+                    o.set_state(-2)
+                    db.session.add(o)
+                    db.session.commit()
+                    self.logger.info("Deleted {}".format(o))
+            else:
+                if o is None:
+                    self.logger.info("<{} [{}]> deleted (no local copy)".format(
+                        object_type, obj["id"][:6]))
+                else:
+                    db.session.delete(o)
+                    self.logger.info("<{} {}> deleted".format(
+                        object_type, object_id[:6]))
 
     def handle_object_request(self, vesicle):
         """
@@ -680,174 +585,6 @@ class Synapse(gevent.server.DatagramServer):
 
         self._distribute_vesicle(vesicle, signed=True, recipients=message["author"].contacts)
 
-    def on_star_created(self, sender, message):
-        """
-        React to star_created signal
-        """
-        star = message
-
-        # Update starmap
-        orb = Orb("Star", star.id, star.modified, star.creator.id)
-        self.starmap.add(orb)
-
-        # distribute star in vesicle
-        data = dict({
-            "object": star.export(),
-            "object_type": "Star"
-        })
-
-        vesicle = Vesicle(message_type="object", data=data)
-        vesicle.author_id = star.creator.id
-
-        self._distribute_vesicle(vesicle, signed=True, recipients=star.creator.contacts)
-
-    def on_star_modified(self, sender, message):
-        """
-        React to star-modified signal
-        """
-        star = message
-
-        # Update starmap
-        orb = Orb.query.get(star.id)
-        if not orb:
-            raise NameError("Orb {} not found".format(orb))
-        if orb.modified != star.modified:
-            orb.modified = star.modified
-            db.session.add(orb)
-            db.session.commit()
-
-            # distribute notification_message
-            data = dict({
-                "object_type": "Star",
-                "object_id": star.id,
-                "change": "update",
-                "change_time": star.modified.isoformat()
-            })
-
-            vesicle = Vesicle(message_type="change_notification", data=data)
-            vesicle.author_id = star.creator.id
-
-            self.logger.debug("Distributing {}".format(vesicle))
-
-            self._distribute_vesicle(vesicle, signed=True)
-        else:
-            self.logger.warning("Received modification signal from {} on non-modified {}".format(sender, star))
-
-
-    def on_star_deleted(self, sender, message):
-        """
-        React to star-deleted signal
-        """
-        star = message
-
-        # Update starmap
-        orb = Orb.query.get(star.id)
-        if not orb:
-            self.logger.error("Orb {} not found".format(orb))
-        else:
-            db.session.delete(orb)
-            db.session.commit()
-
-        # distribute notification_message
-        data = dict({
-            "object_type": "Star",
-            "object_id": star.id,
-            "change": "delete",
-            "change_time": star.modified.isoformat()
-        })
-
-        vesicle = Vesicle(message_type="change_notification", data=data)
-        vesicle.author_id = star.creator.id
-
-        self.logger.debug("Distributing {}".format(vesicle))
-
-        self._distribute_vesicle(vesicle, signed=True, recipients=star.creator.contacts)
-
-    def on_planet_created(self, sender, message):
-        """
-        React to planet-created signal
-        """
-        planet = message
-
-        # Update starmap
-        orb = Orb("Planet", planet.id, planet.modified)
-        self.starmap.add(orb)
-
-        # distribute notification_message
-        data = dict({
-            "object_type": "Planet",
-            "object_id": planet.id,
-            "change": "create",
-            "change_time": planet.modified.isoformat()
-        })
-
-        vesicle = Vesicle(message_type="change_notification", data=data)
-        vesicle.author_id = planet.creator.id
-
-        self.logger.debug("Distributing {}".format(vesicle))
-
-        self._distribute_vesicle(vesicle, signed=True)
-
-    def on_planet_modified(self, sender, message):
-        """
-        React to planet-modified signal
-        """
-        planet = message
-
-        # Update starmap
-        orb = Orb.query.get(planet.id)
-        if not orb:
-            raise NameError("Orb {} not found".format(orb))
-
-        if orb.modified != planet.modified:
-            orb.modified = planet.modified
-            db.session.add(orb)
-            db.session.commit()
-
-            # distribute notification_message
-            data = dict({
-                "object_type": "Planet",
-                "object_id": planet.id,
-                "change": "update",
-                "change_time": planet.modified.isoformat()
-            })
-
-            vesicle = Vesicle(message_type="change_notification", data=data)
-            vesicle.author_id = planet.creator.id
-
-            self.logger.debug("Distributing {}".format(vesicle))
-
-            self._distribute_vesicle(vesicle, signed=True)
-        else:
-            self.logger.warning("Received modification signal from {} on non-modified {}".format(sender, planet))
-
-    def on_planet_deleted(self, sender, message):
-        """
-        React to star-deleted signal
-        """
-        planet = message
-
-        # Update starmap
-        orb = Orb.query.get(planet.id)
-        if not orb:
-            raise NameError("Orb {} not found".format(orb))
-        db.session.delete(orb)
-        db.session.commit()
-
-        # distribute notification_message
-        data = dict({
-            "object_type": "Planet",
-            "object_id": planet.id,
-            "change": "delete",
-            "change_time": planet.modified.isoformat()
-        })
-
-        vesicle = Vesicle(message_type="change_notification", data=data)
-        vesicle.author_id = planet.creator.id
-        self.logger.debug("Distributing {}".format(vesicle))
-
-        self._distribute_vesicle(vesicle, signed=True)
-
     def on_persona_created(self, sender, message):
         """
         React to persona-created signal
@@ -930,42 +667,6 @@ class Synapse(gevent.server.DatagramServer):
 
         self._distribute_vesicle(vesicle, signed=True)
 
-    def on_souma_discovered(self, sender, message):
-        """
-        Add new soumas to the soumamap
-
-        souma = {
-            "id": string SOUMA_ID
-            "host": string IP_ADDRESS,
-            "port_external": int PORT_NUMBER_OF_INCOMING_CONNECTIONS,
-            "port_internal": int PORT_USED_BY_PEER_TO_SEND_VESICLES,
-            "connectable": bool BEHIND_FIREWALL?,
-            "last_seen": datetime LAST_SEEN
-        }
-        """
-        souma = message
-
-        try:
-            souma_id = souma['id']
-            host = souma['host']
-            port_external = souma['port_external']
-            port_internal = souma['port_internal']
-            connectable = souma['connectable']
-            last_seen = souma['last_seen']
-        except KeyError, e:
-            self.logger.error("Invalid souma information: {}".format(e))
-
-        self.soumamap[souma_id] = {
-            "host": host,
-            "port_external": port_external,
-            "port_internal": port_internal,
-            "connectable": connectable,
-            "starmap": None,
-            "last_seen": dateutil_parse(last_seen)
-        }
-
-        self.request_starmap(souma_id)
-        self.logger.info("Discovered new souma {}@{}".format(souma_id[:6], source_format(host, port)))
 
     def request_object(self, object_type, object_id, souma_id):
         """
