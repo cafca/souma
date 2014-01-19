@@ -65,10 +65,7 @@ class ElectricalSynapse(object):
         self._sessions = dict()  # Holds session info for owned Personas (see _get_session(), _set_session()
 
         # Setup signals
-        self.souma_discovered = notification_signals.signal('souma-discovered')
-        notification_signals.signal('persona-created').connect(self.on_persona_created)
-        notification_signals.signal('persona-modified').connect(self.on_persona_modified)
-        notification_signals.signal('persona-deleted').connect(self.on_persona_deleted)
+        notification_signals.signal('local-model-changed').connect(self.on_local_model_changed)
 
         # Test connection to glia-server
         try:
@@ -314,7 +311,8 @@ class ElectricalSynapse(object):
 
                     if soumas:
                         for souma in soumas:
-                            self.souma_discovered.send(self._update_peer_list, message=souma)
+                            # self.souma_discovered.send(self._update_peer_list, message=souma)
+                            pass
                     else:
                         offline += 1
                         self.logger.info("No online souma found for {}".format(contacts.get(p_id)))
