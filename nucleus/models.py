@@ -317,7 +317,7 @@ class Star(Serializable, db.Model):
             oneup.set_state(-1) if oneup.state == 0 else oneup.set_state(0)
         else:
             old_state = False
-            oneup = Oneup(star=self, creator=author)
+            oneup = Oneup(id=uuid4().hex, star=self, creator=author)
 
         # Commit 1up
         db.session.add(oneup)
