@@ -1,8 +1,6 @@
 import os
-import datetime
-import requests
 
-from flask import abort, flash, json, redirect, render_template, request, session, url_for
+from flask import abort, flash, redirect, render_template, request, session, url_for
 from hashlib import sha256
 from operator import itemgetter
 
@@ -11,7 +9,6 @@ from web_ui.forms import *
 from web_ui.helpers import get_active_persona
 from nucleus import notification_signals
 from nucleus.models import Persona, Star, Planet, PicturePlanet, LinkPlanet, Group
-from nucleus.vesicle import Vesicle
 
 # Create blinker signal namespace
 star_created = notification_signals.signal('star-created')
@@ -85,7 +82,7 @@ class PageManager():
                 star_cell[1],
                 star_cell[2],
                 star_cell[3])
-            page.append([css_class, star])
+            page.append({'css_class': css_class, 'content': star})
         return page
 
     def _cell_score(self, cell):
@@ -363,6 +360,8 @@ def delete_star(id):
 @app.route('/')
 def universe():
     """ Render the landing page """
+
+    # return only stars that are not in a group context
     stars = Star.query.filter(Star.state >= 0, Star.group_id == '').all()
     pm = PageManager()
     page = pm.auto_layout(stars)
@@ -373,7 +372,7 @@ def universe():
     if len(stars) == 0:
         return redirect(url_for('create_star'))
 
-    return render_template('universe.html', layout="sternenhimmel", stars=page)
+    return render_template('universe.html', page=page)
 
 
 @app.route('/s/<id>/', methods=['GET'])
@@ -484,24 +483,33 @@ def group(id):
     # Fill in group-id to be used in star creation
     form.group_id.data = group.id
 
+    # create layouted page for group
     starmap = group.posts
+    pm = PageManager()
+    page = pm.auto_layout(starmap)
 
     # TODO: Use new layout system
-    vizier = Vizier([
-        [1, 5, 6, 2],
-        [1, 1, 6, 4],
-        [7, 1, 2, 2],
-        [7, 3, 2, 2],
-        [7, 5, 2, 2]])
+#    vizier = Vizier([
+#        [1, 5, 6, 2],
+#        [1, 1, 6, 4],
+#        [7, 1, 2, 2],
+#        [7, 3, 2, 2],
+#        [7, 5, 2, 2]])
 
     return render_template(
         'group.html',
-        layout="group",  # TODO: Where's that one from?! web_ui/layouts.json?
-        vizier=vizier,
         group=group,
-        starmap=starmap,
+        starmap=page,
         active_persona=active_persona,
         form=form)
+
+    #return render_template(
+    #    'group.html',
+    #    vizier=vizier,
+    #    group=group,
+    #    starmap=starmap,
+    #    active_persona=active_persona,
+    #    form=form)
 
 
 @app.route('/g/create', methods=['GET', 'POST'])
