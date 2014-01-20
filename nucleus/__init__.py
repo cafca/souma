@@ -33,6 +33,14 @@ STAR_STATES = {
     3: (3, "updating")
 }
 
+# Possible states of planets
+PLANET_STATES = {
+    -1: (-1, "unavailable"),
+    0: (0, "published"),
+    1: (1, "private"),
+    2: (2, "updating")
+}
+
 # Possible states of 1ups
 ONEUP_STATES = {
     -1: "disabled",

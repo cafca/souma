@@ -344,6 +344,7 @@ class Planet(Serializable, db.Model):
     created = db.Column(db.DateTime, default=datetime.datetime.now())
     modified = db.Column(db.DateTime, default=datetime.datetime.now(), onupdate=datetime.datetime.now())
     source = db.Column(db.String(128))
+    state = db.Column(db.Integer, default=0)
 
     __mapper_args__ = {
         'polymorphic_identity': 'planet',
@@ -352,6 +353,34 @@ class Planet(Serializable, db.Model):
 
     def __repr__(self):
         return "<Planet:{} [{}]>".format(self.kind, self.id[:6])
+
+    def get_state(self):
+        """
+        Return publishing state of this planet.
+
+        Returns:
+            One of:
+                (-2, "deleted")
+                (-1, "unavailable")
+                (0, "published")
+                (1, "draft")
+                (2, "private")
+                (3, "updating")
+        """
+        return PLANET_STATES[self.state]
+
+    def set_state(self, new_state):
+        """
+        Set the publishing state of this planet
+
+        Parameters:
+            new_state (int) code of the new state as defined in nucleus.PLANET_STATES
+        """
+        if not isinstance(new_state, int) or new_state not in PLANET_STATES.keys():
+            raise ValueError("{} ({}) is not a valid planet state").format(
+                new_state, type(new_state))
+        else:
+            self.state = new_state
 
 
 class PicturePlanet(Planet):
