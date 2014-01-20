@@ -90,7 +90,25 @@ class Synapse():
         if app.config["ENABLE_MYELIN"]:
             self.electrical.myelin_store(vesicle)
 
-        return vesicle
+        return vesicle    
+
+    def _log_errors(self, msg, errors, level="error"):
+        """
+        Log a list of errors to the logger
+
+        Args:
+            msg(str): A message describing the error source
+            errors(list): A list of error messages
+
+        Raises:
+            ValueError: If the specified log level is invalid
+        """
+
+        if level not ["debug", "info", "warning", "error"]:
+            raise ValueError("Invalid log level {}".format(level))
+
+        call = self.logger.getattr(level)
+        call("{msg}:\n{list}".format(msg=msg, list="\n* ".join(str(e) for e in errors)))
 
 
     def handle(self, data, address):

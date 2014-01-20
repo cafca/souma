@@ -135,16 +135,23 @@ class ElectricalSynapse(object):
                 'timeout': to
             }
 
-    def _log_errors(self, msg, errors):
+    def _log_errors(self, msg, errors, level="error"):
         """
         Log a list of errors to the logger
 
         Args:
             msg(str): A message describing the error source
             errors(list): A list of error messages
+
+        Raises:
+            ValueError: If the specified log level is invalid
         """
 
-        self.logger.error("{msg}:\n{list}".format(msg=msg, list="\n* ".join(str(e) for e in errors)))
+        if level not ["debug", "info", "warning", "error"]:
+            raise ValueError("Invalid log level {}".format(level))
+
+        call = self.logger.getattr(level)
+        call("{msg}:\n{list}".format(msg=msg, list="\n* ".join(str(e) for e in errors)))
 
     def _keepalive(self, persona):
         """
