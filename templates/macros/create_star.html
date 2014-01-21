@@ -1,25 +1,12 @@
-{% extends "base.html" %}
-{% import "macros/star.html" as star_macros %}
-{% import "macros/planet.html" as planet_macros %}
+{% macro create_star(page, form, active_persona) %}
 
-
-{% block content %}
-<section class="col0 row1 w3 h1">
-<!-- <section class='{{ page.group_header }}'> -->
-    <span class="content">
-        <h1>{{group.groupname}}</h1>
-        <p>Description: {{group.description}}</p>
-    </span>
-</section>
-
-<!-- TODO: Make this include work with relative positioning -->
-{#% include 'bare_create_star.html' %#}
-
-
+<!-- TODO: empty listelement if element not to be displayed
+     TODO: Error if create_star_form not preset
+-->
 
 <form method="POST" action="{{url_for('create_star')}}" enctype="multipart/form-data">
     <!-- Main text field -->
-    <section class="textarea card col0 row2 w5 h1">
+    <section class="textarea card {{ page.create_star_form[0] }}">
         <div class="card-handle">
             <i class="icon-asterisk"></i>
         </div>
@@ -38,7 +25,7 @@
     </section>
 
     <!-- Link attachment field -->
-    <section class="card col0 row3 w5 h1">
+    <section class="card {{ page.create_star_form[1] }}">
         <div class="card-handle">
             <i class="icon-link"></i>
         </div>
@@ -55,7 +42,7 @@
     </section>
 
     <!-- File attachment field -->
-    <section class="card col0 row4 w5 h2">
+    <section class="card {{ page.create_star_form[2] }}">
         <div class="card-handle">
             <i class="icon-file"></i>
         </div>
@@ -74,7 +61,7 @@
 
 
     <!-- Add Attachments -->
-    <section class="col0 row6 w5 h1">
+    <section class="{{ page.create_star_for[3] }}">
         <div class="card-handle">
             <i class="icon-plus"></i>
         </div>
@@ -85,7 +72,7 @@
     </section>
 
     <!-- Controls -->
-    <section class="col0 row7 w5 h2">
+    <section class="{{ page.create_star_form[4] }}">
         <span class="pull-right">
             <button type="submit" class="btn" disabled="disabled"><i class="icon-save"></i> Save Draft</button>
             <div class="btn-group">
@@ -115,7 +102,7 @@
 
     </section>
 
-    <section class="col6 row2 w4 h1" style="display:none">
+    <section class="col0 row0 w0 h0" style="display:none">
         {{ form.creator() }}
         {% if form.creator.errors %}
             <ul class="errors">{% for error in form.creator.errors %}<li>{{ error }}</li>{% endfor %}</ul>
@@ -127,16 +114,4 @@
 
 
 
-{% for star in starmap %}
-    {% for planet in star.planets %}
-    <section class='{{vizier.get_cell()}}'>
-        {{ planet_macros.planet(planet, False)}}
-    </section>
-    {% endfor %}
-
-    <section class="{%if star.planets|length() >= 1 %}image-overlay{% endif %} {{vizier.get_cell()}}">
-        {{ star_macros.star(star) }}
-    </section>
-{% endfor %}
-
-{% endblock %}
+{% endmacro%}

@@ -2,9 +2,9 @@ import os
 
 from flask import abort, flash, redirect, render_template, request, session, url_for
 from hashlib import sha256
-from operator import itemgetter
 
 from web_ui import app, cache, db, logged_in, attachments
+from web_ui.pagemanager import *
 from web_ui.forms import *
 from web_ui.helpers import get_active_persona
 from nucleus import notification_signals
@@ -19,90 +19,6 @@ new_contact = notification_signals.signal('new-contact')
 group_created = notification_signals.signal('group-created')
 
 
-class PageManager():
-    def __init__(self):
-        self.layouts = app.config['LAYOUT_DEFINITIONS']
-        self.screen_size = (12.0, 8.0)
-
-    def auto_layout(self, stars):
-        """Return a layout for given stars in a list of css class, star pairs.
-        """
-
-        # Rank stars by score
-        stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
-
-        # Find best layout by filling each one with stars
-        # and determining which one gives the best score
-        layout_scores = dict()
-        for layout in self.layouts:
-            # print("\nLayout: {}".format(layout['name']))
-            layout_scores[layout['name']] = 0
-
-            for i, star_cell in enumerate(layout['stars']):
-                if i >= len(stars_ranked):
-                    continue
-                star = stars_ranked[i]
-
-                cell_score = self._cell_score(star_cell)
-                layout_scores[layout['name']] += star.hot() * cell_score
-                # print("{}\t{}\t{}".format(star, star.hot() * cell_score, cell_score))
-            # print("Score: {}".format(layout_scores[layout['name']]))
-
-        # Select best layout
-        selected_layouts = sorted(
-            layout_scores.iteritems(),
-            key=itemgetter(1),
-            reverse=True)
-
-        if len(selected_layouts) == 0:
-            app.logger.error("No fitting layout found")
-            return
-
-        for layout in self.layouts:
-            if layout['name'] == selected_layouts[0][0]:
-                break
-
-        # print("Chosen {}".format(layout))
-
-        # Create list of elements in layout
-        page = list()
-        for i, star_cell in enumerate(layout['stars']):
-            if i >= len(stars_ranked):
-                break
-
-            star = stars_ranked[i]
-
-            # CSS class name format
-            # col   column at which the css container begins
-            # row   row at which it begins
-            # w     width of the container
-            # h     height of the container
-            css_class = "col{} row{} w{} h{}".format(
-                star_cell[0],
-                star_cell[1],
-                star_cell[2],
-                star_cell[3])
-            page.append({'css_class': css_class, 'content': star})
-        return page
-
-    def _cell_score(self, cell):
-        """Return a score that describes how valuable a given cell on the screen is.
-        Cell on the top left is 1.0, score diminishes to the right and bottom. Bigger
-        cells get higher scores, cells off the screen get a 0.0"""
-        import math
-
-        # position score
-        if cell[0] > self.screen_size[0] or cell[1] > self.screen_size[1]:
-            pscore = 0.0
-        else:
-            score_x = 1.0 if cell[0] == 0 else 1.0 / (1.0 + (cell[0] / self.screen_size[0]))
-            score_y = 1.0 if cell[1] == 0 else 1.0 / (1.0 + (cell[1] / self.screen_size[1]))
-            pscore = (score_x + score_y) / 2.0
-
-        # size score (sigmoid)
-        area = cell[2] * cell[3]
-        sscore = 1.0 / (1 + pow(math.exp(1), -0.1 * (area - 12.0)))
-        return pscore * sscore
 
 
 @app.context_processor
@@ -332,7 +248,14 @@ def create_star():
             return redirect(url_for('group', id=new_star.group_id))
 
         return redirect(url_for('star', id=uuid))
-    return render_template('create_star.html', form=form, active_persona=active_persona)
+
+    pm = CreateStarPageManager()
+    page = pm.auto_layout()
+
+    return render_template('create_star.html',
+                           form=form,
+                           page=page,
+                           active_persona=active_persona)
 
 
 @app.route('/s/<id>/delete', methods=["GET"])
@@ -363,7 +286,7 @@ def universe():
 
     # return only stars that are not in a group context
     stars = Star.query.filter(Star.state >= 0, Star.group_id == '').all()
-    pm = PageManager()
+    pm = StarPageManager()
     page = pm.auto_layout(stars)
 
     if len(persona_context()['controlled_personas'].all()) == 0:
@@ -485,7 +408,7 @@ def group(id):
 
     # create layouted page for group
     starmap = group.posts
-    pm = PageManager()
+    pm = StarPageManager()
     page = pm.auto_layout(starmap)
 
     # TODO: Use new layout system
@@ -499,7 +422,7 @@ def group(id):
     return render_template(
         'group.html',
         group=group,
-        starmap=page,
+        page=page,
         active_persona=active_persona,
         form=form)
 

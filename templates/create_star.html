@@ -1,8 +1,13 @@
 {% extends "base.html" %} 
+{% import "macros/create_star.html" as create_macro %}
+
+<!-- TODO: get header from page as well-->
 
 {% block content %}
 <section class="col0 row1 w3 h1">
 <h2><i class="icon-magic"></i> Create Star</h2>
 </section>
-{% include 'bare_create_star.html' %}
+
+{{ create_macro.create_star(page, form, active_persona) }}
+
 {% endblock %}
