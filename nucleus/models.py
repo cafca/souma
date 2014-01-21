@@ -1,15 +1,13 @@
 import datetime
-import os
 
 from base64 import b64encode, b64decode
 from flask import url_for, session
 from hashlib import sha256
 from keyczar.keys import RsaPrivateKey, RsaPublicKey
 from sqlalchemy import ForeignKey
-from sqlalchemy.exc import OperationalError
 from uuid import uuid4
 
-from nucleus import ONEUP_STATES, STAR_STATES, PersonaNotFoundError, UnauthorizedError
+from nucleus import ONEUP_STATES, STAR_STATES, PLANET_STATES, PersonaNotFoundError, UnauthorizedError
 from web_ui import app, db
 from web_ui.helpers import epoch_seconds
 
@@ -46,6 +44,10 @@ class Persona(Serializable, db.Model):
     """A Persona represents a user profile"""
 
     __tablename__ = "persona"
+
+    _export_include = ["id", "username", "email", "crypt_public",
+                    "sign_public", "modified", "profile_id", "index_id"]
+
     id = db.Column(db.String(32), primary_key=True)
     username = db.Column(db.String(80))
     email = db.Column(db.String(120))
@@ -60,9 +62,11 @@ class Persona(Serializable, db.Model):
     sign_public = db.Column(db.Text)
     modified = db.Column(db.DateTime, default=datetime.datetime.now(), onupdate=datetime.datetime.now())
 
-    # TODO: Is this needed?
-    souma_id = db.Column(db.String(32), db.ForeignKey('starmap.id'))
-    souma = db.relationship('Starmap', backref="personas", primaryjoin='starmap.c.id==persona.c.souma_id')
+    profile_id = db.Column(db.String(32), db.ForeignKey('starmap.id'))
+    profile = db.relationship('Starmap', primaryjoin='starmap.c.id==persona.c.profile_id')
+
+    index_id = db.Column(db.String(32), db.ForeignKey('starmap.id'))
+    index = db.relationship('Starmap', primaryjoin='starmap.c.id==persona.c.index_id')
 
     # Myelin offset stores the date at which the last Vesicle receieved from Myelin was created
     myelin_offset = db.Column(db.DateTime)
@@ -96,6 +100,17 @@ class Persona(Serializable, db.Model):
 
     def get_absolute_url(self):
         return url_for('persona', id=self.id)
+
+    def export(self, exclude=[], include=[]):
+        combined_include = include + self._export_include
+        data = Serializable.export(self, exclude=exclude, include=combined_include)
+
+        for contact in self.contacts:
+            data["contacts"].append({
+                "id": contact.id,
+            })
+
+        return data
 
     def generate_keys(self, password):
         """ Generate new RSA keypairs for signing and encrypting. Commit to DB afterwards! """
@@ -135,6 +150,7 @@ class Persona(Serializable, db.Model):
         signature = b64decode(signature_b64)
         key_public = RsaPublicKey.Read(self.sign_public)
         return key_public.Verify(data, signature)
+
 
 class Oneup(Serializable, db.Model):
     """A 1up is a vote that signals interest in a Star"""
@@ -185,6 +201,9 @@ class Star(Serializable, db.Model):
     """A Star represents a post"""
 
     __tablename__ = "star"
+
+    _export_include = ["id", "text", "created", "modified", "creator_id"]
+
     id = db.Column(db.String(32), primary_key=True)
     text = db.Column(db.Text)
     created = db.Column(db.DateTime, default=datetime.datetime.now())
@@ -222,6 +241,18 @@ class Star(Serializable, db.Model):
         return "<Star {}: {}>".format(
             self.creator_id[:6],
             (ascii_text[:24] if len(ascii_text) <= 24 else ascii_text[:22] + ".."))
+
+    def export(self, exclude=[], include=[]):
+        combined_include = include + self._export_include
+        data = Serializable.export(self, exclude=exclude, include=combined_include)
+
+        for planet in self.planets:
+            data["planets"].append({
+                "id": planet.id,
+                "modified": planet.modified
+            })
+
+        return data
 
     def get_state(self):
         """
@@ -282,7 +313,6 @@ class Star(Serializable, db.Model):
         Returns:
             Int: Number of upvotes
         """
-        from sqlalchemy import func
         return self.oneups.filter_by(state=0).paginate(1).total
 
     def toggle_oneup(self, author_id=None):
@@ -338,6 +368,9 @@ class Planet(Serializable, db.Model):
     """A Planet represents an attachment"""
 
     __tablename__ = 'planet'
+
+    _export_include = ["id", "title", "kind", "created", "modified", "source"]
+
     id = db.Column(db.String(32), primary_key=True)
     title = db.Column(db.Text)
     kind = db.Column(db.String(32))
@@ -382,6 +415,10 @@ class Planet(Serializable, db.Model):
         else:
             self.state = new_state
 
+    def export(self, exclude=[], include=[]):
+        combined_include = include + self._export_include
+        return Serializable.export(self, exclude=exclude, include=combined_include)
+
 
 class PicturePlanet(Planet):
     """A Picture attachment"""
@@ -393,6 +430,11 @@ class PicturePlanet(Planet):
         'polymorphic_identity': 'picture'
     }
 
+    def export(self, exclude=[], include=[]):
+        data = Planet.export(self, exclude=exclude, include=include)
+        data["filename"] = self.filename
+        return data
+
 
 class LinkPlanet(Planet):
     """A URL attachment"""
@@ -403,6 +445,11 @@ class LinkPlanet(Planet):
     __mapper_args__ = {
         'polymorphic_identity': 'link'
     }
+
+    def export(self, exclude=[], include=[]):
+        data = Planet.export(self, exclude=exclude, include=include)
+        data["url"] = self.url
+        return data
 
 
 class Souma(Serializable, db.Model):
@@ -473,6 +520,68 @@ class Souma(Serializable, db.Model):
         signature = urlsafe_b64decode(signature_b64)
         key_public = RsaPublicKey.Read(self.sign_public)
         return key_public.Verify(data, signature)
+
+t_starmap = db.Table(
+    'starmap_index',
+    db.Column('starmap_id', db.String(32), db.ForeignKey('starmap.id')),
+    db.Column('star_id', db.String(32), db.ForeignKey('star.id'))
+)
+
+
+class Starmap(Serializable, db.Model):
+    """
+    Starmaps are collections of objects with associated layout information
+    """
+    __tablename__ = 'starmap'
+    id = db.Column(db.String(32), primary_key=True)
+    modified = db.Column(db.DateTime)
+
+    author_id = db.Column(
+        db.String(32),
+        db.ForeignKey('persona.id', use_alter=True, name="fk_author_id"))
+    author = db.relationship('Persona',
+        backref=db.backref('starmaps'),
+        primaryjoin="Persona.id==Starmap.author_id",
+        post_update=True)
+
+    index = db.relationship(
+        'Star',
+        secondary='starmap_index',
+        primaryjoin='starmap_index.c.starmap_id==starmap.c.id',
+        secondaryjoin='starmap_index.c.star_id==star.c.id')
+
+    def __contains__(self, key):
+        return (key in self.index)
+
+    def __repr__(self):
+        return "<Starmap {} by {}>".format(self.id[:6], self.author)
+
+    def __len__(self):
+        return len(self.index)
+
+    def export(self, exclude=[], include=[]):
+        if include is None:
+            include = ["id", "modified", "author_id"]
+
+        data = Serializable.export(self, exclude=exclude, include=include)
+
+        for star in self.index:
+            planets = list()
+            for planet in star.planets:
+                planets.append({
+                    "id": planet.id,
+                    "modified": planet.modified.isoformat()
+                })
+
+            data["index"].append({
+                "id": star.id,
+                "author_id": star.creator_id,
+                "modified": star.modified.isoformat(),
+                "planets": planets
+            })
+
+        return data
+
 
 class DBVesicle(db.Model):
     """Store the representation of a Vesicle"""

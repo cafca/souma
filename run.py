@@ -7,8 +7,7 @@ from web_ui import app, db
 from gevent.wsgi import WSGIServer
 from sqlalchemy.exc import OperationalError
 
-from nucleus.models import Souma
-from synapse.models import Starmap
+from nucleus.models import Souma, Starmap
 from synapse import Synapse
 
 # Initialize database
@@ -20,7 +19,7 @@ except OperationalError:
 
     local_souma = Souma(id=app.config['SOUMA_ID'])
     local_souma.generate_keys()
-    local_souma.starmap = Starmap(app.config['SOUMA_ID'])
+    local_souma.starmap = Starmap(id=app.config['SOUMA_ID'])
 
     db.session.add(local_souma)
     db.session.commit()

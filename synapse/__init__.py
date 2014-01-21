@@ -1,22 +1,22 @@
-import datetime
 import logging
 import gevent
-import requests
+import iso8601
 
 from dateutil.parser import parse as dateutil_parse
-from gevent.pool import Pool
 
-from nucleus import notification_signals, source_format, UnauthorizedError, PersonaNotFoundError
-from nucleus.models import Persona, Star, Planet
-from nucleus.vesicle import Vesicle, PersonaNotFoundError
+from gevent.pool import Pool
+from nucleus import notification_signals, PersonaNotFoundError
+from nucleus.models import Persona, Star, Planet, Starmap
+from nucleus.vesicle import Vesicle
 from synapse.electrical import ElectricalSynapse
-from synapse.models import Starmap, Orb
 from web_ui import app, db
 
 # These are Vesicle options which are recognized by this Synapse
 ALLOWED_MESSAGE_TYPES = [
     "object",
-    "object_request"
+    "object_request",
+    "starmap",
+    "starmap_request"
 ]
 
 CHANGE_TYPES = ("insert", "update", "delete")
@@ -26,7 +26,7 @@ OBJECT_TYPES = ("Star", "Planet", "Persona")
 class Synapse():
     """
     A Synapse reacts to local changes in the database and transmits
-    them to each Persona's peers using the Myelin API. It also keeps 
+    them to each Persona's peers using the Myelin API. It also keeps
     Glia up to date on all Persona's managed by this Souma.
     """
 
@@ -36,7 +36,7 @@ class Synapse():
 
         # Core setup
         self.starmap = Starmap.query.get(app.config['SOUMA_ID'])
-        self.vesicle_pool = gevent.pool.Pool(10)
+        self.vesicle_pool = Pool(10)
 
         # Connect to glia
         self.electrical = ElectricalSynapse(self)
@@ -44,7 +44,6 @@ class Synapse():
 
         # Connect to nucleus
         self._connect_signals()
-
 
     def _connect_signals(self):
         """
@@ -75,7 +74,7 @@ class Synapse():
         self.logger.debug("Distributing {} {} to {} recipients {}".format(
             "signed" if signed else "unsigned",
             vesicle,
-            len(recipients) if recipients is not None else "0", 
+            len(recipients) if recipients is not None else "0",
             "via Myelin" if app.config["ENABLE_MYELIN"] else ""))
 
         if hasattr(vesicle, "author_id") and vesicle.author_id is not None:
@@ -90,7 +89,7 @@ class Synapse():
         if app.config["ENABLE_MYELIN"]:
             self.electrical.myelin_store(vesicle)
 
-        return vesicle    
+        return vesicle
 
     def _log_errors(self, msg, errors, level="error"):
         """
@@ -104,37 +103,11 @@ class Synapse():
             ValueError: If the specified log level is invalid
         """
 
-        if level not ["debug", "info", "warning", "error"]:
+        if level not in ["debug", "info", "warning", "error"]:
             raise ValueError("Invalid log level {}".format(level))
 
-        call = self.logger.getattr(level)
+        call = getattr(self.logger, level)
         call("{msg}:\n{list}".format(msg=msg, list="\n* ".join(str(e) for e in errors)))
-
-
-    def handle(self, data, address):
-        """
-        Handle incoming connections. This method gets called when a UDP
-        connection sends data to this Souma
-
-        Args:
-            data (String): Received raw data
-            address (Tuple): Source address
-                0 -- IP address
-                1 -- Port number
-        """
-        self.logger.debug("Incoming message\nSource:{}\nLength:{} {}\nContent:{}".format(
-            source_format(address),
-            len(data),
-            "(shortened)" if len(data) > 256 else "",
-            data[:256]))
-
-        if len(data) > 0:
-            self.handle_vesicle(data, address)
-        else:
-            sock = socket.socket(type=socket.SOCK_DGRAM)
-            sock.connect(address)
-            sock.send("OK")
-            self.logger.error("Malformed request: too short ({} bytes)\n{}".format(len(data), data))
 
     def handle_object(self, vesicle):
         """
@@ -188,46 +161,39 @@ class Synapse():
         try:
             object_id = vesicle.data["object_id"]
             object_type = vesicle.data["object_type"]
+            recipient_id = vesicle.author_id
         except KeyError, e:
-            errors.append("missing key ({})".format(vesicle, e))
+            errors.append("missing ({})".format(vesicle, e))
 
         if object_type not in OBJECT_TYPES:
             errors.append("invalid object_type: {}".format(object_type))
 
+        recipient = self.electrical.get_persona(recipient_id)
+        if recipient is None:
+            errors.append("Recipient {} not found".format(recipient_id))
+
         if errors:
-            self.logger.error("Received malformed object request {}:\n{}".format(vesicle, ("* "+e for e in errors)))
-            return
+            self._log_errors("Received invalid object request", errors)
+        else:
+            # Load object
+            obj_class = globals()[object_type]
+            obj = obj_class.query.get(object_id)
 
-        # Load object
-        obj = None
-        if object_type == "Star":
-            obj = Star.query.get(object_id)
-        elif object_type == "Persona":
-            obj = Persona.query.get(object_id)
-        elif object_type == "Planet":
-            obj = Planet.query.get(object_id)
+            if obj is None:
+                self.logger.error("Requested object <{type} {id}> not found".format(
+                    type=object_type, id=object_id[:6]))
+            else:
+                # Construct response
+                vesicle = Vesicle("object", {
+                    "object": obj.export(),
+                    "object_type": object_type
+                })
 
-        if obj is None:
-            # TODO: Serve error message
-            self.logger.error("Requested object <{type} {id}> not found".format(
-                type=object_type, id=object_id[:6]))
-            self.socket.sendto(str(), address)
-            return
-
-        # Construct response
-        data = {
-            "object": obj.export(exclude=["sign_private, crypt_private"]),
-            "object_type": object_type
-        }
-        vesicle = Vesicle("object", data)
-
-        # Send response
-        self.send_message(address, vesicle)
-        self.logger.info("Sent {object_type} {object_id} to {address}".format(
-            object_type=object_type,
-            object_id=object_id,
-            address=self.source_format(address)
-        ))
+                # Send response
+                self._distribute_vesicle(vesicle, recipients=[recipient, ])
+                self.logger.info("Sent {} {} to {}".format(
+                    object_type, object_id, recipient
+                ))
 
     def handle_vesicle(self, data, address):
         """
@@ -237,7 +203,7 @@ class Synapse():
             data (String): JSON encoded Vesicle
             address (Tuple): Address of the Vesicle's sender for replies
                 0 -- IP
-                1 -- PORT 
+                1 -- PORT
 
         Returns:
             Vesicle: The Vesicle that was decrypted and loaded
@@ -289,72 +255,135 @@ class Synapse():
         """
         Handle received starmaps
         """
+        errors = list()
 
-        # TODO validate response
-        souma_remote_id = message.data['souma_id']
-        remote_starmap = message.data['starmap']
+        vesicle_author = self.electrical.get_persona(vesicle.author_id)
+        if vesicle_author is None:
+            errors.append("Vesicle author {} not found".format(vesicle_author))
+
+        remote = vesicle.data['starmap']
+        for k in ["id", "modified", "author_id", "index"]:
+            if k not in remote:
+                raise KeyError("Missing '{}'".format(k))
+
+        author = self.electrical.get_persona(remote["author_id"])
+        if author is None:
+            raise PersonaNotFoundError('Starmap author {} not found'.format(remote["author_id"]))
 
         log_starmap = "\n".join(["- <{} {}>".format(
-            orb_info['type'], orb_id[:6]) for orb_id, orb_info in remote_starmap.iteritems()])
+            star_info['type'], star_info["id"][:6]) for star_info in remote["index"]])
 
-        self.logger.info("Scanning starmap of {} orbs from {}\n{}".format(
-            len(remote_starmap), self.source_format(address), log_starmap))
+        self.logger.info("Scanning starmap of {} stars received from {}\n{}".format(
+            len(remote["index"]), vesicle_author, log_starmap))
 
         # Get or create copy of remote Souma's starmap
-        local_starmap = Starmap.query.get(souma_remote_id)
+        local_starmap = Starmap.query.get(remote["id"])
         if local_starmap is None:
-            local_starmap = Starmap(souma_remote_id)
+            local_starmap = Starmap(
+                id=remote["id"],
+                modified=remote["modified"],
+                author=author
+            )
             db.session.add(local_starmap)
+            db.session.commit()
 
+        # Iterate over starmap contents, checking whether objects need
+        # to be downloaded
         request_objects = list()  # list of objects to be downloaded
-        for orb_id, orb_info in remote_starmap.iteritems():
-            orb_type = orb_info['type']
-            orb_modifed = iso8601.parse_date(orb_info['modified'])
-            orb_creator = orb_info['creator']
+        for star_info in remote.index():
+            try:
+                # Collect Star info
+                star_id = star_info["id"]
+                star_author_id = star_info["author_id"]
+                star_modified = iso8601.parse_date(star_info['modified'])
 
-            # Create Orb if the object has not been seen before
-            orb_local = Orb.query.get(orb_id)
-            if orb_local is None:
-                orb_local = Orb(orb_type, orb_id, orb_modifed, orb_creator)
-                db.session.add(orb_local)
+                # Get or create local Star object
+                star = Star.query.get(star_id)
+                if star is None:
+                    star_author = self.electrical.get(star_author_id)
 
-            # Request corresponding object if this object is not yet in
-            # our own starmap (greedy downloading)
-            #if not orb_local in self.starmap.index:
+                    star = Star(
+                        id=star_id,
+                        text=None,
+                        creator=star_author,
 
-            # As the above doesnt work yet (*bug*), check directly
-            if (orb_type == 'Star' and Star.query.get(orb_id) is None) \
-              or (orb_type == "Persona" and Persona.query.get(orb_id) is None) \
-              or (orb_type == "Planet" and Planet.query.get(orb_id) is None):
-                request_objects.append((orb_type, orb_id, souma_remote_id))
-            # Also download if the remote version is newer
-            # elif orb_modifed > orb_local.modified:
-            #     request_objects.append((orb_type, orb_id, address))
+                    )
+                    star.set_state(-1)
+                    db.session.add(star)
+                    db.session.commit()
 
-            # Add to local copy of the remote starmap to keep track of
-            # who already has the Orb
-            if orb_local not in local_starmap.index:
-                local_starmap.index.append(orb_local)
-                db.session.add(local_starmap)
-        db.session.commit()
+                    request_objects.append(("Star", star_id))
+
+                # Request Star if outdated or state is 'unavailable'
+                elif star.get_state() == -1 or star.modified < star_modified:
+                    request_objects.append(("Star", star_id))
+
+                # Iterate over Planets attached to current Star
+                for planet in star_info["planets"]:
+                    planet_id = planet["id"]
+                    planet_modified = planet["modified"]
+
+                    planet = Planet.query.get(planet_id)
+                    if planet is None:
+                        planet = Planet(
+                            id=planet_id,
+                            modified=planet_modified
+                        )
+                        planet.set_state(-1)
+                        db.session.add(planet)
+                        db.session.commit()
+
+                        request_objects.append(("Planet", planet_id))
+
+                    elif planet.get_state() == -1 or planet.modified < planet_modified:
+                        request_objects.append(("Planet", planet_id))
+            except KeyError, e:
+                self.logger.warning("Missing '{}' in {}\nReceived: {}".format(
+                    e, local_starmap, star_info))
 
         # Spawn requests
-        for orb_type, orb_id, souma_remote_id in request_objects:
-            self.message_pool.spawn(self.request_object, orb_type, orb_id, souma_remote_id)
+        for object_type, object_id in request_objects:
+            self.message_pool.spawn(self.request_object, object_type, object_id, vesicle_author)
 
     def handle_starmap_request(self, vesicle):
         """
         Handle received starmap requests
+
+        Args:
+            vesicle (Vesicle): Request data
         """
+        # Verify request
+        errors = list()
 
-        vesicle = Vesicle("starmap", data={
-            'souma_id': app.config['SOUMA_ID'],
-            'starmap': self._create_starmap()
-        })
+        for k in ["starmap_id", ]:
+            if not k in vesicle.data:
+                errors.append("Missing '{}' in request data".format(k))
 
-        self.logger.info("Sending requested starmap of {} orbs to {}".format(
-            len(data), self.source_format(address)))
-        self.message_pool.spawn(self._send_vesicle, vesicle, address, signed=True)
+        starmap_id = vesicle.data["starmap_id"]
+        starmap = Starmap.query.get(starmap_id)
+        if starmap is None:
+            errors.append("Starmap {} not found".format(starmap_id))
+
+        request_author_id = vesicle.author_id
+        request_author = self.electrical.get_persona(request_author_id)
+        if request_author is None:
+            errors.append("Request author '{}' not found".format(request_author_id))
+
+        if request_author not in starmap.author.contacts:
+            errors.append("Request author not authorized to receive starmap")
+
+        if errors:
+            self._log_errors("Error processing starmap request from {}".format(request_author_id),
+                             errors, level="warning")
+            # TODO: Send error message back
+        else:
+            vesicle = Vesicle("starmap", data={
+                'starmap': starmap.export()
+            })
+
+            self.logger.info("Sending requested {} to {}".format(
+                starmap, request_author))
+            self._distribute_vesicle(vesicle, signed=True, recipients=[request_author, ])
 
     def object_insert(self, author, action, object_type, obj):
         # Handle answer
@@ -362,13 +391,12 @@ class Synapse():
         if object_type == "Star":
             o = Star.query.get(obj['id'])
             if o is None:
-                o = Star(obj["id"], obj["text"], obj["creator_id"])
-
-                orb = Orb.query.get(o.id)
-                if not orb:
-                    orb = Orb("Star", o.id, o.modified, obj["creator_id"])
-                # buggy...
-                #self.starmap.add(orb)
+                creator = self.electrical.get_persona(obj["creator_id"])
+                o = Star(
+                    id=obj["id"],
+                    text=obj["text"],
+                    creator=creator
+                )
 
                 db.session.add(o)
                 db.session.commit()
@@ -385,11 +413,6 @@ class Synapse():
                     sign_public=obj["sign_public"],
                     crypt_public=obj["crypt_public"],
                 )
-
-                orb = Orb.query.get(o.id)
-                if not orb:
-                    orb = Orb("Persona", o.id, o.modified)
-                #self.starmap.add(orb)
 
                 db.session.add(o)
                 db.session.commit()
@@ -455,7 +478,7 @@ class Synapse():
             else:
                 db.session.delete(o)
                 self.logger.info("<{} {}> deleted".format(
-                    object_type, object_id[:6]))
+                    object_type, obj["id"][:6]))
 
     def on_new_contact(self, sender, message):
         logging.warning("New contact signal received from {}: Not implemented.\n{}".format(sender, message))
@@ -508,20 +531,25 @@ class Synapse():
 
         self._distribute_vesicle(vesicle, signed=True, recipients=author.contacts)
 
-    def request_object(self, object_type, object_id, souma_id):
+    def request_object(self, object_type, object_id, author, recipient):
         """
-        Try retrieving object @param object_id of kind @param object_type from @param souma_id
-        """
+        Send a request for an object to a Persona
 
+        Args:
+            object_type (String): capitalized class name of the object
+            object_id (String): 32 byte object ID
+            recipient (Persona): Persona to request this object from
+        """
         self.logger.info("Requesting <{object_type} {object_id}> from {source}".format(
-            object_type=object_type, object_id=object_id[:6], source=source_format(address)))
+            object_type=object_type, object_id=object_id[:6], source=recipient))
 
         vesicle = Vesicle("object_request", data={
             "object_type": object_type,
             "object_id": object_id
         })
+        vesicle.author_id = author.id
 
-        self._send_vesicle(vesicle, souma_id)
+        self._distribute_vesicle(vesicle, signed=True, recipients=[recipient])
 
     def shutdown(self):
         self.pool.kill()

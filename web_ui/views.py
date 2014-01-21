@@ -188,7 +188,7 @@ def persona(id):
     """ Render home view of a persona """
 
     persona = Persona.query.filter_by(id=id).first_or_404()
-    starmap = Star.query.filter(Star.creator_id == id, Star.state >= 0)[:4]
+    stars = Star.query.filter(Star.creator_id == id, Star.state >= 0)[:4]
 
     # TODO: Use new layout system
     vizier = Vizier([
@@ -202,7 +202,7 @@ def persona(id):
         'persona.html',
         layout="persona",
         vizier=vizier,
-        starmap=starmap,
+        stars=stars,
         persona=persona)
 
 

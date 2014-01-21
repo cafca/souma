@@ -10,7 +10,7 @@
     </span>
 </section>
 
-{% for star in starmap %}
+{% for star in stars %}
     {% for planet in star.planets %}
     <section class='{{vizier.get_cell()}}'>
         {{ planet_macros.planet(planet, False)}}

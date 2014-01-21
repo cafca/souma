@@ -1,10 +1,9 @@
 import datetime
 import json
 import logging
-import os
 import requests
 
-from base64 import b64encode, b64decode
+from base64 import b64encode
 from Crypto import Random
 from dateutil.parser import parse as dateutil_parse
 from gevent import Greenlet
@@ -12,7 +11,7 @@ from hashlib import sha256
 from operator import itemgetter
 
 from nucleus import notification_signals, ERROR
-from nucleus.models import Persona, Souma, DBVesicle
+from nucleus.models import Persona, Souma
 from web_ui import app, db
 
 API_VERSION = 0
@@ -29,15 +28,15 @@ class GliaAuth(requests.auth.AuthBase):
     def __call__(self, r):
         # modify and return the request
         rand = self.rng.read(16)
-        
+
         # app.logger.debug("Authenticating {}\nID: {}\nRand: {}\nPath: {}\nPayload: {}".format(r, str(self.souma.id), rand, r.url, self.payload))
-        
+
         r.headers['Glia-Souma'] = self.souma.id
         r.headers['Glia-Rand'] = b64encode(rand)
         r.headers['Glia-Auth'] = self.souma.sign("".join([
-            str(self.souma.id), 
-            rand, 
-            r.url, 
+            str(self.souma.id),
+            rand,
+            r.url,
             self.payload
         ]))
         return r
@@ -147,10 +146,10 @@ class ElectricalSynapse(object):
             ValueError: If the specified log level is invalid
         """
 
-        if level not ["debug", "info", "warning", "error"]:
+        if level not in ["debug", "info", "warning", "error"]:
             raise ValueError("Invalid log level {}".format(level))
 
-        call = self.logger.getattr(level)
+        call = getattr(self.logger, level)
         call("{msg}:\n{list}".format(msg=msg, list="\n* ".join(str(e) for e in errors)))
 
     def _keepalive(self, persona):
@@ -226,7 +225,7 @@ class ElectricalSynapse(object):
             payload_json = None
 
         # Construct URL
-        url_elems = [self.host, "v"+str(API_VERSION)]
+        url_elems = [self.host, "v" + str(API_VERSION)]
         url_elems.extend(endpoint)
         url = "/".join(url_elems) + "/"
 
@@ -247,7 +246,6 @@ class ElectricalSynapse(object):
                 r = call(url, payload_json, headers=headers, params=params, auth=GliaAuth(souma=self.souma, payload=payload_json))
             r.raise_for_status()
         except requests.exceptions.RequestException, e:
-            http_errors = True
             errors.append(e)
 
         # Try parsing the response
@@ -258,13 +256,12 @@ class ElectricalSynapse(object):
         except ValueError, e:
             resp = None
             parsing_failed = True
-            errors.append("Parsing JSON failed: {}".format(e))   
+            errors.append("Parsing JSON failed: {}".format(e))
         except UnboundLocalError:
             parsing_failed = True
             errors.append("No data received")
 
         error_strings = list()
-        not_registered = False
         if not parsing_failed and 'meta' in resp:
             for error in resp['meta']['errors']:
                 error_strings.append("{}: {}".format(error[0], error[1]))
@@ -404,7 +401,7 @@ class ElectricalSynapse(object):
         if not recipient:
             self.logger.error("Could not find Persona {}".format(recipient_id))
             return
-        
+
         self.logger.info("Updating Myelin of {} at {} second intervals".format(recipient, interval))
         params = dict()
 
@@ -497,9 +494,9 @@ class ElectricalSynapse(object):
             p = Persona.query.get(persona_id)
             if p is None:
                 try:
-                    p = Persona(persona_id, 
+                    p = Persona(persona_id,
                         username=pinfo["username"],
-                        email=pinfo.get("email"), 
+                        email=pinfo.get("email"),
                         sign_public=pinfo["sign_public"],
                         crypt_public=pinfo["crypt_public"])
                     db.session.add(p)
