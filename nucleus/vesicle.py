@@ -1,6 +1,5 @@
 import json
 import datetime
-import logging
 import iso8601
 
 from base64 import b64encode, b64decode
@@ -8,7 +7,7 @@ from hashlib import sha256
 from keyczar.keys import AesKey, HmacKey
 from uuid import uuid4
 
-from nucleus import PersonaNotFoundError, InvalidSignatureError
+from nucleus import PersonaNotFoundError, InvalidSignatureError, UnauthorizedError, VesicleStateError
 from nucleus.models import Persona, DBVesicle
 from web_ui import app, db
 
@@ -26,17 +25,18 @@ class Vesicle(object):
 
     """
 
-    def __init__(self, message_type, id=None, data=None, payload=None, signature=None, author_id=None, created=None, keycrypt=None, enc=DEFAULT_ENCODING, reply_to=SYNAPSE_PORT, souma_id=app.config["SOUMA_ID"]):
-        self.id = id if id is not None else uuid4().hex
+    def __init__(self, message_type,
+            id=None, data=None, payload=None, signature=None, author_id=None,
+            created=None, keycrypt=None, enc=DEFAULT_ENCODING, souma_id=app.config["SOUMA_ID"]):
         self._hashcode = None
+        self.id = id if id is not None else uuid4().hex
         self.created = created
         self.data = data  # The data contained in the vesicle as a Python Dict object
         self.enc = enc
         self.keycrypt = keycrypt
         self.message_type = message_type
         self.payload = payload  # The data contained in the vesicle in JSON encoded firn
-        self.reply_to = reply_to
-        self.send_attributes = set(["message_type", "id", "payload", "reply_to", "enc", "souma_id"])
+        self.send_attributes = set(["message_type", "id", "payload", "enc", "souma_id"])
         self.signature = signature
         self.author_id = author_id
         self.souma_id = souma_id
@@ -44,6 +44,9 @@ class Vesicle(object):
     def __str__(self):
         """
         Return string identifier
+
+        Returns:
+            String: Identifier
         """
 
         if hasattr(self, "author_id") and self.author_id is not None:
@@ -60,13 +63,17 @@ class Vesicle(object):
         """
         Encrypt the vesicle's data field into the payload field and set the data field to None
 
-        @param author The persona whose encrypting key is used
-        @param recipients A list of recipient personas who will be added to the keycrypt
+        Args:
+            author (Persona): The persona whose encrypting key is used
+            recipients (list): A list of recipient Persona objects who will be added to the keycrypt
+
+        Raises:
+            VesicleStateError: If this Vesicle is already encrypted
         """
 
         # Validate state
         if self.encrypted():
-            raise ValueError("Cannot encrypt already encrypted {}".format(self))
+            raise VesicleStateError("Cannot encrypt already encrypted {}".format(self))
 
         # Retrieve a string representation of the message data
         if self.payload is not None:
@@ -100,6 +107,12 @@ class Vesicle(object):
             self.add_recipient(r)
 
     def encrypted(self):
+        """
+        Return True if this Vesicle is encrypted
+
+        Returns:
+            Boolean: if encrypted
+        """
         return self.payload is not None and self.enc.split("-")[1] != "plain"
 
     def decrypt(self, reader_persona):
@@ -108,15 +121,20 @@ class Vesicle(object):
 
         This method does not remove the ciphertext from the payload field, so that encrypted() still returns True.
 
-        @param reader_persona Persona instance used to retrieve the hash key
+        Args:
+            reader_persona (Persona): Persona instance used to retrieve the hash key
+
+        Raises:
+            VesicleStateError: If this Vesicle is already decrypted
+            UnauthorizedError: If no Key was found for decrypting
         """
 
         # Validate state
         if not self.encrypted():
-            raise ValueError("Cannot decrypt {}: Already plaintext.".format(self))
+            raise VesicleStateError("Cannot decrypt {}: Already plaintext.".format(self))
 
         if not reader_persona.id in self.keycrypt.keys():
-            raise KeyError("No key found decrypting {} for {}".format(self, reader_persona))
+            raise UnauthorizedError("No key found decrypting {} for {}".format(self, reader_persona))
 
         # Retrieve hashcode
         if self._hashcode:
@@ -135,13 +153,23 @@ class Vesicle(object):
         self.data = json.loads(data)
 
     def decrypted(self):
+        """
+        Return True if this Vesice is decrypted
+
+        Returns:
+            Boolean: if decrypted
+        """
         return self.data is not None
 
     def sign(self, author):
         """
         Sign a vesicle
 
-        @param author Persona instance used to created the signature
+        Args:
+            author (Persona): Persona instance used to created the signature
+
+        Raises:
+            ValueError: If this Vesicle already has a different Vesicle.author_id
         """
 
         if self.author_id is not None and self.author_id != author.id:
@@ -158,7 +186,10 @@ class Vesicle(object):
 
     def signed(self):
         """
-        Return true if vesicle has a signature and it is valid
+        Return True if vesicle has a signature and it is valid
+
+        Returns:
+            Boolean: If signed
         """
 
         if not hasattr(self, "signature"):
@@ -174,10 +205,15 @@ class Vesicle(object):
         """
         Add a persona to the keycrypt
 
-        @param recipient Persona instance to be added
+        Args:
+            recipient (Persona): Persona instance to be added
+
+        Raises:
+            VesicleStateError: When trying to add recipients to a plaintext Vesicle
+            KeyError: If no hashcode was found
         """
         if not self.encrypted():
-            raise Exception("Can not add recipients to plaintext vesicles")
+            raise VesicleStateError("Can not add recipients to plaintext vesicles")
 
         if not self._hashcode:
             raise KeyError("Hashcode not found")
@@ -196,14 +232,18 @@ class Vesicle(object):
         """
         Remove a persona from the keycrypt
 
-        @param recipient Persona instance to be removed from the keycrypt
+        Args:
+            recipient (Persona): Persona to be removed from the keycrypt
         """
         del self.keycrypt[recipient.id]
         app.logger.info("Removed {} as a recipient of {}".format(recipient, self))
 
     def json(self):
         """
-        Return JSON representation
+        Generate JSON representation of this Vesicle, including all attributes defined in self.send_attributes.
+
+        Returns:
+            String: JSON encoded Vesicle contents
         """
         # Temporarily encode data if this is a plaintext message
         if self.payload is None:
@@ -252,7 +292,6 @@ class Vesicle(object):
                     id=msg["id"],
                     payload=msg["payload"],
                     created=iso8601.parse_date(msg["created"]).replace(tzinfo=None),
-                    reply_to=msg["reply_to"],
                     enc=msg["enc"])
             else:
                 vesicle = Vesicle(
@@ -261,7 +300,6 @@ class Vesicle(object):
                     payload=msg["payload"],
                     keycrypt=msg["keycrypt"],
                     created=iso8601.parse_date(msg["created"]).replace(tzinfo=None),
-                    reply_to=msg["reply_to"],
                     enc=msg["enc"])
 
             if "signature" in msg:
@@ -282,12 +320,21 @@ class Vesicle(object):
 
     @staticmethod
     def load(self, id):
-        """Read a Vesicle back from the local database"""
+        """
+        Read a Vesicle back from the local database
+
+        Args:
+            id (String): ID of the Vesicle to be loaded
+
+        Returns:
+            Vesicle: If a record was found
+            None: If no record was found
+        """
         v = DBVesicle.query.get(id)
-        if v:
+        if v is not None:
             return Vesicle.read(v.json)
         else:
-            raise KeyError("<Vesicle [{}]> could not be found".format(id[:6]))
+            return None
 
     def save(self, myelin=False, json=None):
         """

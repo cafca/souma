@@ -62,3 +62,8 @@ class PersonaNotFoundError(Exception):
 class UnauthorizedError(Exception):
     """Throw this error when the active Persona is not authorized for an action"""
     pass
+
+
+class VesicleStateError(Exception):
+    """Throw this error when a Vesicle's state does not allow for an action"""
+    pass
