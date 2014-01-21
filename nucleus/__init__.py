@@ -48,13 +48,16 @@ ONEUP_STATES = {
     1: "unknown creator"
 }
 
+
 class InvalidSignatureError(Exception):
     """Throw this error when a signature fails authenticity checks"""
     pass
 
+
 class PersonaNotFoundError(Exception):
     """Throw this error when the Persona profile specified for an action is not available"""
     pass
+
 
 class UnauthorizedError(Exception):
     """Throw this error when the active Persona is not authorized for an action"""

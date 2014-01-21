@@ -1,5 +1,4 @@
 import logging
-import gevent
 import iso8601
 
 from dateutil.parser import parse as dateutil_parse

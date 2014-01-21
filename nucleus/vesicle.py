@@ -82,7 +82,7 @@ class Vesicle(object):
         # Generate an AES key with key=h
 
         # AES uses HMAC to authenticate its output. Usually this requires a key different from the
-        # AES encryption key. Here I derive it from the AES key because authentication is already 
+        # AES encryption key. Here I derive it from the AES key because authentication is already
         # provided by the separate RSA signature.
         # TODO: Ask someone whether this is a good idea
         key = AesKey(self._hashcode, HmacKey(self._hashcode), AES_BYTES)
@@ -290,11 +290,10 @@ class Vesicle(object):
             raise KeyError("<Vesicle [{}]> could not be found".format(id[:6]))
 
     def save(self, myelin=False, json=None):
-        
         """
         Save this Vesicle to the local Database, overwriting any previous versions
 
-        Parameters:
+        Args:
             myelin (Bool): Set True if this was received from Myelin
             json (String): Value to store as JSON instead of automatically generated JSON
         """

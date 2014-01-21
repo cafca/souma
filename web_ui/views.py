@@ -295,7 +295,8 @@ def create_star():
             planet = Planet.query.filter_by(id=picture_hash[:32]).first()
             if not planet:
                 app.logger.info("Storing submitted file")
-                filename = attachments.save(request.files['picture'], folder=picture_hash[:2], name=picture_hash[2:]+".")
+                filename = attachments.save(request.files['picture'],
+                    folder=picture_hash[:2], name=picture_hash[2:] + ".")
                 planet = PicturePlanet(
                     id=picture_hash[:32],
                     filename=os.path.join(attachments.name, filename))

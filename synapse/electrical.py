@@ -29,7 +29,8 @@ class GliaAuth(requests.auth.AuthBase):
         # modify and return the request
         rand = self.rng.read(16)
 
-        # app.logger.debug("Authenticating {}\nID: {}\nRand: {}\nPath: {}\nPayload: {}".format(r, str(self.souma.id), rand, r.url, self.payload))
+        # app.logger.debug("Authenticating {}\nID: {}\nRand: {}\nPath: {}\nPayload: {}".format(
+        #    r, str(self.souma.id), rand, r.url, self.payload))
 
         r.headers['Glia-Souma'] = self.souma.id
         r.headers['Glia-Rand'] = b64encode(rand)
@@ -89,11 +90,13 @@ class ElectricalSynapse(object):
         try:
             self.logger.info(
                 "\n".join(["{:=^80}".format(" GLIA INFO "),
-                          "{:>12}: {} ({})".format("status", server_info["server_status"][0]["status_message"], server_info["server_status"][0]["status_code"]),
-                          "{:>12}: {}".format("server id", server_info["server_status"][0]["id"]),
-                          "{:>12}: {}".format("personas", server_info["server_status"][0]["personas_registered"]),
-                          "{:>12}: {}".format("vesicles", server_info["server_status"][0]["vesicles_stored"])
-                          ]))
+                    "{:>12}: {} ({})".format("status",
+                        server_info["server_status"][0]["status_message"],
+                        server_info["server_status"][0]["status_code"]),
+                    "{:>12}: {}".format("server id", server_info["server_status"][0]["id"]),
+                    "{:>12}: {}".format("personas", server_info["server_status"][0]["personas_registered"]),
+                    "{:>12}: {}".format("vesicles", server_info["server_status"][0]["vesicles_stored"])
+                ]))
         except KeyError, e:
             self.logger.warning("Received invalid server status: Missing {}".format(e))
 
@@ -233,7 +236,6 @@ class ElectricalSynapse(object):
         headers = dict()
         errors = list()
         parsing_failed = False
-        http_errors = False
 
         call = getattr(self.session, method.lower())
         try:
@@ -243,7 +245,8 @@ class ElectricalSynapse(object):
             else:
                 self.logger.debug("{} {}\n{}".format(method, url, payload_json))
                 headers['Content-Type'] = "application/json"
-                r = call(url, payload_json, headers=headers, params=params, auth=GliaAuth(souma=self.souma, payload=payload_json))
+                r = call(url, payload_json,
+                    headers=headers, params=params, auth=GliaAuth(souma=self.souma, payload=payload_json))
             r.raise_for_status()
         except requests.exceptions.RequestException, e:
             errors.append(e)
@@ -321,7 +324,7 @@ class ElectricalSynapse(object):
                         offline += 1
                         self.logger.info("No online souma found for {}".format(contacts.get(p_id)))
 
-                self.logger.info("Updated peer list: {}/{} online".format(len(resp["sessions"])-offline, len(resp)))
+                self.logger.info("Updated peer list: {}/{} online".format(len(resp["sessions"]) - offline, len(resp)))
 
     def get_persona(self, persona_id):
         """Returns a Persona object for persona_id, loading it from Glia if neccessary
@@ -340,7 +343,7 @@ class ElectricalSynapse(object):
         else:
             resp, errors = self.persona_info(persona_id)
 
-            if errors or (resp and "personas" in resp and len(resp["personas"])==0):
+            if errors or (resp and "personas" in resp and len(resp["personas"]) == 0):
                 self._log_errors("Error requesting Persona {} from server".format(persona_id), errors)
                 return None
             else:
@@ -429,12 +432,10 @@ class ElectricalSynapse(object):
                 db.session.add(recipient)
                 db.session.commit()
 
-
         # Schedule this method to be called in again in interval seconds
         if interval is not None:
             update = Greenlet(self.myelin_receive, recipient_id, interval)
             update.start_later(interval)
-
 
     def myelin_store(self, vesicle):
         """
@@ -509,7 +510,6 @@ class ElectricalSynapse(object):
                 pass
 
         return resp, errors
-
 
     def persona_login(self, persona):
         """
@@ -688,7 +688,6 @@ class ElectricalSynapse(object):
         else:
             self.logger.info("Successfully registered {} with server".format(self.souma))
             return True
-
 
     def shutdown(self):
         """
