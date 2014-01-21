@@ -4,7 +4,7 @@
 
 {% block content %}
 
-{% for entry in page %}
+{% for entry in page.stars %}
 {% for planet in entry.content.planets %}
 <section class='{{ entry.css_class }}'>
     {{ planet_macros.planet(planet, False)}}

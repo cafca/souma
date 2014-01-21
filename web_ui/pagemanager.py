@@ -51,10 +51,11 @@ class CreateStarPageManager(PageManager):
     def auto_layout(self):
         # currently no logic to choose among different layouts
         assert(len(self.layouts) == 1)
-        page = list()
+        page = {'create_star_form': []}
 
         for cell in self.layouts[0]['create_star_form']:
-            page.append(self.create_page_section(cell, None))
+            page['create_star_form'].append(
+                self.create_page_section(cell, None))
 
         return page
 
@@ -105,13 +106,13 @@ class StarPageManager(PageManager):
         # print("Chosen {}".format(layout))
 
         # Create list of elements in layout
-        page = list()
+        page = {'stars': []}
         for i, star_cell in enumerate(layout['stars']):
             if i >= len(stars_ranked):
                 break
 
             star = stars_ranked[i]
-            page.append(self.create_page_section(star_cell, star))
+            page['stars'].append(self.create_page_section(star_cell, star))
 
         return page
 

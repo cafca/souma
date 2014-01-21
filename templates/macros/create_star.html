@@ -1,7 +1,6 @@
 {% macro create_star(page, form, active_persona) %}
 
 <!-- TODO: empty listelement if element not to be displayed
-     TODO: Error if create_star_form not preset
 -->
 
 <form method="POST" action="{{url_for('create_star')}}" enctype="multipart/form-data">
@@ -61,7 +60,7 @@
 
 
     <!-- Add Attachments -->
-    <section class="{{ page.create_star_for[3] }}">
+    <section class="{{ page.create_star_form[3] }}">
         <div class="card-handle">
             <i class="icon-plus"></i>
         </div>
