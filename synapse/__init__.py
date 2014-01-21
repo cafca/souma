@@ -4,7 +4,7 @@ import iso8601
 from dateutil.parser import parse as dateutil_parse
 
 from gevent.pool import Pool
-from nucleus import notification_signals, PersonaNotFoundError
+from nucleus import notification_signals, PersonaNotFoundError, UnauthorizedError
 from nucleus.models import Persona, Star, Planet, Starmap
 from nucleus.vesicle import Vesicle
 from synapse.electrical import ElectricalSynapse
@@ -391,6 +391,10 @@ class Synapse():
             o = Star.query.get(obj['id'])
             if o is None:
                 creator = self.electrical.get_persona(obj["creator_id"])
+
+                if creator != author:
+                    raise UnauthorizedError("Received object update is not signed by object creator")
+
                 o = Star(
                     id=obj["id"],
                     text=obj["text"],
@@ -466,6 +470,8 @@ class Synapse():
             elif o.state == -2:
                 self.logger.info("<Star [{}]> is already deleted".format(obj["id"][:6]))
             else:
+                if o.creator != author:
+                    raise UnauthorizedError("Received deletion request not signed by original object's creator")
                 o.set_state(-2)
                 db.session.add(o)
                 db.session.commit()
@@ -475,6 +481,7 @@ class Synapse():
                 self.logger.info("<{} [{}]> deleted (no local copy)".format(
                     object_type, obj["id"][:6]))
             else:
+                # TODO: Check authority
                 db.session.delete(o)
                 self.logger.info("<{} {}> deleted".format(
                     object_type, obj["id"][:6]))
