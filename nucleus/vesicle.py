@@ -5,10 +5,9 @@ import iso8601
 from base64 import b64encode, b64decode
 from hashlib import sha256
 from keyczar.keys import AesKey, HmacKey
-from uuid import uuid4
 
 from nucleus import PersonaNotFoundError, InvalidSignatureError, UnauthorizedError, VesicleStateError
-from nucleus.models import Persona, DBVesicle
+from nucleus.models import Persona
 from web_ui import app, db
 
 VESICLE_VERSION = "0.1"
@@ -17,29 +16,28 @@ SYNAPSE_PORT = None
 AES_BYTES = 256
 
 
-class Vesicle(object):
+class Vesicle(db.Model):
     """
     Container for peer messages
 
     see https://github.com/ciex/souma/wiki/Vesicle
 
     """
+    __tablename__ = "vesicle"
+    id = db.Column(db.String(32), primary_key=True)
+    message_type = db.Column(db.String(32))
+    payload = db.Column(db.Text)
+    signature = db.Column(db.Text)
+    created = db.Column(db.DateTime, default=datetime.datetime.now())
+    keycrypt = db.Column(db.PickleType())
+    enc = db.Column(db.String(16), default=DEFAULT_ENCODING)
 
-    def __init__(self, message_type,
-            id=None, data=None, payload=None, signature=None, author_id=None,
-            created=None, keycrypt=None, enc=DEFAULT_ENCODING, souma_id=app.config["SOUMA_ID"]):
-        self._hashcode = None
-        self.id = id if id is not None else uuid4().hex
-        self.created = created
-        self.data = data  # The data contained in the vesicle as a Python Dict object
-        self.enc = enc
-        self.keycrypt = keycrypt
-        self.message_type = message_type
-        self.payload = payload  # The data contained in the vesicle in JSON encoded firn
-        self.send_attributes = set(["message_type", "id", "payload", "enc", "souma_id"])
-        self.signature = signature
-        self.author_id = author_id
-        self.souma_id = souma_id
+    author_id = db.Column(db.String(32), db.ForeignKey('persona.id', use_alter=True, name="fk_author_id"))
+    author = db.relationship('Persona', primaryjoin="Persona.id==Vesicle.author_id", post_update=True)
+
+    _hashcode = None
+    _send_attributes = set(["message_type", "id", "payload", "enc"])
+    data = None
 
     def __str__(self):
         """
@@ -50,21 +48,19 @@ class Vesicle(object):
         """
 
         if hasattr(self, "author_id") and self.author_id is not None:
-            p = Persona.query.get(self.author_id)
-            if p is not None:
-                author = p.username
+            if self.author is not None:
+                author = self.author
             else:
                 author = self.author_id[:6]
         else:
             author = "anon"
         return "<vesicle {type}@{author}>".format(type=self.message_type, author=author)
 
-    def encrypt(self, author, recipients):
+    def encrypt(self, recipients):
         """
-        Encrypt the vesicle's data field into the payload field and set the data field to None
+        Encrypt the vesicle's data field into the payload field using self.author and set the data field to None
 
         Args:
-            author (Persona): The persona whose encrypting key is used
             recipients (list): A list of recipient Persona objects who will be added to the keycrypt
 
         Raises:
@@ -99,9 +95,8 @@ class Vesicle(object):
 
         self.payload = payload_encrypted
         self.data = None
-        self.author_id = author.id
         self.enc = "{version}-AES-{bytes}".format(version=self.enc.split("-")[0], bytes=AES_BYTES)
-        self.send_attributes = self.send_attributes.union(set(["author_id", "keycrypt"]))
+        self._send_attributes = self._send_attributes.union(set(["author_id", "keycrypt"]))
 
         for r in recipients:
             self.add_recipient(r)
@@ -115,7 +110,7 @@ class Vesicle(object):
         """
         return self.payload is not None and self.enc.split("-")[1] != "plain"
 
-    def decrypt(self, reader_persona):
+    def decrypt(self, reader_persona=None):
         """
         Decrypt the vesicle's payload field into the data field.
 
@@ -124,10 +119,22 @@ class Vesicle(object):
         Args:
             reader_persona (Persona): Persona instance used to retrieve the hash key
 
+        Returns:
+            Persona: reader_persona used for decryption
+
         Raises:
-            VesicleStateError: If this Vesicle is already decrypted
-            UnauthorizedError: If no Key was found for decrypting
+            ValueError: If this Vesice is already plaintext
+            KeyError: If no Key was found for decrypting with reader_persona
+            UnauthorizedError: If no Persona was found for decrypting
         """
+        if reader_persona is None:
+            for p in Persona.query.filter('sign_private != ""'):
+                if p.id in self.keycrypt.keys():
+                    reader_persona = p
+                    continue
+
+            if reader_persona is None:
+                raise UnauthorizedError("Could not decrypt {}. No recipient found in owned personas.".format(self))
 
         # Validate state
         if not self.encrypted():
@@ -137,7 +144,7 @@ class Vesicle(object):
             raise UnauthorizedError("No key found decrypting {} for {}".format(self, reader_persona))
 
         # Retrieve hashcode
-        if self._hashcode:
+        if self._hashcode is not None:
             h = self._hashcode
         else:
             h = reader_persona.decrypt(self.keycrypt[reader_persona.id])
@@ -152,6 +159,8 @@ class Vesicle(object):
         # Decode JSON
         self.data = json.loads(data)
 
+        return reader_persona
+
     def decrypted(self):
         """
         Return True if this Vesice is decrypted
@@ -161,28 +170,23 @@ class Vesicle(object):
         """
         return self.data is not None
 
-    def sign(self, author):
+    def sign(self):
         """
-        Sign a vesicle
-
-        Args:
-            author (Persona): Persona instance used to created the signature
+        Sign a vesicle using vesicle.author's signing key
 
         Raises:
-            ValueError: If this Vesicle already has a different Vesicle.author_id
+            KeyError: If no author is defined
         """
-
-        if self.author_id is not None and self.author_id != author.id:
-            raise ValueError("Signing author {} does not match existing author {}".format(author, self.author_id[:6]))
+        if self.author is None:
+            raise KeyError("Vesicle defines no author for signing")
 
         if not self.encrypted():
             self.payload = json.dumps(self.data)
             self.data = None
             self.enc = self.enc.split("-")[0] + "-plain"
 
-        self.signature = author.sign(self.payload)
-        self.author_id = author.id
-        self.send_attributes = self.send_attributes.union(set(["signature", "author_id"]))
+        self.signature = self.author.sign(self.payload)
+        self._send_attributes = self._send_attributes.union(set(["signature", "author_id"]))
 
     def signed(self):
         """
@@ -195,11 +199,10 @@ class Vesicle(object):
         if not hasattr(self, "signature"):
             return False
 
-        author = Persona.query.get(self.author_id)
-        if not author:
+        if not self.author:
             raise PersonaNotFoundError(self.author_id)
 
-        return author.verify(self.payload, self.signature)
+        return self.author.verify(self.payload, self.signature)
 
     def add_recipient(self, recipient):
         """
@@ -218,7 +221,7 @@ class Vesicle(object):
         if not self._hashcode:
             raise KeyError("Hashcode not found")
 
-        if not hasattr(self, "keycrypt") or self.keycrypt is None:
+        if self.keycrypt is None:
             self.keycrypt = dict()
 
         if recipient.id not in self.keycrypt.keys():
@@ -240,7 +243,7 @@ class Vesicle(object):
 
     def json(self):
         """
-        Generate JSON representation of this Vesicle, including all attributes defined in self.send_attributes.
+        Generate JSON representation of this Vesicle, including all attributes defined in self._send_attributes.
 
         Returns:
             String: JSON encoded Vesicle contents
@@ -253,9 +256,10 @@ class Vesicle(object):
             plainenc = False
 
         message = dict()
-        for attr in self.send_attributes:
+        for attr in self._send_attributes:
             message[attr] = getattr(self, attr)
         message["created"] = datetime.datetime.now().isoformat()
+        message["souma_id"] = app.config["SOUMA_ID"]
         r = json.dumps(message)
 
         if plainenc:
@@ -265,7 +269,7 @@ class Vesicle(object):
     @staticmethod
     def read(data):
         """
-        Create a vesicle instance from its JSON representation
+        Create a vesicle instance from its JSON representation. Checks signature validity.
 
         Args:
             data (String): JSON representation of a Vesicle
@@ -288,79 +292,39 @@ class Vesicle(object):
         try:
             if encoding == "plain":
                 vesicle = Vesicle(
-                    message_type=msg["message_type"],
                     id=msg["id"],
+                    message_type=msg["message_type"],
                     payload=msg["payload"],
                     created=iso8601.parse_date(msg["created"]).replace(tzinfo=None),
                     enc=msg["enc"])
             else:
                 vesicle = Vesicle(
-                    message_type=msg["message_type"],
                     id=msg["id"],
+                    message_type=msg["message_type"],
                     payload=msg["payload"],
                     keycrypt=msg["keycrypt"],
                     created=iso8601.parse_date(msg["created"]).replace(tzinfo=None),
                     enc=msg["enc"])
+                vesicle._send_attributes = vesicle._send_attributes.union(set(["keycrypt"]))
+
+            author = Persona.query.get(msg["author_id"])
+            if author is not None:
+                vesicle.author = author
+            else:
+                app.logger.warning("Vesicle author '{}' not found in local DB".format(msg["author_id"]))
+                vesicle.author_id = msg["author_id"]
 
             if "signature" in msg:
                 vesicle.signature = msg["signature"]
                 vesicle.author_id = msg["author_id"]
+                vesicle._send_attributes = vesicle._send_attributes.union(set(["author_id", "signature"]))
         except KeyError, e:
-            app.logger.error("Vesicle malformed: missing key\n{}".format(e))
-            return KeyError(e)
+            raise KeyError(e)
         except iso8601.ParseError, e:
-            app.logger.error("Vesicle malformed: Error parsing date ({})".format(e))
-            return ValueError("Vesicle malformed: Error parsing date ({})".format(e))
+            raise ValueError("Vesicle malformed: Error parsing date ({})".format(e))
 
         # Verify signature
         if vesicle.signature is not None and not vesicle.signed():
             raise InvalidSignatureError("Invalid signature on {}".format(vesicle))
 
         return vesicle
-
-    @staticmethod
-    def load(self, id):
-        """
-        Read a Vesicle back from the local database
-
-        Args:
-            id (String): ID of the Vesicle to be loaded
-
-        Returns:
-            Vesicle: If a record was found
-            None: If no record was found
-        """
-        v = DBVesicle.query.get(id)
-        if v is not None:
-            return Vesicle.read(v.json)
-        else:
-            return None
-
-    def save(self, myelin=False, json=None):
-        """
-        Save this Vesicle to the local Database, overwriting any previous versions
-
-        Args:
-            myelin (Bool): Set True if this was received from Myelin
-            json (String): Value to store as JSON instead of automatically generated JSON
-        """
-
-        if self.payload is None:
-            raise TypeError("Cannot store Vesicle without payload ({}). Please encrypt or sign.".format(self))
-
-        if json is None:
-            json = self.json()
-
-        v = DBVesicle.query.get(self.id)
-        if v is None:
-            app.logger.info("Storing {} in database".format(self))
-            v = DBVesicle(
-                id=self.id,
-                json=json,
-                source_id=self.souma_id if not myelin else "myelin",
-                author_id=self.author_id if 'author_id' in dir(self) else None
-            )
-            db.session.add(v)
-            db.session.commit()
-        else:
-            app.logger.info("Didn't save {}. Already existing in database.".format(self))

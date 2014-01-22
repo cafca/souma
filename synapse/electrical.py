@@ -190,7 +190,7 @@ class ElectricalSynapse(object):
         if (remaining - buf) < 0:
             remaining = 2
 
-        self.logger.info("Next keepalive for {} queued in {} seconds".format(persona, remaining))
+        self.logger.debug("Next keepalive for {} queued in {} seconds".format(persona, remaining))
 
         ping = Greenlet(self._keepalive, persona)
         ping.start_later(remaining)
@@ -255,7 +255,7 @@ class ElectricalSynapse(object):
         resp = None
         try:
             resp = r.json()
-            self.logger.info("Received data:\n{}".format(resp))
+            self.logger.debug("Received data:\n{}".format(resp))
         except ValueError, e:
             resp = None
             parsing_failed = True
@@ -371,9 +371,8 @@ class ElectricalSynapse(object):
                 "connectable"
         """
 
-        self.logger.info("Requesting persona record for email-address {}".format(address))
+        self.logger.info("Requesting persona record for  '{}'".format(address))
 
-        app.logger.info("Searching Glia for {}".format(address))
         payload = {
             "email_hash": [sha256(address).hexdigest(), ]
         }
@@ -405,7 +404,7 @@ class ElectricalSynapse(object):
             self.logger.error("Could not find Persona {}".format(recipient_id))
             return
 
-        self.logger.info("Updating Myelin of {} at {} second intervals".format(recipient, interval))
+        self.logger.debug("Updating Myelin of {} at {} second intervals".format(recipient, interval))
         params = dict()
 
         # Determine offset
@@ -420,9 +419,9 @@ class ElectricalSynapse(object):
             self._log_errors("Error receiving from Myelin", errors)
         else:
             for v in reversed(resp["vesicles"]):
-                self.logger.info("Myelin received: \n{}".format(v))
-                vesicle = self.synapse.handle_vesicle(v, None)
-                if offset is None or vesicle.created > offset:
+                self.logger.debug("Myelin received: \n{}".format(v))
+                vesicle = self.synapse.handle_vesicle(v)
+                if vesicle is not None and (offset is None or vesicle.created > offset):
                     offset = vesicle.created
 
         # Update recipient's offset if a more recent Vesicle has been received
@@ -447,8 +446,6 @@ class ElectricalSynapse(object):
         Returns:
             list List of error strings if such occurred
         """
-        self.logger.info("Storing {} in Myelin".format(vesicle))
-
         data = {
             "vesicles": [vesicle.json(), ]
         }
@@ -459,7 +456,7 @@ class ElectricalSynapse(object):
             self._log_errors("Error storing {}".format(vesicle), errors)
             return errors
         else:
-            self.logger.info("Successfully stored {}".format(vesicle))
+            self.logger.info("Stored {}".format(vesicle))
 
     def on_local_model_changed(self, sender, message):
         """Check if Personas were changed and call register / unregister method"""
@@ -518,9 +515,6 @@ class ElectricalSynapse(object):
         Returns:
             str -- new session id
         """
-
-        self.logger.info("Logging in {}".format(persona))
-
         # Check current state
         if persona.id in self._sessions:
             return self._get_session(persona)["session_id"]
@@ -607,9 +601,6 @@ class ElectricalSynapse(object):
         Returns:
             list -- error messages
         """
-
-        self.logger.info("Registering {}".format(persona))
-
         # Create request
         data = {
             "personas": [{

@@ -4,10 +4,11 @@ import iso8601
 from dateutil.parser import parse as dateutil_parse
 
 from gevent.pool import Pool
-from nucleus import notification_signals, PersonaNotFoundError, UnauthorizedError
+from nucleus import notification_signals, PersonaNotFoundError, UnauthorizedError, VesicleStateError
 from nucleus.models import Persona, Star, Planet, Starmap
 from nucleus.vesicle import Vesicle
 from synapse.electrical import ElectricalSynapse
+from uuid import uuid4
 from web_ui import app, db
 
 # These are Vesicle options which are recognized by this Synapse
@@ -76,14 +77,17 @@ class Synapse():
             len(recipients) if recipients is not None else "0",
             "via Myelin" if app.config["ENABLE_MYELIN"] else ""))
 
-        if hasattr(vesicle, "author_id") and vesicle.author_id is not None:
-            author = Persona.query.get(vesicle.author_id)
-
         if recipients:
-            vesicle.encrypt(author, recipients=recipients)
+            vesicle.encrypt(recipients=recipients)
 
         if signed:
-            vesicle.sign(author)
+            try:
+                vesicle.sign()
+            except VesicleStateError:
+                self.logger.info("{} was already signed".format(vesicle))
+
+        db.session.add(vesicle)
+        db.session.commit()
 
         if app.config["ENABLE_MYELIN"]:
             self.electrical.myelin_store(vesicle)
@@ -108,7 +112,7 @@ class Synapse():
         call = getattr(self.logger, level)
         call("{msg}:\n{list}".format(msg=msg, list="\n* ".join(str(e) for e in errors)))
 
-    def handle_object(self, vesicle):
+    def handle_object(self, vesicle, reader_persona):
         """
         Handle received object updates by verifying the request and calling
         an appropriate handler
@@ -124,7 +128,7 @@ class Synapse():
             action = vesicle.data["action"]
             object_type = vesicle.data["object_type"]
             obj = vesicle.data["object"]
-            author_id = vesicle.author_id
+            author = vesicle.author
         except KeyError, e:
             errors.append("Missing key: {}".format(e))
 
@@ -134,17 +138,13 @@ class Synapse():
         if action not in CHANGE_TYPES:
             errors.append("Unknown action type '{}'".format(action))
 
-        author = Persona.query.get(author_id)
-        if not author:
-            errors.append("Author {} not found".format(author_id))
-
         if errors:
             self.logger.error("Malformed object received\n{}".format("\n".join(errors)))
         else:
             handler = getattr(self, "object_{}".format(action))
             handler(author, action, object_type, obj)
 
-    def handle_object_request(self, vesicle):
+    def handle_object_request(self, vesicle, reader_persona):
         """
         Act on received object requests by sending the object in question back
 
@@ -160,16 +160,12 @@ class Synapse():
         try:
             object_id = vesicle.data["object_id"]
             object_type = vesicle.data["object_type"]
-            recipient_id = vesicle.author_id
+            recipient = vesicle.author
         except KeyError, e:
             errors.append("missing ({})".format(vesicle, e))
 
         if object_type not in OBJECT_TYPES:
             errors.append("invalid object_type: {}".format(object_type))
-
-        recipient = self.electrical.get_persona(recipient_id)
-        if recipient is None:
-            errors.append("Recipient {} not found".format(recipient_id))
 
         if errors:
             self._log_errors("Received invalid object request", errors)
@@ -182,31 +178,26 @@ class Synapse():
                 self.logger.error("Requested object <{type} {id}> not found".format(
                     type=object_type, id=object_id[:6]))
             else:
-                # Construct response
-                vesicle = Vesicle("object", {
-                    "object": obj.export(),
-                    "object_type": object_type
-                })
+                for vesicle in obj.vesicles:
+                    # Send response
+                    self._distribute_vesicle(vesicle, recipients=[recipient, ])
+                    self.logger.info("Sent {} {} to {}".format(
+                        object_type, object_id, recipient
+                    ))
 
-                # Send response
-                self._distribute_vesicle(vesicle, recipients=[recipient, ])
-                self.logger.info("Sent {} {} to {}".format(
-                    object_type, object_id, recipient
-                ))
-
-    def handle_vesicle(self, data, address):
+    def handle_vesicle(self, data):
         """
         Parse received vesicles and call handler
 
         Args:
             data (String): JSON encoded Vesicle
-            address (Tuple): Address of the Vesicle's sender for replies
-                0 -- IP
-                1 -- PORT
 
         Returns:
             Vesicle: The Vesicle that was decrypted and loaded
             None: If no Vesicle could be loaded
+
+        Raises:
+            PersonaNotFoundError: If the Vesicle author cannot be retrieved
         """
 
         try:
@@ -220,60 +211,59 @@ class Synapse():
             else:
                 vesicle = Vesicle.read(data)
 
-        if not vesicle:
+        if vesicle is None:
             self.logger.error("Failed handling Vesicle due to decoding error")
-            return
+        elif Vesicle.query.get(vesicle.id) is not None:
+            self.logger.info("Received duplicate {}".format(vesicle))
+            vesicle = None
+        else:
+            # Decrypt if neccessary
+            if vesicle.encrypted():
+                reader_persona = vesicle.decrypt()
 
-        # Decrypt if neccessary
-        if vesicle.encrypted():
-            reader_persona = None
-            for p in Persona.query.filter('sign_private != ""'):
-                if p.id in vesicle.keycrypt.keys():
-                    reader_persona = p
-                    continue
+            # Store locally
+            db.session.add(vesicle)
+            db.session.commit()
 
-            if reader_persona:
-                vesicle.decrypt(p)
-                self.logger.info("Decryption of {} successful: {}".format(vesicle, vesicle.data))
-            else:
-                self.logger.error("Could not decrypt {}. No recipient found in owned personas.".format(vesicle))
-                return
-
-        # Store locally
-        myelinated = True if address is None else False
-        vesicle.save(myelin=myelinated, json=data)
-
-        # Call handler depending on message type
-        if vesicle.message_type in ALLOWED_MESSAGE_TYPES:
-            handler = getattr(self, "handle_{}".format(vesicle.message_type))
-            handler(vesicle)
+            # Call handler depending on message type
+            if vesicle.message_type in ALLOWED_MESSAGE_TYPES:
+                handler = getattr(self, "handle_{}".format(vesicle.message_type))
+                handler(vesicle, reader_persona)
 
         return vesicle
 
-    def handle_starmap(self, vesicle):
+    def handle_starmap(self, vesicle, reader_persona):
         """
         Handle received starmaps
+
+        Args:
+            vesicle (Vesicle): A signed Vesicle containing a Starmap object
+            reader_persona (Persona): A Persona object contained in the Vesicle's keycrypt
         """
+        # Validate vesicle
         errors = list()
 
-        vesicle_author = self.electrical.get_persona(vesicle.author_id)
-        if vesicle_author is None:
-            errors.append("Vesicle author {} not found".format(vesicle_author))
-
         remote = vesicle.data['starmap']
+
         for k in ["id", "modified", "author_id", "index"]:
             if k not in remote:
-                raise KeyError("Missing '{}'".format(k))
+                errors.append("Missing '{}'".format(k))
 
         author = self.electrical.get_persona(remote["author_id"])
         if author is None:
-            raise PersonaNotFoundError('Starmap author {} not found'.format(remote["author_id"]))
+            errors.append('Starmap author {} not found'.format(remote["author_id"]))
+
+        if author != vesicle.author:
+            errors.append("Vesicle does not originate from Starmap author")
+
+        if errors:
+            self._log_errors("Error handling Starmap", errors)
 
         log_starmap = "\n".join(["- <{} {}>".format(
             star_info['type'], star_info["id"][:6]) for star_info in remote["index"]])
 
         self.logger.info("Scanning starmap of {} stars received from {}\n{}".format(
-            len(remote["index"]), vesicle_author, log_starmap))
+            len(remote["index"]), vesicle.author, log_starmap))
 
         # Get or create copy of remote Souma's starmap
         local_starmap = Starmap.query.get(remote["id"])
@@ -342,9 +332,9 @@ class Synapse():
 
         # Spawn requests
         for object_type, object_id in request_objects:
-            self.message_pool.spawn(self.request_object, object_type, object_id, vesicle_author)
+            self.message_pool.spawn(self.request_object, object_type, object_id, vesicle.author)
 
-    def handle_starmap_request(self, vesicle):
+    def handle_starmap_request(self, vesicle, reader_persona):
         """
         Handle received starmap requests
 
@@ -363,26 +353,15 @@ class Synapse():
         if starmap is None:
             errors.append("Starmap {} not found".format(starmap_id))
 
-        request_author_id = vesicle.author_id
-        request_author = self.electrical.get_persona(request_author_id)
-        if request_author is None:
-            errors.append("Request author '{}' not found".format(request_author_id))
-
-        if request_author not in starmap.author.contacts:
-            errors.append("Request author not authorized to receive starmap")
-
         if errors:
-            self._log_errors("Error processing starmap request from {}".format(request_author_id),
+            self._log_errors("Error processing starmap request from {}".format(vesicle.author),
                              errors, level="warning")
             # TODO: Send error message back
         else:
-            vesicle = Vesicle("starmap", data={
-                'starmap': starmap.export()
-            })
-
-            self.logger.info("Sending requested {} to {}".format(
-                starmap, request_author))
-            self._distribute_vesicle(vesicle, signed=True, recipients=[request_author, ])
+            for starmap_vesicle in starmap.vesicles:
+                self.logger.info("Sending requested {} to {}".format(
+                    starmap_vesicle, vesicle.author))
+                self._distribute_vesicle(starmap_vesicle, recipients=[vesicle.author, ])
 
     def object_insert(self, author, action, object_type, obj):
         # Handle answer
@@ -532,10 +511,18 @@ class Synapse():
             "object_type": message["object_type"]
         })
 
-        vesicle = Vesicle(message_type="object", data=data)
+        vesicle = Vesicle(id=uuid4().hex, message_type="object", data=data)
         vesicle.author_id = message["author_id"]
 
-        self._distribute_vesicle(vesicle, signed=True, recipients=author.contacts)
+        db.session.add(vesicle)
+        db.session.commit()
+
+        # Add new vesicle to db
+        obj.vesicles.append(vesicle)
+
+        signed = False if message["object_type"] == "Persona" else True
+
+        self._distribute_vesicle(vesicle, signed=signed, recipients=author.contacts)
 
     def request_object(self, object_type, object_id, author, recipient):
         """
@@ -549,11 +536,10 @@ class Synapse():
         self.logger.info("Requesting <{object_type} {object_id}> from {source}".format(
             object_type=object_type, object_id=object_id[:6], source=recipient))
 
-        vesicle = Vesicle("object_request", data={
+        vesicle = Vesicle(id=uuid4().hex, message_type="object_request", author=author, data={
             "object_type": object_type,
             "object_id": object_id
         })
-        vesicle.author_id = author.id
 
         self._distribute_vesicle(vesicle, signed=True, recipients=[recipient])
 
