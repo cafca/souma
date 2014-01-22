@@ -21,7 +21,7 @@ UPLOADS_DEFAULT_DEST = os.path.join(os.path.abspath(os.path.dirname(__file__)), 
 ALLOWED_EXTENSIONS = set(['txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'])
 SEND_FILE_MAX_AGE_DEFAULT = 1
 
-LOG_LEVEL = logging.DEBUG
+LOG_LEVEL = logging.INFO
 LOG_FORMAT = (
     '%(name)s :: %(module)s [%(pathname)s:%(lineno)d]\n' +
     '%(message)s\n')
@@ -37,7 +37,7 @@ LOGIN_SERVER = "app.souma:24500"
 # LOGIN_SERVER = "glia.herokuapp.com"
 
 # Setting this to True will automatically upload all vesicles to Myelin, and
-# enable periodic polling of the Myelin for new Vesicles sent to one of the 
+# enable periodic polling of the Myelin for new Vesicles sent to one of the
 # Personas controlled by this Souma
 ENABLE_MYELIN = True
 
