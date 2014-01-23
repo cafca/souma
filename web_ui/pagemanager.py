@@ -24,6 +24,41 @@ class PageManager(object):
         return [layout for layout in self.all_layouts if
                 context in layout['context']]
 
+    def group_layout(self, stars):
+        context = 'group_page'
+        layouts = self._get_layouts_for(context)
+
+        # currently no logic to choose among different layouts
+        assert(len(layouts) == 1)
+        best_layout = layouts[0]
+
+        page = Page()
+
+        # Add header to group page
+        section = 'group_header'
+        page.add_to_section(section, best_layout[section], None)
+
+        # Add create_star form to page
+        section = 'create_star_form'
+
+        for cell in layouts[0][section]:
+            page.add_to_section(section, cell, None)
+
+        # Add the stars of the group to page
+        section = 'stars'
+
+        # Rank stars by score
+        stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
+
+        for i, star_cell in enumerate(best_layout[section]):
+            if i >= len(stars_ranked):
+                break
+
+            star = stars_ranked[i]
+            page.add_to_section(section, star_cell, star)
+
+        return page
+
     def create_star_layout(self):
         """Returns a page for creating stars."""
 
@@ -90,7 +125,7 @@ class PageManager(object):
         # print("Chosen {}".format(layout))
 
         page = Page()
-        for i, star_cell in enumerate(layout['stars']):
+        for i, star_cell in enumerate(layout[section]):
             if i >= len(stars_ranked):
                 break
 

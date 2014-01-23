@@ -407,15 +407,7 @@ def group(id):
 
     # create layouted page for group
     starmap = group.posts
-    page = pagemanager.star_layout(starmap)
-
-    # TODO: Use new layout system
-#    vizier = Vizier([
-#        [1, 5, 6, 2],
-#        [1, 1, 6, 4],
-#        [7, 1, 2, 2],
-#        [7, 3, 2, 2],
-#        [7, 5, 2, 2]])
+    page = pagemanager.group_layout(starmap)
 
     return render_template(
         'group.html',
@@ -423,14 +415,6 @@ def group(id):
         page=page,
         active_persona=active_persona,
         form=form)
-
-    #return render_template(
-    #    'group.html',
-    #    vizier=vizier,
-    #    group=group,
-    #    starmap=starmap,
-    #    active_persona=active_persona,
-    #    form=form)
 
 
 @app.route('/g/create', methods=['GET', 'POST'])
@@ -462,7 +446,8 @@ def create_group():
         'create_group.html',
         form=form,
         next=url_for('create_group'))
-        
+
+
 @app.route('/g/', methods=['GET'])
 def groups():
     groups = Group.query.all()
@@ -471,6 +456,7 @@ def groups():
         'groups.html',
         groups=groups
     )
+
 
 class Vizier():
     """Old layout system. Use Pagemanager instead"""
