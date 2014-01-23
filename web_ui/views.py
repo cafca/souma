@@ -19,6 +19,7 @@ new_contact = notification_signals.signal('new-contact')
 group_created = notification_signals.signal('group-created')
 
 
+pagemanager = PageManager()
 
 
 @app.context_processor
@@ -249,8 +250,7 @@ def create_star():
 
         return redirect(url_for('star', id=uuid))
 
-    pm = PageManager()
-    page = pm.create_star_layout()
+    page = pagemanager.create_star_layout()
 
     return render_template('create_star.html',
                            form=form,
@@ -286,8 +286,7 @@ def universe():
 
     # return only stars that are not in a group context
     stars = Star.query.filter(Star.state >= 0, Star.group_id == '').all()
-    pm = PageManager()
-    page = pm.star_layout(stars)
+    page = pagemanager.star_layout(stars)
 
     if len(persona_context()['controlled_personas'].all()) == 0:
         return redirect(url_for('create_persona'))
@@ -408,8 +407,7 @@ def group(id):
 
     # create layouted page for group
     starmap = group.posts
-    pm = PageManager()
-    page = pm.star_layout(starmap)
+    page = pagemanager.star_layout(starmap)
 
     # TODO: Use new layout system
 #    vizier = Vizier([
