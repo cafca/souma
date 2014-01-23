@@ -1,8 +1,7 @@
 import os
 import datetime
-import requests
 
-from flask import abort, flash, json, redirect, render_template, request, session, url_for, jsonify as json_response
+from flask import abort, flash, redirect, render_template, request, session, url_for, jsonify as json_response
 from hashlib import sha256
 from operator import itemgetter
 
@@ -10,13 +9,10 @@ from web_ui import app, cache, db, logged_in, attachments
 from web_ui.forms import *
 from web_ui.helpers import get_active_persona
 from nucleus import notification_signals, PersonaNotFoundError
-from nucleus.models import Persona, Star, Planet, PicturePlanet, LinkPlanet
-from nucleus.vesicle import Vesicle
+from nucleus.models import Persona, Star, Planet, PicturePlanet, LinkPlanet, Starmap
 
 # Create blinker signal namespace
-star_created = notification_signals.signal('star-created')
-star_deleted = notification_signals.signal('star-deleted')
-persona_created = notification_signals.signal('persona-created')
+local_model_changed = notification_signals.signal('local-model-changed')
 contact_request_sent = notification_signals.signal('contact-request-sent')
 new_contact = notification_signals.signal('new-contact')
 
@@ -190,7 +186,7 @@ def persona(id):
     """ Render home view of a persona """
 
     persona = Persona.query.filter_by(id=id).first_or_404()
-    starmap = Star.query.filter(Star.creator_id == id, Star.state >= 0)[:4]
+    stars = Star.query.filter(Star.author_id == id, Star.state >= 0)[:4]
 
     # TODO: Use new layout system
     vizier = Vizier([
@@ -204,7 +200,7 @@ def persona(id):
         'persona.html',
         layout="persona",
         vizier=vizier,
-        starmap=starmap,
+        stars=stars,
         persona=persona)
 
 
@@ -220,9 +216,10 @@ def create_persona():
 
         # Save persona to DB
         p = Persona(
-            uuid,
-            request.form['name'],
-            request.form['email'])
+            id=uuid,
+            username=request.form['name'],
+            email=request.form['email']
+        )
 
         # Create keypairs
         p.generate_keys(cache.get('password'))
@@ -231,7 +228,27 @@ def create_persona():
         db.session.add(p)
         db.session.commit()
 
-        persona_created.send(create_persona, message=p)
+        p.profile = Starmap(
+            id=uuid4().hex,
+            author=p,
+            kind="profile",
+        )
+
+        p.index = Starmap(
+            id=uuid4().hex,
+            author=p,
+            kind="index"
+        )
+
+        db.session.add(p)
+        db.session.commit()
+
+        local_model_changed.send(create_persona, message={
+            "author_id": p.id,
+            "action": "insert",
+            "object_id": p.id,
+            "object_type": "Persona",
+        })
 
         flash("New persona {} created!".format(p.username))
         return redirect(url_for('persona', id=uuid))
@@ -265,18 +282,23 @@ def create_star():
 
     # Load author drop down contents
     controlled_personas = Persona.query.filter(Persona.sign_private != None).all()
-    creator_choices = [(p.id, p.username) for p in controlled_personas]
+    author_choices = [(p.id, p.username) for p in controlled_personas]
     active_persona = Persona.query.get(session['active_persona'])
 
-    form = Create_star_form(default_creator=session['active_persona'])
-    form.creator.choices = creator_choices
+    form = Create_star_form(default_author=session['active_persona'])
+    form.author.choices = author_choices
+
     if form.validate_on_submit():
         uuid = uuid4().hex
 
+        created = datetime.datetime.now()
         new_star = Star(
-            uuid,
-            request.form['text'],
-            request.form['creator'])
+            id=uuid,
+            text=request.form['text'],
+            author=request.form['author'],
+            created=created,
+            modified=created
+        )
         db.session.add(new_star)
         db.session.commit()
 
@@ -291,8 +313,9 @@ def create_star():
             # create or get planet
             planet = Planet.query.filter_by(id=picture_hash[:32]).first()
             if not planet:
-                app.logger.info("Storing submitted file")
-                filename = attachments.save(request.files['picture'], folder=picture_hash[:2], name=picture_hash[2:]+".")
+                app.logger.info("Creating new planet for submitted file")
+                filename = attachments.save(request.files['picture'],
+                    folder=picture_hash[:2], name=picture_hash[2:] + ".")
                 planet = PicturePlanet(
                     id=picture_hash[:32],
                     filename=os.path.join(attachments.name, filename))
@@ -321,7 +344,25 @@ def create_star():
             db.session.commit()
             app.logger.info("Attached {} to new {}".format(planet, new_star))
 
-        star_created.send(create_star, message=new_star)
+        local_model_changed.send(create_star, message={
+            "author_id": new_star.author.id,
+            "action": "insert",
+            "object_id": new_star.id,
+            "object_type": "Star",
+        })
+
+        # Add new Star to author's profile
+        author_profile = new_star.author.profile
+        author_profile.index.append(new_star)
+        db.session.add(author_profile)
+        db.session.commit()
+
+        local_model_changed.send(create_star, message={
+            "author_id": new_star.author.id,
+            "action": "update",
+            "object_id": author_profile.id,
+            "object_type": "Starmap"
+        })
 
         return redirect(url_for('star', id=uuid))
     return render_template('create_star.html', form=form, active_persona=active_persona)
@@ -333,7 +374,7 @@ def delete_star(id):
     # TODO: Should only accept POST instead of GET
     # TODO: Check permissions!
 
-    # Load instance and creator persona
+    # Load instance and author persona
     s = Star.query.get(id)
 
     if s is None:
@@ -343,7 +384,12 @@ def delete_star(id):
     db.session.add(s)
     db.session.commit()
 
-    star_deleted.send(delete_star, message=s)
+    local_model_changed.send(delete_star, message={
+        "author_id": s.author.id,
+        "action": "delete",
+        "object_id": s.id,
+        "object_type": "Star",
+    })
 
     app.logger.info("Deleted star {}".format(id))
     return redirect(url_for('debug'))
@@ -369,9 +415,10 @@ def universe():
 def star(id):
     """ Display a single star """
     star = Star.query.filter(Star.id==id, Star.state >= 0).first_or_404()
-    creator = Persona.query.filter_by(id=id)
+    author = Persona.query.filter_by(id=id)
 
-    return render_template('star.html', layout="star", star=star, creator=creator)
+    return render_template('star.html', layout="star", star=star, author=author)
+
 
 @app.route('/s/<star_id>/1up', methods=['POST'])
 def oneup(star_id):
@@ -403,7 +450,7 @@ def oneup(star_id):
             },
             "oneups": [{
                 "id": oneup.id,
-                "creator": oneup.creator.id,
+                "author": oneup.author.id,
                 "state_value": oneup.state,
                 "state_name": oneup.get_state()
             }]
@@ -476,10 +523,13 @@ def add_contact(persona_id):
         db.session.add(author)
         db.session.commit()
 
-        new_contact.send(add_contact, message={'new_contact': persona, 'author': author})
+        new_contact.send(add_contact, message={
+            'new_contact_id': persona.id,
+            'author_id': author.id
+        })
 
         flash("Added {} to {}'s address book".format(persona.username, author.username))
-        app.logger.info("Added {} to {}'s contacts: {}".format(persona, author, author.contacts))
+        app.logger.info("Added {} to {}'s contacts".format(persona, author))
         return redirect(url_for('persona', id=persona.id))
 
     return render_template('add_contact.html', form=form, persona=persona)

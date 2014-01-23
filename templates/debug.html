@@ -19,7 +19,7 @@
       <tr>
         <td>{{ star.id }}</td>
         <td>{{ star.text }}</td>
-        <td>{{ star.creator.username}}</td>
+        <td>{{ star.author.username}}</td>
         <td>{{ star.modified | naturaltime }}</td>
         <td>{{ star.created | naturaltime}} </td>
         <td>{{ star.get_state()[1] | capitalize}}</td>
@@ -31,7 +31,7 @@
       </tr>
       {% endfor %}
     </tbody>
-</table>  
+</table>
 
 <h1>Personas</h1>
 <table class="table">
@@ -55,7 +55,7 @@
       </tr>
       {% endfor %}
     </tbody>
-</table>  
+</table>
 
 <h1>Planets</h1>
 <table class="table">
@@ -81,5 +81,5 @@
       </tr>
       {% endfor %}
     </tbody>
-</table>  
+</table>
 {%endblock%}

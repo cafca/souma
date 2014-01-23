@@ -6,21 +6,22 @@ from web_ui import app, db
 
 from gevent.wsgi import WSGIServer
 from sqlalchemy.exc import OperationalError
+from uuid import uuid4
 
-from nucleus.models import Souma
-from synapse.models import Starmap
+from nucleus.models import Souma, Starmap
 from synapse import Synapse
 
 # Initialize database
 try:
-    local_souma = Souma.query.filter('sign_private != ""').first()
+    local_souma = Souma.query.get(app.config["SOUMA_ID"])
 except OperationalError:
-    app.logger.info("Setting up Nucleus for Souma<{}>".format(app.config['SOUMA_ID'][:6]))
+    app.logger.info("Setting up database")
     db.create_all()
 
+    app.logger.info("Setting up Nucleus for <Souma [{}]>".format(app.config['SOUMA_ID'][:6]))
     local_souma = Souma(id=app.config['SOUMA_ID'])
     local_souma.generate_keys()
-    local_souma.starmap = Starmap(app.config['SOUMA_ID'])
+    local_souma.starmap = Starmap(id=uuid4().hex)
 
     db.session.add(local_souma)
     db.session.commit()
@@ -33,8 +34,7 @@ else:
 
     # Synapse
     app.logger.info("Starting Synapses")
-    synapse = Synapse(('0.0.0.0', app.config['SYNAPSE_PORT']))
-    synapse.start()
+    synapse = Synapse()
 
     # Web UI
     if not app.config['NO_UI']:

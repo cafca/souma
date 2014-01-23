@@ -33,21 +33,37 @@ STAR_STATES = {
     3: (3, "updating")
 }
 
+# Possible states of planets
+PLANET_STATES = {
+    -1: (-1, "unavailable"),
+    0: (0, "published"),
+    1: (1, "private"),
+    2: (2, "updating")
+}
+
 # Possible states of 1ups
 ONEUP_STATES = {
     -1: "disabled",
     0: "active",
-    1: "unknown creator"
+    1: "unknown author"
 }
+
 
 class InvalidSignatureError(Exception):
     """Throw this error when a signature fails authenticity checks"""
     pass
 
+
 class PersonaNotFoundError(Exception):
     """Throw this error when the Persona profile specified for an action is not available"""
     pass
 
+
 class UnauthorizedError(Exception):
     """Throw this error when the active Persona is not authorized for an action"""
+    pass
+
+
+class VesicleStateError(Exception):
+    """Throw this error when a Vesicle's state does not allow for an action"""
     pass

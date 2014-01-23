@@ -1,4 +1,4 @@
-from flask.ext.wtf import Form, TextField, SelectField, FileField, Required, Email, url, widgets
+from flask.ext.wtf import Form, TextField, SelectField, FileField, Required, Email, widgets
 from flask.ext.wtf.html5 import URLField
 
 
@@ -10,9 +10,9 @@ class Create_persona_form(Form):
 
 class Create_star_form(Form):
     """ Generate form for creating a star """
-    # Choices of the creator field need to be set before displaying the form
-    # TODO: Validate creator selection
-    creator = SelectField('Creator', validators=[Required(), ])
+    # Choices of the author field need to be set before displaying the form
+    # TODO: Validate author selection
+    author = SelectField('Author', validators=[Required(), ])
     text = TextField('Content', validators=[Required(), ], widget=widgets.TextArea())
     picture = FileField('Picture')
     #link = URLField('Link', validators=[url()])

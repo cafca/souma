@@ -79,9 +79,9 @@
                 <button type="submit" class="btn">
                     <i class="fa fa-magic"></i>
                     Publish
-                </button>  
+                </button>
                 <button class="btn dropdown-toggle" data-toggle="dropdown">
-                    <span class="caret"></span> as {{active_persona.username}} 
+                    <span class="caret"></span> as {{active_persona.username}}
                 </button>
                 <ul class="dropdown-menu">
                     {% for p in controlled_personas %}
@@ -96,16 +96,16 @@
                         <li>public</li>
                     </ul>
                 </span> -->
-            </div> 
+            </div>
             </div>
         </span>
 
     </section>
 
     <section class="col6 row2 w4 h1" style="display:none">
-        {{ form.creator() }}
-        {% if form.creator.errors %}
-            <ul class="errors">{% for error in form.creator.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+        {{ form.author() }}
+        {% if form.author.errors %}
+            <ul class="errors">{% for error in form.author.errors %}<li>{{ error }}</li>{% endfor %}</ul>
         {% endif %}
     </section>
 </form>

@@ -1,14 +1,14 @@
 {% macro star(star) %}
 <!-- STAR: {{star.id}} -->
 <span class="content">
-    {% if star.title %} 
+    {% if star.title %}
         <a href="{{ url_for('star', id=star.id) }}">
-            <h1>{{ star.title }}</h1> 
+            <h1>{{ star.title }}</h1>
         </a>
     {% endif %}
 
     {% if star.text %}
-        <p>{{ star.text }}</p> 
+        <p>{{ star.text }}</p>
     {% endif %}
 </span>
 
@@ -33,7 +33,7 @@
     <span class="attribute">
         <i class="fa fa-circle-blank"></i>
         <span class="caption">
-            <a href="{{ url_for('persona', id=star.creator.id) }}">{{ star.creator.username}}</a>
+            <a href="{{ url_for('persona', id=star.author.id) }}">{{ star.author.username}}</a>
         </span>
     </span>
 </span>
