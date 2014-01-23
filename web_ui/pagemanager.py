@@ -18,6 +18,15 @@ class PageManager(object):
         self.screen_size = (12.0, 8.0)
         self.all_layouts = app.config['LAYOUT_DEFINITIONS']
 
+    def _add_static_section(self, page, section, layout):
+        # if section contains only one cell it's not a list
+        if not isinstance(layout[section][0], list):
+            page.add_to_section(section, layout[section], None)
+            return
+
+        for cell in layout[section]:
+            page.add_to_section(section, cell, None)
+
     def _get_layouts_for(self, context):
         """ Returns all layouts appropriate for context """
 
@@ -35,7 +44,7 @@ class PageManager(object):
         page = Page()
 
         # Add header to group page
-        section = 'group_header'
+        section = 'header'
         page.add_to_section(section, best_layout[section], None)
 
         # Add create_star form to page
@@ -76,6 +85,24 @@ class PageManager(object):
 
         for cell in layouts[0][section]:
             page.add_to_section(section, cell, None)
+
+        return page
+
+    def create_group_layout(self):
+        """Returns a page for creating groups."""
+
+        # use layouts for create_group_page context
+        context = 'create_group_page'
+        layouts = self._get_layouts_for(context)
+        page = Page()
+
+        # currently no logic to choose among different layouts
+        assert(len(layouts) == 1)
+        best_layout = layouts[0]
+
+        # add layout for static fields
+        self._add_static_section(page, 'header', best_layout)
+        self._add_static_section(page, 'create_group_form', best_layout)
 
         return page
 

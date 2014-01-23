@@ -442,9 +442,11 @@ def create_group():
         flash("New group {} created!".format(g.groupname))
         return redirect(url_for('group', id=g.id))
 
+    page = pagemanager.create_group_layout()
     return render_template(
         'create_group.html',
         form=form,
+        page=page,
         next=url_for('create_group'))
 
 

@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
 {% block content %}
-<section class="col1 row1 w4 h1">
+<section class='{{ page.header[0].css_class }}'>
 <h2><i class="icon-magic"></i> Create Group</h2>
 </section>
 
-<section class="col1 row2 w4 h6">
+<section class='{{ page.create_group_form[0].css_class }}'>
     <form method="POST" action="{{url_for('create_group')}}">
         <div class="control-group {% if form.groupname.errors %}error{% endif %}">
             <div class="controls input-prepend">
