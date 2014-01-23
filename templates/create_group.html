@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class='{{ page.header[0].css_class }}'>
+<h2><i class="fa fa-magic"></i> Create Group</h2>
+</section>
+
+<section class='{{ page.create_group_form[0].css_class }}'>
+    <form method="POST" action="{{url_for('create_group')}}">
+        <div class="control-group {% if form.groupname.errors %}error{% endif %}">
+            <div class="controls input-prepend">
+                <span class="add-on"><i class="fa fa-circle"></i></span>
+                {{ form.groupname(placeholder="Group name")}}
+            </div>
+            {% if form.groupname.errors %}
+                <ul class="errors">{% for error in form.groupname.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+        </div>
+        <div class="control-group {% if form.description.errors %}error{% endif %}">
+            <div class="fullsize-input">
+                {{ form.description(placeholder="Description")}}
+            </div>
+            {% if form.description.errors %}
+                <ul class="errors">{% for error in form.description.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+        </div>
+        <div class="control-group">
+            {{ form.csrf_token }}
+            <div class="controls">
+                <button type="submit" class="btn">Create</button>
+            </div>
+        </div>
+    </form>
+</section>
+{% endblock %}
