@@ -4,15 +4,15 @@
 
 {% block content %}
 
-{% for entry in page.stars %}
-{% for planet in entry.content.planets %}
-<section class='{{ entry.css_class }}'>
+{% for star in page.stars %}
+{% for planet in star.content.planets %}
+<section class='{{ star.css_class }}'>
     {{ planet_macros.planet(planet, False)}}
 </section>
 {% endfor %}
 
-<section class="{%if entry.content.planets|length() >= 1 %}image-overlay{% endif %} {{ entry.css_class }}">
-    {{ star_macros.star(entry.content) }}
+<section class="{%if star.content.planets|length() >= 1 %}image-overlay{% endif %} {{ star.css_class }}">
+    {{ star_macros.star(star.content) }}
 </section>
 
 {% endfor %}
