@@ -1,5 +1,5 @@
 from astrolab import topic_model
-from web_ui import db
+from web_ui import db, app
 from nucleus.models import Persona, Oneup, Star, LinkPlanet
 from sklearn.naive_bayes import GaussianNB
 from helpers import get_site_content
@@ -10,13 +10,13 @@ class InterestModel(db.Model):
 
     __tablename__ = "interestmodel"
     id = db.Column(db.String(32), primary_key=True)
+    persona_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
     persona = db.relationship("Persona",
                               backref=db.backref('interestmodel'),
-                              primaryjoin="Persona.id==interestmodel.persona_id")
-    persona_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
+                              primaryjoin="Persona.id==InterestModel.persona_id")
     classifier = db.Column(db.PickleType())
-    last_fit = db.Column.DateTime()
-    last_prediction = db.Column.DateTime()
+    last_fit = db.Column(db.DateTime)
+    last_prediction = db.Column(db.DateTime)
 
     def __init__(self, persona_id):
         self.persona_id = persona_id
@@ -42,6 +42,7 @@ def update():
 
 
 def fit(interestmodel):
+    app.logger.info("Fitting")
     train_set = list()
     for oneup in Oneup.query.get(creator=interestmodel.persona):
         star = Star.query.get(oneup.star_id)
@@ -59,3 +60,4 @@ def fit(interestmodel):
     train_labels = [[1] * len(train_set)]
     interestmodel.classifier.fit(train_set, train_labels)
     interestmodel.last_fit = datetime.now()
+    app.logger.info("Finished")
