@@ -7,7 +7,7 @@
     <!-- Main text field -->
     <section class="textarea card {{ page.create_star_form[0].css_class }}">
         <div class="card-handle">
-            <i class="icon-asterisk"></i>
+            <i class="fa fa-asterisk"></i>
         </div>
 
         <div class="sidenav">
@@ -26,7 +26,7 @@
     <!-- Link attachment field -->
     <section class="card {{ page.create_star_form[1].css_class }}">
         <div class="card-handle">
-            <i class="icon-link"></i>
+            <i class="fa fa-link"></i>
         </div>
 
         <div class="sidenav">
@@ -43,7 +43,7 @@
     <!-- File attachment field -->
     <section class="card {{ page.create_star_form[2].css_class }}">
         <div class="card-handle">
-            <i class="icon-file"></i>
+            <i class="fa fa-file"></i>
         </div>
         <div class="fileupload fileupload-new" data-provides="fileupload">
             <div class="sidenav">
@@ -62,29 +62,30 @@
     <!-- Add Attachments -->
     <section class="{{ page.create_star_form[3].css_class }}">
         <div class="card-handle">
-            <i class="icon-plus"></i>
+            <i class="fa fa-plus"></i>
         </div>
         <div class="btn-group well well-small">
-            <a class="btn" href="#"><i class="icon-font"></i></a>
-            <a class="btn" href="#"><i class="icon-link"></i></a>
+            <a class="btn" href="#"><i class="fa fa-font"></i></a>
+            <a class="btn" href="#"><i class="fa fa-link"></i></a>
         </div>
     </section>
 
     <!-- Controls -->
     <section class="{{ page.create_star_form[4].css_class }}">
         <span class="pull-right">
-            <button type="submit" class="btn" disabled="disabled"><i class="icon-save"></i> Save Draft</button>
+            <button type="submit" class="btn" disabled="disabled"><i
+                    class="fa fa-save"></i> Save Draft</button>
             <div class="btn-group">
                 <button type="submit" class="btn">
-                    <i class="icon-magic"></i>
+                    <i class="fa fa-magic"></i>
                     Publish
-                </button>  
+                </button>
                 <button class="btn dropdown-toggle" data-toggle="dropdown">
-                    <span class="caret"></span> as {{active_persona.username}} 
+                    <span class="caret"></span> as {{active_persona.username}}
                 </button>
                 <ul class="dropdown-menu">
                     {% for p in controlled_personas %}
-                    <li><i class="icon-user"></i> {{p.username}}</li>
+                    <li><i class="fa fa-user"></i> {{p.username}}</li>
                     {% endfor %}
                 </ul>
 
@@ -95,7 +96,7 @@
                         <li>public</li>
                     </ul>
                 </span> -->
-            </div> 
+            </div>
             </div>
         </span>
 
