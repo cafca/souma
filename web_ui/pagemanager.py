@@ -3,11 +3,8 @@ from web_ui import app
 
 
 class PageManager(object):
-    """ Abstract class defining common functions for all
-    PageManager subclasses.
-    Subclasses should define:
-        - class variable: context
-        - function: auto_layout
+    """ Responsible for creating pages. Reads in possible layouts,
+        and tries to arrange content in the most beneficial way.
     """
 
     def __init__(self):
@@ -17,16 +14,9 @@ class PageManager(object):
         """
 
         self.screen_size = (12.0, 8.0)
-        self.context = self.__class__.context
+        self.all_layouts = app.config['LAYOUT_DEFINITIONS']
 
-        all_layouts = app.config['LAYOUT_DEFINITIONS']
-        self.layouts = [layout for layout in all_layouts if
-                        self.context in layout['context']]
-
-    def auto_layout(self):
-        raise NotImplementedError
-
-    def create_page_section(self, cell, content):
+    def _create_page_section(self, cell, content):
         """ Creates a section of a page consisting of a dict
         with the containing the css_class and the content of
         the section.
@@ -44,29 +34,33 @@ class PageManager(object):
 
         return {'css_class': css_class, 'content': content}
 
+    def _get_layouts_for(self, context):
+        """ Returns all layouts appropriate for context """
 
-class CreateStarPageManager(PageManager):
-    context = 'create_star_page'
+        return [layout for layout in self.all_layouts if
+                context in layout['context']]
 
-    def auto_layout(self):
+    def create_star_layout(self):
+        """Returns a page for creating stars."""
+
+        context = 'create_star_page'
+        layouts = self._get_layouts_for(context)
+
         # currently no logic to choose among different layouts
-        assert(len(self.layouts) == 1)
+        assert(len(layouts) == 1)
         page = {'create_star_form': []}
 
-        for cell in self.layouts[0]['create_star_form']:
+        for cell in layouts[0]['create_star_form']:
             page['create_star_form'].append(
-                self.create_page_section(cell, None))
+                self._create_page_section(cell, None))
 
         return page
 
+    def star_layout(self, stars):
+        """Return the optimal layouted page for the given stars."""
 
-class StarPageManager(PageManager):
-    context = 'star_page'
-
-    def auto_layout(self, stars):
-        """Return a page for given stars i.e. a list of
-        dicts: (css_class-> x), (content->y).
-        """
+        context = 'star_page'
+        layouts = self._get_layouts_for(context)
 
         # Rank stars by score
         stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
@@ -74,7 +68,7 @@ class StarPageManager(PageManager):
         # Find best layout by filling each one with stars
         # and determining which one gives the best score
         layout_scores = dict()
-        for layout in self.layouts:
+        for layout in layouts:
             # print("\nLayout: {}".format(layout['name']))
             layout_scores[layout['name']] = 0
 
@@ -99,7 +93,7 @@ class StarPageManager(PageManager):
             app.logger.error("No fitting layout found")
             return
 
-        for layout in self.layouts:
+        for layout in layouts:
             if layout['name'] == selected_layouts[0][0]:
                 break
 
@@ -112,7 +106,7 @@ class StarPageManager(PageManager):
                 break
 
             star = stars_ranked[i]
-            page['stars'].append(self.create_page_section(star_cell, star))
+            page['stars'].append(self._create_page_section(star_cell, star))
 
         return page
 

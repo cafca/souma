@@ -249,8 +249,8 @@ def create_star():
 
         return redirect(url_for('star', id=uuid))
 
-    pm = CreateStarPageManager()
-    page = pm.auto_layout()
+    pm = PageManager()
+    page = pm.create_star_layout()
 
     return render_template('create_star.html',
                            form=form,
@@ -286,8 +286,8 @@ def universe():
 
     # return only stars that are not in a group context
     stars = Star.query.filter(Star.state >= 0, Star.group_id == '').all()
-    pm = StarPageManager()
-    page = pm.auto_layout(stars)
+    pm = PageManager()
+    page = pm.star_layout(stars)
 
     if len(persona_context()['controlled_personas'].all()) == 0:
         return redirect(url_for('create_persona'))
@@ -408,8 +408,8 @@ def group(id):
 
     # create layouted page for group
     starmap = group.posts
-    pm = StarPageManager()
-    page = pm.auto_layout(starmap)
+    pm = PageManager()
+    page = pm.star_layout(starmap)
 
     # TODO: Use new layout system
 #    vizier = Vizier([
