@@ -32,8 +32,9 @@ class InterestModel(db.Model):
 
 
 def update():
+    app.logger.info("Test1")
     for persona in Persona.query.all():
-        interestmodel = InterestModel.query.get(persona=persona)
+        interestmodel = InterestModel.query.filter_by(persona_id=persona.id).first()
 
         if interestmodel is None:
             interestmodel = InterestModel(persona.id)
@@ -44,7 +45,7 @@ def update():
 def fit(interestmodel):
     app.logger.info("Fitting")
     train_set = list()
-    for oneup in Oneup.query.get(creator=interestmodel.persona):
+    for oneup in Oneup.query.filter_by(creator_id=interestmodel.persona_id):
         star = Star.query.get(oneup.star_id)
 
         for planet in star.planets:
@@ -57,7 +58,8 @@ def fit(interestmodel):
         topics = topic_model.get_topics_text(star.text)
         train_set.append(topics)
 
-    train_labels = [[1] * len(train_set)]
-    interestmodel.classifier.fit(train_set, train_labels)
+    if len(train_set) > 0:
+        train_labels = [[1] * len(train_set)]
+        interestmodel.classifier.fit(train_set, train_labels)
     interestmodel.last_fit = datetime.now()
     app.logger.info("Finished")
