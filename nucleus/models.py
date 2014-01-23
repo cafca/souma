@@ -23,12 +23,15 @@ class Serializable():
                 field: str(getattr(self, field)) for field in include}
         else:
             return {
-                c.name: str(getattr(self, c.name)) for c in self.__table__.columns if c not in exclude}
+                c.name: str(getattr(self, c.name)) for c in
+                self.__table__.columns if c not in exclude
+            }
 
     def json(self, exclude=[], include=None):
         """Return this object JSON encoded"""
         import json
-        return json.dumps(self.export(exclude=exclude, include=include), indent=4)
+        return json.dumps(self.export(exclude=exclude, include=include),
+                          indent=4)
 
 
 #
@@ -66,6 +69,15 @@ class Persona(Serializable, db.Model):
 
     # Myelin offset stores the date at which the last Vesicle receieved from Myelin was created
     myelin_offset = db.Column(db.DateTime)
+    
+    # TODO: How to HBTM?!
+    
+    # groups = db.relationship(
+        # 'Group',
+        # secondary='groups',
+        # primaryjoin='groups.c.left_id==persona.c.id',
+        # secondaryjoin='groups.c.right_id==group.c.id')
+    
 
     def __init__(self, id, username, email=None, sign_private=None, sign_public=None,
                  crypt_private=None, crypt_public=None):
@@ -188,7 +200,9 @@ class Star(Serializable, db.Model):
     id = db.Column(db.String(32), primary_key=True)
     text = db.Column(db.Text)
     created = db.Column(db.DateTime, default=datetime.datetime.now())
-    modified = db.Column(db.DateTime, default=datetime.datetime.now(), onupdate=datetime.datetime.now())
+    modified = db.Column(db.DateTime,
+                         default=datetime.datetime.now(),
+                         onupdate=datetime.datetime.now())
     state = db.Column(db.Integer, default=0)
 
     oneups = db.relationship('Oneup',
@@ -206,8 +220,9 @@ class Star(Serializable, db.Model):
         primaryjoin="Persona.id==Star.creator_id")
 
     creator_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
+    group_id = db.Column(db.String(32), db.ForeignKey('group.id'))
 
-    def __init__(self, id, text, creator):
+    def __init__(self, id, text, creator, group_id=None):
         self.id = id
         # TODO: Attach multiple items as 'planets'
         self.text = text
@@ -216,6 +231,8 @@ class Star(Serializable, db.Model):
             self.creator_id = creator
         else:
             self.creator_id = creator.id
+
+        self.group_id = group_id
 
     def __repr__(self):
         ascii_text = self.text.encode('utf-8')
@@ -454,3 +471,34 @@ class DBVesicle(db.Model):
     created = db.Column(db.DateTime)
     author_id = db.Column(db.String(32))
     source_id = db.Column(db.String(32))
+
+
+class Group(Serializable, db.Model):
+    """
+        Represents an entity that is comprised of users collaborating on
+        stars
+    """
+
+    __tablename__ = "group"
+    id = db.Column(db.String(32), primary_key=True)
+    groupname = db.Column(db.String(80))
+    description = db.Column(db.Text)
+    # Make this work if needed!
+    """
+    members = db.relationship(
+        "Persona",
+        backref="groups",
+        primaryjoin='group.c.id==persona.c.?????_id' # TODO:How to HBTM?!
+    )"""
+
+    # returns only active posts
+    posts = db.relationship(
+        "Star",
+        backref="group",
+        primaryjoin="and_(Group.id==Star.group_id, Star.state>=0)"
+    )
+
+    def __init__(self, id, name, description):
+        self.id = id
+        self.groupname = name
+        self.description = description
