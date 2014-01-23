@@ -3,8 +3,10 @@ from web_ui import app
 
 
 class PageManager(object):
-    """ Responsible for creating pages. Reads in possible layouts,
-        and tries to arrange content in the most beneficial way.
+    """ Holds all factory methods for Page creation.
+    Those methods read in possible layouts, and create
+    and a Page instance arrangeing content in the most
+    beneficial way. Also see Page class below.
     """
 
     def __init__(self):
@@ -16,24 +18,6 @@ class PageManager(object):
         self.screen_size = (12.0, 8.0)
         self.all_layouts = app.config['LAYOUT_DEFINITIONS']
 
-    def _create_page_section(self, cell, content):
-        """ Creates a section of a page consisting of a dict
-        with the containing the css_class and the content of
-        the section.
-        CSS class name format
-         col   column at which the css container begins
-         row   row at which it begins
-         w     width of the container
-         h     height of the container
-        """
-        css_class = "col{} row{} w{} h{}".format(
-            cell[0],
-            cell[1],
-            cell[2],
-            cell[3])
-
-        return {'css_class': css_class, 'content': content}
-
     def _get_layouts_for(self, context):
         """ Returns all layouts appropriate for context """
 
@@ -43,16 +27,20 @@ class PageManager(object):
     def create_star_layout(self):
         """Returns a page for creating stars."""
 
+        # use layouts for create_star_page context
         context = 'create_star_page'
         layouts = self._get_layouts_for(context)
 
         # currently no logic to choose among different layouts
         assert(len(layouts) == 1)
-        page = {'create_star_form': []}
 
-        for cell in layouts[0]['create_star_form']:
-            page['create_star_form'].append(
-                self._create_page_section(cell, None))
+        # page entry containing the form will be called:
+        section = 'create_star_form'
+
+        page = Page()
+
+        for cell in layouts[0][section]:
+            page.add_to_section(section, cell, None)
 
         return page
 
@@ -61,6 +49,8 @@ class PageManager(object):
 
         context = 'star_page'
         layouts = self._get_layouts_for(context)
+
+        section = 'stars'
 
         # Rank stars by score
         stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
@@ -72,7 +62,7 @@ class PageManager(object):
             # print("\nLayout: {}".format(layout['name']))
             layout_scores[layout['name']] = 0
 
-            for i, star_cell in enumerate(layout['stars']):
+            for i, star_cell in enumerate(layout[section]):
                 if i >= len(stars_ranked):
                     continue
                 star = stars_ranked[i]
@@ -99,14 +89,13 @@ class PageManager(object):
 
         # print("Chosen {}".format(layout))
 
-        # Create list of elements in layout
-        page = {'stars': []}
+        page = Page()
         for i, star_cell in enumerate(layout['stars']):
             if i >= len(stars_ranked):
                 break
 
             star = stars_ranked[i]
-            page['stars'].append(self._create_page_section(star_cell, star))
+            page.add_to_section(section, star_cell, star)
 
         return page
 
@@ -130,3 +119,49 @@ class PageManager(object):
         area = cell[2] * cell[3]
         sscore = 1.0 / (1 + pow(math.exp(1), -0.1 * (area - 12.0)))
         return pscore * sscore
+
+
+class Page(object):
+    """Responsible for the layout of a page. Instances of Page
+    hold variables for each dynamic section of the page. This
+    variables hold a list with the entries of the section.
+    An entry is a dict with the keys 'css_class' and 'content'.
+    Example:
+        star_page:
+            + header:[
+                {css_class:'col1 row1 w3 h1', content: None}
+              ]
+            + stars: [
+                {css_class:'col1 row2 w3 h1', content: star1},
+                {css_class:'col1 row3 w3 h1', content: star2}
+              ]
+    """
+
+    def add_to_section(self, section, entry, content):
+        """ Adds a new entry to the page section 'section'
+        (and creates it if necessary). """
+
+        section_entry = self._create_entry(entry, content)
+
+        if not hasattr(self, section):
+            setattr(self, section, [])
+
+        attr = getattr(self, section)
+        attr.append(section_entry)
+
+    def _create_entry(self, cell, content):
+        """ Creates a section of a page consisting of a dict
+        containing the css_class and the content of the section.
+        CSS class name format
+         col   column at which the css container begins
+         row   row at which it begins
+         w     width of the container
+         h     height of the container
+        """
+        css_class = "col{} row{} w{} h{}".format(
+            cell[0],
+            cell[1],
+            cell[2],
+            cell[3])
+
+        return {'css_class': css_class, 'content': content}
