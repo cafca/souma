@@ -58,7 +58,7 @@ class ElectricalSynapse(object):
 
         # Core setup
         self.synapse = parent
-        self.souma = Souma.query.filter("sign_private != ''").first()  # The Souma which hosts this Synapse
+        self.souma = Souma.query.get(app.config["SOUMA_ID"])  # The Souma which hosts this Synapse
         self.host = "http://{host}".format(host=host)  # The Glia server to connect to
         self.session = requests.Session()  # Session object to use for requests
         self._peers = dict()
@@ -276,7 +276,7 @@ class ElectricalSynapse(object):
         # Log all errors
         if errors:
             self.logger.error("{} {} / {} failed.\nParam: {}\nPayload: {}\nErrors:\n* {}".format(
-                method, endpoint, r.url, params, payload_json, "\n* ".join(str(e) for e in errors)))
+                method, endpoint, url, params, payload_json, "\n* ".join(str(e) for e in errors)))
 
         return (resp, error_strings)
 
@@ -419,7 +419,6 @@ class ElectricalSynapse(object):
             self._log_errors("Error receiving from Myelin", errors)
         else:
             for v in reversed(resp["vesicles"]):
-                self.logger.debug("Myelin received: \n{}".format(v))
                 vesicle = self.synapse.handle_vesicle(v)
                 if vesicle is not None and (offset is None or vesicle.created > offset):
                     offset = vesicle.created
@@ -481,7 +480,6 @@ class ElectricalSynapse(object):
             tuple 0: persona's public profile and auth_token for authentication
                 as a dict, 1: list of errors while requesting from server
         """
-        self.logger.info("Requesting info_dict for <Persona [{}]>".format(persona_id[:6]))
         resp, errors = self._request_resource("GET", ["personas", persona_id])
 
         if errors:
@@ -492,13 +490,17 @@ class ElectricalSynapse(object):
             p = Persona.query.get(persona_id)
             if p is None:
                 try:
-                    p = Persona(persona_id,
+                    p = Persona(
+                        _stub=True,
+                        id=persona_id,
                         username=pinfo["username"],
                         email=pinfo.get("email"),
                         sign_public=pinfo["sign_public"],
-                        crypt_public=pinfo["crypt_public"])
+                        crypt_public=pinfo["crypt_public"]
+                    )
                     db.session.add(p)
                     db.session.commit()
+                    self.logger.info("Loaded {} from Glia server".format(p))
                 except KeyError, e:
                     self.logger.warning("Missing key in server response for storing new Persona: {}".format(e))
                     errors.append("Missing key in server response for storing new Persona: {}".format(e))

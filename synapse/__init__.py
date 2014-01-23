@@ -1,26 +1,24 @@
 import logging
-import iso8601
+import json
 
 from dateutil.parser import parse as dateutil_parse
-
 from gevent.pool import Pool
+from uuid import uuid4
+
 from nucleus import notification_signals, PersonaNotFoundError, UnauthorizedError, VesicleStateError
 from nucleus.models import Persona, Star, Planet, Starmap
 from nucleus.vesicle import Vesicle
 from synapse.electrical import ElectricalSynapse
-from uuid import uuid4
 from web_ui import app, db
 
 # These are Vesicle options which are recognized by this Synapse
 ALLOWED_MESSAGE_TYPES = [
     "object",
     "object_request",
-    "starmap",
-    "starmap_request"
 ]
 
 CHANGE_TYPES = ("insert", "update", "delete")
-OBJECT_TYPES = ("Star", "Planet", "Persona")
+OBJECT_TYPES = ("Star", "Planet", "Persona", "Starmap")
 
 
 class Synapse():
@@ -54,6 +52,7 @@ class Synapse():
 
         signal('local-model-changed').connect(self.on_local_model_change)
         signal('new-contact').connect(self.on_new_contact)
+        signal('request-objects').connect(self.on_request_objects)
 
     def _distribute_vesicle(self, vesicle, signed=False, recipients=None):
         """
@@ -78,7 +77,29 @@ class Synapse():
             "via Myelin" if app.config["ENABLE_MYELIN"] else ""))
 
         if recipients:
-            vesicle.encrypt(recipients=recipients)
+            if vesicle.encrypted():
+                # If the vesicle was already encrypted, only add those new
+                # recipients that are contacts of the vesicle author
+                new_keycrypt = dict()
+                old_keycrypt = json.loads(vesicle.keycrypt)
+
+                # First remove everyone from keycrypt that is not a current recipient
+                old_keycrypt = json.loads(vesicle.keycrypt)
+                remove_recipients = set(old_keycrypt.keys()) - set([r.id for r in recipients])
+                for recipient_id in remove_recipients:
+                    del old_keycrypt[recipient_id]
+                vesicle.keycrypt = json.dumps(new_keycrypt)
+
+                # Then add the new recipients
+                vesicle.add_recipients(recipients)
+
+                # new_recipients = [rec for rec in recipients if rec in vesicle.author.contacts]
+                # for rec in new_recipients:
+                #     new_keycrypt[rec.id] = old_keycrypt[rec.id]
+
+                self.logger.info("{} was already encrypted.".format(self))
+            else:
+                vesicle.encrypt(recipients=recipients)
 
         if signed:
             try:
@@ -93,6 +114,46 @@ class Synapse():
             self.electrical.myelin_store(vesicle)
 
         return vesicle
+
+    def _find_source(self, obj):
+        """Return a list of possible sources for object.
+
+        A Persona qualifies as source if they have obj in their starmaps,
+        have a controlled Persona as a contact.
+
+        Args:
+            obj (Star, Planet or Starmap): Object to find a source for
+
+        Returns:
+            list: Possible sources
+        """
+        # Return True if at least one of controlled personas is a contact of p
+        connected_to = lambda p: len(p.contacts.filter(Persona.crypt_private != "")) > 0
+
+        sources = list()
+        if isinstance(obj, Star):
+            if connected_to(obj.author):
+                sources.append(obj.author)
+
+            for starmap in obj.starmaps:
+                if connected_to(starmap.author):
+                    sources.append(starmap.author)
+
+        elif isinstance(obj, Planet):
+            for star in obj.stars:
+                if connected_to(star.author):
+                    sources.append(star.author)
+
+                for starmap in star.starmaps:
+                    if connected_to(starmap.author):
+                        sources.append(starmap.author)
+
+        elif isinstance(obj, Starmap):
+            if connected_to(obj.author):
+                sources.append(obj.author)
+
+        # TODO: Sort by last seen
+        return sources
 
     def _log_errors(self, msg, errors, level="error"):
         """
@@ -120,7 +181,6 @@ class Synapse():
         Args:
             vesicle (Vesicle): Vesicle containing the object changeset
         """
-
         # Validate response
         errors = list()
 
@@ -142,7 +202,12 @@ class Synapse():
             self.logger.error("Malformed object received\n{}".format("\n".join(errors)))
         else:
             handler = getattr(self, "object_{}".format(action))
-            handler(author, action, object_type, obj)
+            new_obj = handler(author, reader_persona, object_type, obj)
+
+            if new_obj is not None:
+                new_obj.vesicles.append(vesicle)
+                db.session.add(new_obj)
+                db.session.commit()
 
     def handle_object_request(self, vesicle, reader_persona):
         """
@@ -221,6 +286,8 @@ class Synapse():
             if vesicle.encrypted():
                 reader_persona = vesicle.decrypt()
 
+            self.logger.debug("Received {} with payload:\n{}".format(vesicle, json.dumps(vesicle.data, indent=2)))
+
             # Store locally
             db.session.add(vesicle)
             db.session.commit()
@@ -232,241 +299,109 @@ class Synapse():
 
         return vesicle
 
-    def handle_starmap(self, vesicle, reader_persona):
-        """
-        Handle received starmaps
+    def object_insert(self, author, recipient, object_type, obj):
+        # Handle answer
+        for k in ["id", "modified"]:
+            if k not in obj.keys():
+                raise KeyError("Missing '{}' in object description".format(k))
 
-        Args:
-            vesicle (Vesicle): A signed Vesicle containing a Starmap object
-            reader_persona (Persona): A Persona object contained in the Vesicle's keycrypt
-        """
-        # Validate vesicle
-        errors = list()
+        obj_class = globals()[object_type]
+        o = obj_class.query.get(obj["id"])
 
-        remote = vesicle.data['starmap']
+        try:
+            obj_modified = dateutil_parse(obj["modified"])
+        except ValueError:
+            self.logger.error("Malformed parameter 'modified': {}".format(obj["modified"]))
+            return
 
-        for k in ["id", "modified", "author_id", "index"]:
-            if k not in remote:
-                errors.append("Missing '{}'".format(k))
+        if o is None:
+            if hasattr(obj, "author_id") and author.id != obj["author_id"]:
+                raise UnauthorizedError(
+                    "Received object_insert Vesicle author {} does not match object author [{}]".format(
+                        author, obj["author_id"][:6]))
 
-        author = self.electrical.get_persona(remote["author_id"])
-        if author is None:
-            errors.append('Starmap author {} not found'.format(remote["author_id"]))
+            o = obj_class.create_from_changeset(obj)
 
-        if author != vesicle.author:
-            errors.append("Vesicle does not originate from Starmap author")
-
-        if errors:
-            self._log_errors("Error handling Starmap", errors)
-
-        log_starmap = "\n".join(["- <{} {}>".format(
-            star_info['type'], star_info["id"][:6]) for star_info in remote["index"]])
-
-        self.logger.info("Scanning starmap of {} stars received from {}\n{}".format(
-            len(remote["index"]), vesicle.author, log_starmap))
-
-        # Get or create copy of remote Souma's starmap
-        local_starmap = Starmap.query.get(remote["id"])
-        if local_starmap is None:
-            local_starmap = Starmap(
-                id=remote["id"],
-                modified=remote["modified"],
-                author=author
-            )
-            db.session.add(local_starmap)
+            db.session.add(o)
             db.session.commit()
 
-        # Iterate over starmap contents, checking whether objects need
-        # to be downloaded
-        request_objects = list()  # list of objects to be downloaded
-        for star_info in remote.index():
-            try:
-                # Collect Star info
-                star_id = star_info["id"]
-                star_author_id = star_info["author_id"]
-                star_modified = iso8601.parse_date(star_info['modified'])
-
-                # Get or create local Star object
-                star = Star.query.get(star_id)
-                if star is None:
-                    star_author = self.electrical.get(star_author_id)
-
-                    star = Star(
-                        id=star_id,
-                        text=None,
-                        creator=star_author,
-
-                    )
-                    star.set_state(-1)
-                    db.session.add(star)
-                    db.session.commit()
-
-                    request_objects.append(("Star", star_id))
-
-                # Request Star if outdated or state is 'unavailable'
-                elif star.get_state() == -1 or star.modified < star_modified:
-                    request_objects.append(("Star", star_id))
-
-                # Iterate over Planets attached to current Star
-                for planet in star_info["planets"]:
-                    planet_id = planet["id"]
-                    planet_modified = planet["modified"]
-
-                    planet = Planet.query.get(planet_id)
-                    if planet is None:
-                        planet = Planet(
-                            id=planet_id,
-                            modified=planet_modified
-                        )
-                        planet.set_state(-1)
-                        db.session.add(planet)
-                        db.session.commit()
-
-                        request_objects.append(("Planet", planet_id))
-
-                    elif planet.get_state() == -1 or planet.modified < planet_modified:
-                        request_objects.append(("Planet", planet_id))
-            except KeyError, e:
-                self.logger.warning("Missing '{}' in {}\nReceived: {}".format(
-                    e, local_starmap, star_info))
-
-        # Spawn requests
-        for object_type, object_id in request_objects:
-            self.message_pool.spawn(self.request_object, object_type, object_id, vesicle.author)
-
-    def handle_starmap_request(self, vesicle, reader_persona):
-        """
-        Handle received starmap requests
-
-        Args:
-            vesicle (Vesicle): Request data
-        """
-        # Verify request
-        errors = list()
-
-        for k in ["starmap_id", ]:
-            if not k in vesicle.data:
-                errors.append("Missing '{}' in request data".format(k))
-
-        starmap_id = vesicle.data["starmap_id"]
-        starmap = Starmap.query.get(starmap_id)
-        if starmap is None:
-            errors.append("Starmap {} not found".format(starmap_id))
-
-        if errors:
-            self._log_errors("Error processing starmap request from {}".format(vesicle.author),
-                             errors, level="warning")
-            # TODO: Send error message back
+            self.logger.info("Inserted new {}".format(o))
+        elif o.modified < obj_modified or (hasattr(o, "_stub") and o.stub is True):
+            self.object_update(author, recipient, object_type, obj)
         else:
-            for starmap_vesicle in starmap.vesicles:
-                self.logger.info("Sending requested {} to {}".format(
-                    starmap_vesicle, vesicle.author))
-                self._distribute_vesicle(starmap_vesicle, recipients=[vesicle.author, ])
+            self.logger.info("Received already existing <{} [{}]>".format(object_type, obj["id"]))
 
-    def object_insert(self, author, action, object_type, obj):
-        # Handle answer
-        # TODO: Handle updates
-        if object_type == "Star":
-            o = Star.query.get(obj['id'])
-            if o is None:
-                creator = self.electrical.get_persona(obj["creator_id"])
+        return o
 
-                if creator != author:
-                    raise UnauthorizedError("Received object update is not signed by object creator")
-
-                o = Star(
-                    id=obj["id"],
-                    text=obj["text"],
-                    creator=creator
-                )
-
-                db.session.add(o)
-                db.session.commit()
-                self.logger.info("Added new {}".format(o))
-            else:
-                self.logger.warning("Received already existing {}".format(o))
-        elif object_type == "Persona":
-            o = Persona.query.get(obj['id'])
-            if o is None:
-                o = Persona(
-                    id=obj["id"],
-                    username=obj["username"],
-                    email=obj["email"],
-                    sign_public=obj["sign_public"],
-                    crypt_public=obj["crypt_public"],
-                )
-
-                db.session.add(o)
-                db.session.commit()
-                self.logger.info("Added new {}".format(o))
-            else:
-                self.logger.warning("Received already existing {}".format(o))
-
-    def object_update(self, author, action, object_type, obj):
+    def object_update(self, author, recipient, object_type, obj):
         # Verify message
         for k in ["id", "modified"]:
             if k not in obj.keys():
                 raise KeyError("Missing '{}' in object description".format(k))
 
-        try:
-            change_time = dateutil_parse(obj["modified"])
-        except ValueError:
-            self.logger.error("Malformed change time: {}".format(obj["modified"]))
-            return
+        obj_modified = dateutil_parse(obj["modified"])
 
         # Retrieve local object copy
+        obj_class = globals()[object_type]
+        o = obj_class.query.get(obj["id"])
+
+        if o is None:
+            self.logger.info("Received update for unknown <{} [{}]>".format(object_type, obj["id"][:6]))
+            self.request_object(
+                object_type=object_type,
+                object_id=obj["id"],
+                author=recipient,
+                recipient=author)
+        else:
+            if o.modified < obj_modified or (hasattr(o, "_stub") and o.stub is True):
+                o.update_from_changeset(obj)
+                db.session.add(o)
+                db.session.commit()
+                self.logger.info("Applied update for {}".format(o))
+            else:
+                self.logger.info("Received obsolete update ({})".format(obj))
+
+        return o
+
+    def object_delete(self, author, recipient, object_type, obj):
+        # Verify message
+        for k in ["id", "modified"]:
+            if k not in obj.keys():
+                raise KeyError("Missing '{}' in object description".format(k))
 
         # Get the object's class from globals
         obj_class = globals()[object_type]
         o = obj_class.query.get(obj["id"])
 
         if o is None:
-            self.logger.info("Received update for nonexistent object")
+            self.logger.info("Request to delete unknown <{} [{}]>".format(object_type, obj["id"]))
         else:
-            if o.modified < change_time:
-                # TODO: Handle update
-                self.logger.info("Received update - not applied({})".format(obj))
-            else:
-                self.logger.info("Received obsolete update ({})".format(obj))
+            if o.author != author:
+                raise UnauthorizedError("Deletion request not signed by original object's author.\n" +
+                    "{} is not {}".format(o.author, author))
 
-    def object_delete(self, author, action, object_type, obj):
-        # Verify message
-        for k in ["id", ]:
-            if k not in obj.keys():
-                raise KeyError("Missing '{}' in object description".format(k))
-
-        # Get the object's class from globals
-        obj_class = globals()[object_type]
-        o = obj_class.query.get(obj["id"])
-
-        if object_type == "Star":
-            if o is None:
-                deleted_star = Star(id=obj["id"], text=None, creator=None)
-                deleted_star.set_state(-2)
-                db.session.add(deleted_star)
-                db.session.commit()
-                self.logger.info("<Star [{}]> marked deleted (no local copy available)".format(obj["id"][:6]))
-            elif o.state == -2:
-                self.logger.info("<Star [{}]> is already deleted".format(obj["id"][:6]))
-            else:
-                if o.creator != author:
-                    raise UnauthorizedError("Received deletion request not signed by original object's creator")
+            if hasattr(o, "set_state"):
                 o.set_state(-2)
                 db.session.add(o)
                 db.session.commit()
-                self.logger.info("Deleted {}".format(o))
-        else:
-            if o is None:
-                self.logger.info("<{} [{}]> deleted (no local copy)".format(
-                    object_type, obj["id"][:6]))
+                self.logger.info("{} marked deleted".format(o))
             else:
-                # TODO: Check authority
+                name = str(o)
                 db.session.delete(o)
-                self.logger.info("<{} {}> deleted".format(
-                    object_type, obj["id"][:6]))
+                o = None
+                self.logger.info("Permanently deleted {}".format(name))
+        return o
 
     def on_new_contact(self, sender, message):
-        logging.warning("New contact signal received from {}: Not implemented.\n{}".format(sender, message))
+        for k in["new_contact_id", "author_id"]:
+            if k not in message:
+                raise KeyError("Missing message parameter '{}'".format(k))
+
+        author = Persona.query.get(message["author_id"])
+        recipient = Persona.query.get(message["new_contact_id"])
+
+        self.request_object("Persona", message["new_contact_id"], author, recipient)
+        self.logger.info("Requesting new contact {}'s profile".format(recipient))
 
     def on_local_model_change(self, sender, message):
         """
@@ -507,12 +442,21 @@ class Synapse():
         # Send Vesicle
         data = dict({
             "action": message["action"],
-            "object": obj.export(),
             "object_type": message["object_type"]
         })
 
+        if message["action"] == "insert":
+            data["object"] = obj.export()
+        elif message["action"] == "update":
+            data["object"] = obj.export(update=True)
+        elif message["action"] == "delete":
+            data["object"] = {
+                "id": obj.id,
+                "modified": obj.modified.isoformat()
+            }
+
         vesicle = Vesicle(id=uuid4().hex, message_type="object", data=data)
-        vesicle.author_id = message["author_id"]
+        vesicle.author = author
 
         db.session.add(vesicle)
         db.session.commit()
@@ -520,9 +464,37 @@ class Synapse():
         # Add new vesicle to db
         obj.vesicles.append(vesicle)
 
-        signed = False if message["object_type"] == "Persona" else True
+        self._distribute_vesicle(vesicle, signed=True, recipients=author.contacts.all())
 
-        self._distribute_vesicle(vesicle, signed=signed, recipients=author.contacts)
+    def on_request_objects(self, sender, message):
+        """React to request-objects signal by queuing a request
+
+        Args:
+            sender (object): Sender of the signal
+            message (dict): Contains keys
+                type -- object type as defined in OBJECT_TYPES
+                id -- 32 byte object ID
+                author_id -- (optional) author of the request
+                recipient_id -- (optional) recipient of the request
+        """
+        try:
+            object_type = message["type"]
+            object_id = message["id"]
+        except KeyError, e:
+            self.logger.warning("Missing request parameter '{}'".format(e))
+            return
+
+        if "author_id" in message:
+            author = self.electrical.get_persona(message["author_id"])
+        else:
+            author = None
+
+        if "recipient_id" in message:
+            recipient = self.electrical.get_persona(message["recipient_id"])
+        else:
+            recipient = None
+
+        self.request_object(object_type, object_id, author, recipient)
 
     def request_object(self, object_type, object_id, author, recipient):
         """
@@ -531,17 +503,54 @@ class Synapse():
         Args:
             object_type (String): capitalized class name of the object
             object_id (String): 32 byte object ID
+            author (Persona): Author of this request
             recipient (Persona): Persona to request this object from
+
+        Raises:
+            UnauthorizedError: If no source can be found that has one of the controlled Personas as a contact
         """
-        self.logger.info("Requesting <{object_type} {object_id}> from {source}".format(
-            object_type=object_type, object_id=object_id[:6], source=recipient))
+        obj_class = globals()[object_type]
+        obj = obj_class.query.get(object_id)
 
-        vesicle = Vesicle(id=uuid4().hex, message_type="object_request", author=author, data={
-            "object_type": object_type,
-            "object_id": object_id
-        })
+        # Set state to updating
+        if obj is not None and hasattr(obj, "set_state"):
+            obj.set_state(3)  # updating
 
-        self._distribute_vesicle(vesicle, signed=True, recipients=[recipient])
+        # Find a source if none is specified
+        if recipient is None:
+            sources = self._find_source(obj)
+            recipient = sources[0] if len(sources) > 0 else None
+
+        if recipient is None:
+            self.logger.info("No known source for <{} [{}]>".format(object_type, object_id[:6]))
+        else:
+            # Try and find a contact of source we can use as this request's author
+            if author is None:
+                author = recipient.contacts.filter_by(Persona.crypt_private != "").first()
+
+            # Abort if no author was found
+            if author is None:
+                raise UnauthorizedError("Could not find a source for {} who you are contacts with")
+
+            self.logger.info("Requesting <{object_type} {object_id}> as {author} from {source}".format(
+                object_type=object_type, object_id=object_id[:6], author=author, source=recipient))
+
+            data = {
+                "object_type": object_type,
+                "object_id": object_id
+            }
+
+            vesicle = Vesicle(
+                id=uuid4().hex,
+                message_type="object_request",
+                author=author,
+                data=data
+            )
+
+            db.session.add(vesicle)
+            db.session.commit()
+
+            self._distribute_vesicle(vesicle, signed=True, recipients=[recipient])
 
     def shutdown(self):
         self.pool.kill()

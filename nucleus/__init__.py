@@ -45,7 +45,7 @@ PLANET_STATES = {
 ONEUP_STATES = {
     -1: "disabled",
     0: "active",
-    1: "unknown creator"
+    1: "unknown author"
 }
 
 
