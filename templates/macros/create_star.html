@@ -5,7 +5,7 @@
 
 <form method="POST" action="{{url_for('create_star')}}" enctype="multipart/form-data">
     <!-- Main text field -->
-    <section class="textarea card {{ page.create_star_form[0] }}">
+    <section class="textarea card {{ page.create_star_form[0].css_class }}">
         <div class="card-handle">
             <i class="icon-asterisk"></i>
         </div>
@@ -24,7 +24,7 @@
     </section>
 
     <!-- Link attachment field -->
-    <section class="card {{ page.create_star_form[1] }}">
+    <section class="card {{ page.create_star_form[1].css_class }}">
         <div class="card-handle">
             <i class="icon-link"></i>
         </div>
@@ -41,7 +41,7 @@
     </section>
 
     <!-- File attachment field -->
-    <section class="card {{ page.create_star_form[2] }}">
+    <section class="card {{ page.create_star_form[2].css_class }}">
         <div class="card-handle">
             <i class="icon-file"></i>
         </div>
@@ -60,7 +60,7 @@
 
 
     <!-- Add Attachments -->
-    <section class="{{ page.create_star_form[3] }}">
+    <section class="{{ page.create_star_form[3].css_class }}">
         <div class="card-handle">
             <i class="icon-plus"></i>
         </div>
@@ -71,7 +71,7 @@
     </section>
 
     <!-- Controls -->
-    <section class="{{ page.create_star_form[4] }}">
+    <section class="{{ page.create_star_form[4].css_class }}">
         <span class="pull-right">
             <button type="submit" class="btn" disabled="disabled"><i class="icon-save"></i> Save Draft</button>
             <div class="btn-group">
