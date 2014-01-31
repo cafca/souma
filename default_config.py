@@ -12,6 +12,9 @@ LOCAL_ADDRESS = "{}:{}".format(LOCAL_HOSTNAME, LOCAL_PORT)
 DEBUG = True
 USE_DEBUG_SERVER = False
 
+# Uncomment to log DB statements
+# SQLALCHEMY_ECHO = True
+
 DATABASE = 'souma_{}.db'.format(LOCAL_PORT)
 SQLALCHEMY_DATABASE_URI = "sqlite:///" + DATABASE
 
@@ -41,5 +44,5 @@ LOGIN_SERVER = "app.souma:24500"
 # Personas controlled by this Souma
 ENABLE_MYELIN = True
 
-# The interval at which the Myelin will be polled for new Vesicles
-MYELIN_POLLING_INTERVAL = 15
+# The interval in seconds at which the Myelin will be polled for new Vesicles
+MYELIN_POLLING_INTERVAL = 10

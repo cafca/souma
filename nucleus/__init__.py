@@ -1,6 +1,10 @@
 import logging
 import blinker
 
+from web_ui import db, app
+
+from sqlalchemy.orm import sessionmaker
+
 ERROR = {
     "MISSING_MESSAGE_TYPE": (1, "No message type found."),
     "MISSING_PAYLOAD": (2, "No data payload found."),
@@ -67,3 +71,26 @@ class UnauthorizedError(Exception):
 class VesicleStateError(Exception):
     """Throw this error when a Vesicle's state does not allow for an action"""
     pass
+
+
+# Import at bottom to avoid circular imports
+# Import all models to allow querying db binds
+from nucleus.models import *
+from vesicle import Vesicle
+
+# _Session is a custom sessionmaker that returns a session prefconfigured with the
+# model bindings from Nucleus
+_Session = sessionmaker(bind=db.get_engine(app))
+
+
+def create_session():
+    """Return a session to be used for database connections
+
+    Returns:
+        Session: SQLAlchemy session object
+    """
+    # Produces integrity errors!
+    # return _Session()
+
+    # db.session is managed by Flask-SQLAlchemy and bound to a request
+    return db.session

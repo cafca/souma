@@ -213,12 +213,14 @@ def create_persona():
     if form.validate_on_submit():
         # This is a unique ID which identifies the persona across all contexts
         uuid = uuid4().hex
+        created_dt = datetime.datetime.utcnow()
 
         # Save persona to DB
         p = Persona(
             id=uuid,
             username=request.form['name'],
-            email=request.form['email']
+            email=request.form['email'],
+            modified=created_dt,
         )
 
         # Create keypairs
@@ -232,15 +234,17 @@ def create_persona():
             id=uuid4().hex,
             author=p,
             kind="profile",
+            modified=created_dt
         )
+        db.session.add(p.profile)
 
         p.index = Starmap(
             id=uuid4().hex,
             author=p,
-            kind="index"
+            kind="index",
+            modified=created_dt
         )
-
-        db.session.add(p)
+        db.session.add(p.index)
         db.session.commit()
 
         local_model_changed.send(create_persona, message={
@@ -248,6 +252,20 @@ def create_persona():
             "action": "insert",
             "object_id": p.id,
             "object_type": "Persona",
+        })
+
+        local_model_changed.send(create_persona, message={
+            "author_id": p.id,
+            "action": "insert",
+            "object_id": p.profile.id,
+            "object_type": "Starmap",
+        })
+
+        local_model_changed.send(create_persona, message={
+            "author_id": p.id,
+            "action": "insert",
+            "object_id": p.index.id,
+            "object_type": "Starmap",
         })
 
         flash("New persona {} created!".format(p.username))
@@ -291,13 +309,19 @@ def create_star():
     if form.validate_on_submit():
         uuid = uuid4().hex
 
-        created = datetime.datetime.now()
+        author = Persona.query.get(request.form["author"])
+        if not author.controlled():
+            app.logger.error("Can't create Star with foreign Persona {}".format(author))
+            flash("Can't create Star with foreign Persona {}".format(author))
+            return redirect(url_for('create_star')), 401
+
+        new_star_created = datetime.datetime.utcnow()
         new_star = Star(
             id=uuid,
             text=request.form['text'],
-            author=request.form['author'],
-            created=created,
-            modified=created
+            author=author,
+            created=new_star_created,
+            modified=new_star_created
         )
         db.session.add(new_star)
         db.session.commit()
@@ -344,25 +368,30 @@ def create_star():
             db.session.commit()
             app.logger.info("Attached {} to new {}".format(planet, new_star))
 
-        local_model_changed.send(create_star, message={
+        # Add new Star to author's profile
+        author_profile = new_star.author.profile
+        author_profile.index.append(new_star)
+        author_profile.modified = new_star_created
+        db.session.add(author_profile)
+        db.session.commit()
+
+        message_star_insert = {
             "author_id": new_star.author.id,
             "action": "insert",
             "object_id": new_star.id,
             "object_type": "Star",
-        })
+        }
 
-        # Add new Star to author's profile
-        author_profile = new_star.author.profile
-        author_profile.index.append(new_star)
-        db.session.add(author_profile)
-        db.session.commit()
-
-        local_model_changed.send(create_star, message={
+        message_profile_update = {
             "author_id": new_star.author.id,
             "action": "update",
             "object_id": author_profile.id,
             "object_type": "Starmap"
-        })
+        }
+
+        # db.session.expunge_all()  # Remove everything from session before sending signal
+        local_model_changed.send(create_star, message=message_star_insert)
+        local_model_changed.send(create_star, message=message_profile_update)
 
         return redirect(url_for('star', id=uuid))
     return render_template('create_star.html', form=form, active_persona=active_persona)
@@ -372,33 +401,42 @@ def create_star():
 def delete_star(id):
     """ Delete a star """
     # TODO: Should only accept POST instead of GET
-    # TODO: Check permissions!
 
     # Load instance and author persona
     s = Star.query.get(id)
-
     if s is None:
         abort(404)
 
-    s.set_state(-2)
-    db.session.add(s)
-    db.session.commit()
+    if not s.author.controlled():
+        flash("You are not allowed to delete {}'s Stars".format(s.author))
+        app.logger.error("Tried to delete one of {}'s Stars".format(s.author))
+        return redirect(request.referrer)
+    else:
+        s.set_state(-2)
+        try:
+            db.session.add(s)
+            db.session.commit()
+        except:
+            app.logger.info("Error deleting {}".format(s))
+            db.session.rollback()
+        else:
+            message_delete = {
+                "author_id": s.author.id,
+                "action": "delete",
+                "object_id": s.id,
+                "object_type": "Star",
+            }
 
-    local_model_changed.send(delete_star, message={
-        "author_id": s.author.id,
-        "action": "delete",
-        "object_id": s.id,
-        "object_type": "Star",
-    })
+            local_model_changed.send(delete_star, message=message_delete)
 
-    app.logger.info("Deleted star {}".format(id))
-    return redirect(url_for('debug'))
+            app.logger.info("Deleted star {}".format(id))
+        return redirect(url_for('debug'))
 
 
 @app.route('/')
 def universe():
     """ Render the landing page """
-    stars = Star.query.filter(Star.state >= 0).all()
+    stars = Star.query.filter('Star.state >= 0').all()
     pm = PageManager()
     page = pm.auto_layout(stars)
 
@@ -457,6 +495,7 @@ def oneup(star_id):
         }
     return json_response(resp)
 
+
 @app.route('/debug/')
 def debug():
     """ Display raw data """
@@ -473,8 +512,8 @@ def find_people():
     from synapse.electrical import ElectricalSynapse
 
     form = FindPeopleForm(request.form)
-    found = None
-    error = None
+    error = found = None
+    found_new = list()
 
     if request.method == 'POST' and form.validate():
         # Compile message
@@ -496,15 +535,28 @@ def find_people():
 
             for p in found:
                 if Persona.query.get(p['id']) is None:
+                    import iso8601
                     app.logger.info("Storing new Persona {}".format(p['id']))
+
+                    modified = iso8601.parse_date(p["modified"]).replace(tzinfo=None)
+
                     p_new = Persona(
                         id=p['id'],
                         username=p['username'],
+                        modified=modified,
                         email=address,
                         crypt_public=p['crypt_public'],
-                        sign_public=p['sign_public'])
-                    db.session.add(p_new)
-                    db.session.commit()
+                        sign_public=p['sign_public']
+                    )
+                    p_new._stub = True
+                    found_new.append(p_new)
+
+            try:
+                for p in found_new:
+                    db.session.add(p)
+                db.session.commit()
+            except:
+                db.session.rollback()
         else:
             error = "No record for {}. Check the spelling!".format(address)
 
@@ -523,13 +575,21 @@ def add_contact(persona_id):
         db.session.add(author)
         db.session.commit()
 
+        app.logger.info("Added {} to {}'s contacts".format(persona, author))
+
+        local_model_changed.send(add_contact, message={
+            "author_id": author.id,
+            "action": "update",
+            "object_id": author.id,
+            "object_type": "Persona"
+        })
+
         new_contact.send(add_contact, message={
             'new_contact_id': persona.id,
             'author_id': author.id
         })
 
         flash("Added {} to {}'s address book".format(persona.username, author.username))
-        app.logger.info("Added {} to {}'s contacts".format(persona, author))
         return redirect(url_for('persona', id=persona.id))
 
     return render_template('add_contact.html', form=form, persona=persona)

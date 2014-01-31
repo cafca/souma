@@ -21,24 +21,20 @@ class Serializable():
     """ Make SQLAlchemy models json serializable
 
     Attributes:
-        _export_include: Default attributes to include in export
-        _update_include: Default attributes to include in export with update=True
+        _insert_required: Default attributes to include in export
+        _update_required: Default attributes to include in export with update=True
     """
+    id = None
+    modified = None
 
-    _export_include = []
-    _update_include = []
+    _insert_required = ["id", "modified"]
+    _update_required = ["id", "modified"]
 
-    def export(self, update=False, exclude=[], include=None):
+    def export(self, exclude=[], update=False):
         """Return this object as a dict.
 
-        Precedence is on the `include` parameter.
-
         Args:
-            update (Bool): Export only attributes defined in `self._update_include`
-            exclude (List): Export only those attributes from `self._export_include`
-                (or `self._update_include` if update=True) that are not in `exclude`
-            include (List): Export only those attributes from `self._export_include`
-                (or `self._update_include` if update=True) that are in `include`
+            update (Bool): Export only attributes defined in `self._update_required`
 
         Returns:
             Dict: The serialized object
@@ -46,18 +42,85 @@ class Serializable():
         Raises:
             KeyError: If a key was not found
         """
-        attr_names = self._update_include if update is True else self._export_include
+        attr_names = self._update_required if update is True else self._insert_required
+        attr_names = [a for a in attr_names if a not in exclude]
 
-        if include:
-            return {
-                attr: str(getattr(self, attr)) for attr in attr_names if attr in include}
-        else:
-            return {
-                attr: str(getattr(self, attr)) for attr in attr_names if attr not in exclude}
+        return {attr: str(getattr(self, attr)) for attr in attr_names}
 
-    def json(self, update=False, exclude=[], include=None):
-        """Return this object JSON encoded."""
-        return json.dumps(self.export(update=update, exclude=exclude, include=include), indent=4)
+    def json(self, update=False):
+        """Return this object JSON encoded.
+
+        Args:
+            update (Boolean): (optiona) See export docstring
+
+        Returns:
+            Str: JSON-encoded serialized instance
+        """
+        return json.dumps(self.export(update=update), indent=4)
+
+    @classmethod
+    def validate_changeset(cls, changeset, update=False):
+        """Check whether changeset contains all keys defined as required for this class.
+
+        Args:
+            changeset(dict): See created_from_changeset, update_from_changeset
+            update(Bool): If True use cls._update_required instead of cls._insert_required
+
+        Returns:
+            List: Missing keys
+        """
+        required_keys = cls._update_required if update else cls._insert_required
+        missing = list()
+
+        for k in required_keys:
+            if k not in changeset.keys():
+                missing.append(k)
+        return missing
+
+    @staticmethod
+    def created_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
+        """Create a new instance from a changeset.
+
+        Args:
+            changeset (dict): Dictionary of model values. Requires all keys
+                defined in Serializable._insert_required with class-specific values.
+            stub (Serializable): (Optional) model instance whose values will be
+                overwritten with those defined in changeset.
+            update_sender (Persona): (Optional) author of this changeset. Will be
+                used as recipient of subsequent object requests.
+            update_recipient (Persona): (Optional) recipient of this changeset.
+                Will be used as sender of subsequent object requests.
+
+        Returns:
+            Serializable: Instance created from changeset
+
+        Raises:
+            KeyError: Missing key in changeset
+            TypeError: Argument has wrong type
+            ValueError: Argument value cannot be processed
+        """
+        raise NotImplementedError()
+
+    def update_from_changeset(self, changeset, update_sender=None, update_recipient=None):
+        """Update self with new values in changeset
+
+        Args:
+            changeset (dict): Dictionary of model values. Requires all keys
+                defined in self._update_required with class-specific values.
+            update_sender (Persona): (Optional) author of this changeset. Will be
+                used as recipient of subsequent object requests.
+            update_recipient (Persona): (Optional) recipient of this changeset.
+                Will be used as sender of subsequent object requests.
+
+        Returns:
+            Serializable: Updated instance
+
+        Raises:
+            KeyError: Missing key in changeset
+            TypeError: Argument has wrong type
+            ValueError: Argument value cannot be processed
+        """
+        raise NotImplementedError()
 
 #
 # Setup follower relationship on Persona objects
@@ -80,7 +143,7 @@ class Persona(Serializable, db.Model):
     """A Persona represents a user profile
 
     Attributes:
-        _export_include: Attributes that are serialized
+        _insert_required: Attributes that are serialized
         id: 32 byte ID generated by uuid4().hex
         username: Public username of the Persona, max 80 bytes
         email: An email address, max 120 bytes
@@ -99,9 +162,9 @@ class Persona(Serializable, db.Model):
 
     __tablename__ = "persona"
 
-    _export_include = ["id", "username", "email", "crypt_public",
-        "sign_public", "modified", "profile_id", "index_id"]
-    _update_include = ["username", "email", "profile_id", "index_id"]
+    _insert_required = ["id", "username", "email", "crypt_public",
+        "sign_public", "modified", "profile_id", "index_id", "contacts"]
+    _update_required = ["id", "username", "email", "profile_id", "index_id", "modified", "contacts"]
 
     _stub = db.Column(db.Boolean, default=False)
     id = db.Column(db.String(32), primary_key=True)
@@ -111,7 +174,7 @@ class Persona(Serializable, db.Model):
     crypt_public = db.Column(db.Text)
     sign_private = db.Column(db.Text)
     sign_public = db.Column(db.Text)
-    modified = db.Column(db.DateTime, default=datetime.datetime.now(), onupdate=datetime.datetime.now())
+    modified = db.Column(db.DateTime, default=datetime.datetime.utcnow())
 
     contacts = db.relationship(
         'Persona',
@@ -154,9 +217,10 @@ class Persona(Serializable, db.Model):
     def get_absolute_url(self):
         return url_for('persona', id=self.id)
 
-    def export(self, exclude=[], include=[]):
-        data = Serializable.export(self, exclude=exclude, include=include)
+    def export(self, update=False):
+        data = Serializable.export(self, exclude=["contacts", ], update=update)
 
+        data["contacts"] = list()
         for contact in self.contacts:
             data["contacts"].append({
                 "id": contact.id,
@@ -203,60 +267,179 @@ class Persona(Serializable, db.Model):
         key_public = RsaPublicKey.Read(self.sign_public)
         return key_public.Verify(data, signature)
 
-    def update_from_changeset(self, changeset):
-        """Update this Persona profile using a changeset
+    @staticmethod
+    def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
+        """See Serializable.create_from_changeset"""
+        request_list = list()
 
-        Args:
-            changeset (dict): Dictionary containing keys from self._update_include
+        modified_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
 
-        Returns:
-            Persona: The updated Persona
+        if stub:
+            p = stub
+            p.id = changeset["id"]
+            p.username = changeset["username"]
+            p.email = changeset["email"]
+            p.crypt_public = changeset["crypt_public"]
+            p.sign_public = changeset["sign_public"]
+            p.modified = modified_dt
+        else:
+            p = Persona(
+                id=changeset["id"],
+                username=changeset["username"],
+                email=changeset["email"],
+                crypt_public=changeset["crypt_public"],
+                sign_public=changeset["sign_public"],
+                modified=modified_dt,
+            )
 
-        Raises:
-            ValueError: One of the update values is invalid
-            NotImplementedError: If trying to update a value not in self._update_include
-        """
-        for k in changeset.keys():
-            if k not in self._update_include:
-                app.logger.warning("Updating '{}' is not implemented".format(k))
-                del changeset[k]
+        # Update profile
+        profile = Starmap.query.get(changeset["profile_id"])
+        if profile is None or profile.get_state() == -1:
+            request_list.append({
+                "type": "Starmap",
+                "id": changeset["profile_id"],
+                "author_id": update_recipient.id,
+                "recipient_id": update_sender.id,
+            })
 
-        if "username" in changeset:
-            self.username = changeset["username"]
+        if profile is None:
+            profile = Starmap(id=changeset["profile_id"])
+            profile.state = -1
 
-        if "email" in changeset:
-            self.email = changeset["email"]
+        p.profile = profile
 
-        if "profile_id" in changeset:
-            profile = Starmap.query.get(changeset["profile_id"])
-            if profile is None or profile.get_state() == -1:
-                request_objects.send(self.update_from_changeset, message={
-                    "type": "Starmap",
-                    "id": changeset["profile_id"]
+        # Update index
+        index = Starmap.query.get(changeset["index_id"])
+        if index is None or index.get_state() == -1:
+            request_list.append({
+                "type": "Starmap",
+                "id": changeset["index_id"],
+                "author_id": update_recipient.id,
+                "recipient_id": update_sender.id,
+            })
+
+        if index is None:
+            index = Starmap(id=changeset["index_id"])
+            index.state = -1
+
+        p.index = index
+
+        # Update contacts
+        for contact in changeset["contacts"]:
+            c = Persona.query.get(contact["id"])
+
+            if c is None:
+                c = Persona(id=contact["id"], _stub=True)
+                request_list.append({
+                    "type": "Persona",
+                    "id": contact["id"],
+                    "author_id": update_recipient.id,
+                    "recipient_id": update_sender.id,
                 })
-            else:
-                self.profile = profile
 
-        if "index_id" in changeset:
-            index = Starmap.query.get(changeset["index_id"])
-            if index is None or index.get_state() == -1:
-                request_objects.send(self.update_from_changeset, message={
-                    "type": "Starmap",
-                    "id": changeset["index_id"]
+            p.contacts.append(c)
+
+        app.logger.info("Created {} from changeset, now requesting {} linked objects".format(
+            p, len(request_list)))
+
+        for req in request_list:
+            request_objects.send(Persona.create_from_changeset, message=req)
+
+        return p
+
+    def update_from_changeset(self, changeset, update_sender=None, update_recipient=None):
+        """See Serializable.update_from_changeset"""
+        request_list = list()
+
+        # Update modified
+        modified_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
+        self.modified = modified_dt
+
+        # Update username
+        self.username = changeset["username"]
+        app.logger.info("Updated {}'s {}".format(self.username, "username"))
+
+        # Update email
+        self.email = changeset["email"]
+        app.logger.info("Updated {}'s {}".format(self.username, "email"))
+
+        # Update contacts
+        updated_contacts = list()
+        requested_contacts = list()
+
+        # remove_contacts contains all old contacts at first, all current
+        # contacts get then removed so that the remaining can get deleted
+        remove_contacts = set(self.contacts)
+
+        for contact in changeset["contacts"]:
+            c = Persona.query.get(contact["id"])
+
+            if c is None:
+                c = Persona(id=contact["id"], _stub=True)
+                request_list.append({
+                    "type": "Persona",
+                    "id": contact["id"],
+                    "author_id": update_recipient.id,
+                    "recipient_id": update_sender.id,
                 })
+                requested_contacts.append(c)
             else:
-                self.index = index
+                updated_contacts.append(c)
 
-        app.logger.info("Updated {}'s {}".format(self.username, ", ".join(changeset)))
+                try:
+                    remove_contacts.remove(c)
+                except KeyError:
+                    pass
+
+            self.contacts.append(c)
+
+        for contact in remove_contacts:
+            self.contacts.remove(contact)
+
+        app.logger.info("Updated {}'s contacts: {} added, {} removed, {} requested".format(
+            self.username, len(updated_contacts), len(remove_contacts), len(requested_contacts)))
+
+        # Update profile
+        profile = Starmap.query.get(changeset["profile_id"])
+        if profile is None or profile.get_state() == -1:
+            request_list.append({
+                "type": "Starmap",
+                "id": changeset["profile_id"],
+                "author_id": update_recipient.id,
+                "recipient_id": update_sender.id,
+            })
+            app.logger.info("Requested {}'s {}".format(self.username, "profile starmap"))
+        else:
+            self.profile = profile
+            app.logger.info("Updated {}'s {}".format(self.username, "profile starmap"))
+
+        # Update index
+        index = Starmap.query.get(changeset["index_id"])
+        if index is None or index.get_state() == -1:
+            request_list.append({
+                "type": "Starmap",
+                "id": changeset["index_id"],
+                "author_id": update_recipient.id,
+                "recipient_id": update_sender.id,
+            })
+            app.logger.info("Requested {}'s new {}".format(self.username, "index starmap"))
+        else:
+            self.index = index
+            app.logger.info("Updated {}'s {}".format(self.username, "index starmap"))
+
+        app.logger.info("Updated {} from changeset. Requesting {} objects.".format(self, len(request_list)))
+
+        for req in request_list:
+            request_objects.send(Persona.create_from_changeset, message=req)
 
 
 class Oneup(Serializable, db.Model):
     """A 1up is a vote that signals interest in a Star"""
 
     __tablename__ = "oneup"
-    id = db.Column(db.String(32), primary_key=True, default=uuid4().hex)
-    created = db.Column(db.DateTime, default=datetime.datetime.now())
-    modified = db.Column(db.DateTime, default=datetime.datetime.now(), onupdate=datetime.datetime.now())
+    id = db.Column(db.String(32), primary_key=True)
+    created = db.Column(db.DateTime, default=datetime.datetime.utcnow())
+    modified = db.Column(db.DateTime, default=datetime.datetime.utcnow())
     state = db.Column(db.Integer, default=0)
 
     author = db.relationship("Persona",
@@ -274,12 +457,12 @@ class Oneup(Serializable, db.Model):
         Return publishing state of this 1up.
 
         Returns:
-            One of:
-                "disabled"
-                "active"
-                "unknown author"
+            Integer:
+                -1 -- (disabled)
+                 0 -- (active)
+                 1 -- (unknown author)
         """
-        return ONEUP_STATES[self.state]
+        return ONEUP_STATES[self.state][0]
 
     def set_state(self, new_state):
         """
@@ -306,14 +489,20 @@ class Star(Serializable, db.Model):
 
     __tablename__ = "star"
 
-    _export_include = ["id", "text", "created", "modified", "author_id"]
-    _update_include = ["text", "modified"]
+    _insert_required = ["id", "text", "created", "modified", "author_id", "planets"]
+    _update_required = ["id", "text", "modified"]
 
     id = db.Column(db.String(32), primary_key=True)
     text = db.Column(db.Text)
-    created = db.Column(db.DateTime, default=datetime.datetime.now())
-    modified = db.Column(db.DateTime, default=datetime.datetime.now(), onupdate=datetime.datetime.now())
+    created = db.Column(db.DateTime, default=datetime.datetime.utcnow())
+    modified = db.Column(db.DateTime, default=datetime.datetime.utcnow())
     state = db.Column(db.Integer, default=0)
+
+    author = db.relationship('Persona',
+        backref=db.backref('starmap'),
+        primaryjoin="Persona.id==Star.author_id")
+
+    author_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
 
     oneups = db.relationship('Oneup',
         backref='star',
@@ -331,69 +520,64 @@ class Star(Serializable, db.Model):
         primaryjoin='star_vesicles.c.star_id==star.c.id',
         secondaryjoin='star_vesicles.c.vesicle_id==vesicle.c.id')
 
-    author = db.relationship('Persona',
-        backref=db.backref('starmap'),
-        primaryjoin="Persona.id==Star.author_id")
-
-    author_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
-
-    def __init__(self, id, text, author, created, modified):
-        self.id = id
-        self.text = text
-        self.created = created
-        self.modifed = modified
-
-        if not isinstance(author, Persona):
-            self.author_id = author
-        else:
-            self.author_id = author.id
-
     def __repr__(self):
-        ascii_text = self.text.encode('utf-8')
+        try:
+            ascii_text = self.text.encode('utf-8')
+        except AttributeError:
+            ascii_text = "No text content"
         return "<Star {}: {}>".format(
-            self.author_id[:6],
+            self.id[:6],
             (ascii_text[:24] if len(ascii_text) <= 24 else ascii_text[:22] + ".."))
 
     @staticmethod
-    def create_from_changeset(changeset):
-        """Create a new Star object from a changeset.
+    def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
+        """See Serializable.create_from_changeset"""
+        created_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
+        modified_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
 
-        Args:
-            changeset (dict): Contains a key for every value in Star._export_include
-
-        Returns:
-            Star: The new Star object
-
-        Raises:
-            ValueError: If a value is invalid
-            KeyError: If a required Value is missing
-        """
-        for k in (Star._export_include):
-            if k not in changeset.keys():
-                raise KeyError("Missing value '{}' in changeset".format(k))
-
-        created_dt = iso8601.parse_date(changeset["modified"])
-        modified_dt = iso8601.parse_date(changeset["modified"])
-
-        star = Star(
-            id=changeset["id"],
-            text=changeset["text"],
-            author=None,
-            created=created_dt,
-            modified=modified_dt,
-        )
+        if stub is not None:
+            star = stub
+            star.text = changeset["text"]
+            star.author = None
+            star.created = created_dt
+            star.modified = modified_dt
+        else:
+            star = Star(
+                id=changeset["id"],
+                text=changeset["text"],
+                author=None,
+                created=created_dt,
+                modified=modified_dt,
+            )
 
         author = Persona.query.get(changeset["author_id"])
         if author is None:
+            # TODO: Send request for author
             star.author_id = changeset["author_id"]
         else:
             star.author = author
 
+        app.logger.info("Created new Star from changeset")
+
         return star
 
-    def export(self, exclude=[], include=[]):
-        data = Serializable.export(self, exclude=exclude, include=include)
+    def update_from_changeset(self, changeset, update_sender=None, update_recipient=None):
+        """Update a Star from a changeset (See Serializable.update_from_changeset)"""
+        # Update modified
+        modified_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
+        self.modified = modified_dt
 
+        # Update text
+        self.text = changeset["text"]
+
+        app.logger.info("Updated {} from changeset".format(self))
+
+    def export(self, update=False):
+        """See Serializable.export"""
+
+        data = Serializable.export(self, exclude=["planets", ], update=update)
+
+        data["planets"] = list()
         for planet in self.planets:
             data["planets"].append(planet.export())
 
@@ -404,15 +588,15 @@ class Star(Serializable, db.Model):
         Return publishing state of this star.
 
         Returns:
-            One of:
-                (-2, "deleted")
-                (-1, "unavailable")
-                (0, "published")
-                (1, "draft")
-                (2, "private")
-                (3, "updating")
+            Integer:
+                -2 -- deleted
+                -1 -- unavailable
+                0 -- published
+                1 -- draft
+                2 -- private
+                3 -- updating
         """
-        return STAR_STATES[self.state]
+        return STAR_STATES[self.state][0]
 
     def set_state(self, new_state):
         """
@@ -520,14 +704,14 @@ class Planet(Serializable, db.Model):
 
     __tablename__ = 'planet'
 
-    _export_include = ["id", "title", "created", "modified", "source"]
-    _update_include = ["title", "modified", "source"]
+    _insert_required = ["id", "title", "created", "modified", "source"]
+    _update_required = ["id", "title", "modified", "source"]
 
     id = db.Column(db.String(32), primary_key=True)
     title = db.Column(db.Text)
     kind = db.Column(db.String(32))
-    created = db.Column(db.DateTime, default=datetime.datetime.now())
-    modified = db.Column(db.DateTime, default=datetime.datetime.now(), onupdate=datetime.datetime.now())
+    created = db.Column(db.DateTime, default=datetime.datetime.utcnow())
+    modified = db.Column(db.DateTime, default=datetime.datetime.utcnow())
     source = db.Column(db.String(128))
     state = db.Column(db.Integer, default=0)
 
@@ -550,15 +734,15 @@ class Planet(Serializable, db.Model):
         Return publishing state of this planet.
 
         Returns:
-            One of:
-                (-2, "deleted")
-                (-1, "unavailable")
-                (0, "published")
-                (1, "draft")
-                (2, "private")
-                (3, "updating")
+            Integer:
+                -2 -- deleted
+                -1 -- unavailable
+                0 -- published
+                1 -- draft
+                2 -- private
+                3 -- updating
         """
-        return PLANET_STATES[self.state]
+        return PLANET_STATES[self.state][0]
 
     def set_state(self, new_state):
         """
@@ -573,34 +757,24 @@ class Planet(Serializable, db.Model):
         else:
             self.state = new_state
 
-    def export(self, exclude=[], include=[]):
-        return Serializable.export(self, exclude=exclude, include=include)
+    def export(self, update=False):
+        return Serializable.export(self, update=update)
 
     @staticmethod
-    def create_from_changeset(changeset):
-        """Create a new Planet object from a changeset.
-
-        Args:
-            changeset (dict): Contains a key for every value in Planet._export_include
-
-        Returns:
-            Planet: The new Planet object
-
-        Raises:
-            ValueError: If a value is invalid
-            KeyError: If a required Value is missing
-        """
+    def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
+        """Create a new Planet object from a changeset (See Serializable.create_from_changeset). """
         raise NotImplementedError
 
-    def update_from_changeset(changeset):
+    def update_from_changeset(changeset, update_sender=None, update_recipient=None):
+        """Update a new Planet object from a changeset (See Serializable.update_from_changeset). """
         raise NotImplementedError
 
 
 class PicturePlanet(Planet):
     """A Picture attachment"""
 
-    _export_include = ["id", "title", "created", "modified", "source", "filename"]
-    _update_include = ["title", "modified", "source", "filename"]
+    _insert_required = ["id", "title", "created", "modified", "source", "filename"]
+    _update_required = ["id", "title", "modified", "source", "filename"]
 
     id = db.Column(db.String(32), ForeignKey('planet.id'), primary_key=True)
     filename = db.Column(db.Text)
@@ -610,43 +784,20 @@ class PicturePlanet(Planet):
     }
 
     @staticmethod
-    def create_from_changeset(changeset):
-        """Create a new PicturePlanet object from a changeset.
+    def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
+        """Create a new Planet object from a changeset (See Serializable.create_from_changeset). """
+        raise NotImplementedError
 
-        Args:
-            changeset (dict): Contains a key for every value in PicturePlanet._export_include
-
-        Returns:
-            PicturePlanet: The new PicturePlanet object
-
-        Raises:
-            ValueError: If a value is invalid
-            KeyError: If a required Value is missing
-        """
-        for k in (PicturePlanet._export_include):
-            if k not in changeset.keys():
-                raise KeyError("Missing value '{}' in changeset".format(k))
-
-        created_dt = iso8601.parse_date(changeset["modified"])
-        modified_dt = iso8601.parse_date(changeset["modified"])
-
-        pplanet = PicturePlanet(
-            id=changeset["id"],
-            title=changeset["title"],
-            created=created_dt,
-            modified=modified_dt,
-            source=changeset["source"],
-            filename=changeset["filename"]
-        )
-
-        return pplanet
+    def update_from_changeset(changeset, update_sender=None, update_recipient=None):
+        """Update a new Planet object from a changeset (See Serializable.update_from_changeset). """
+        raise NotImplementedError
 
 
 class LinkPlanet(Planet):
     """A URL attachment"""
 
-    _export_include = ["id", "title", "kind", "created", "modified", "source", "url"]
-    _update_include = ["title", "modified", "source", "url"]
+    _insert_required = ["id", "title", "kind", "created", "modified", "source", "url"]
+    _update_required = ["id", "title", "modified", "source", "url"]
 
     id = db.Column(db.String(32), ForeignKey('planet.id'), primary_key=True)
     url = db.Column(db.Text)
@@ -656,36 +807,13 @@ class LinkPlanet(Planet):
     }
 
     @staticmethod
-    def create_from_changeset(changeset):
-        """Create a new LinkPlanet object from a changeset.
+    def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
+        """Create a new Planet object from a changeset (See Serializable.create_from_changeset). """
+        raise NotImplementedError
 
-        Args:
-            changeset (dict): Contains a key for every value in LinkPlanet._export_include
-
-        Returns:
-            LinkPlanet: The new LinkPlanet object
-
-        Raises:
-            ValueError: If a value is invalid
-            KeyError: If a required Value is missing
-        """
-        for k in (LinkPlanet._export_include):
-            if k not in changeset.keys():
-                raise KeyError("Missing value '{}' in changeset".format(k))
-
-        created_dt = iso8601.parse_date(changeset["modified"])
-        modified_dt = iso8601.parse_date(changeset["modified"])
-
-        lplanet = LinkPlanet(
-            id=changeset["id"],
-            title=changeset["title"],
-            created=created_dt,
-            modified=modified_dt,
-            source=changeset["source"],
-            url=changeset["url"]
-        )
-
-        return lplanet
+    def update_from_changeset(changeset, update_sender=None, update_recipient=None):
+        """Update a new Planet object from a changeset (See Serializable.update_from_changeset). """
+        raise NotImplementedError
 
 
 class Souma(Serializable, db.Model):
@@ -693,7 +821,7 @@ class Souma(Serializable, db.Model):
 
     __tablename__ = "souma"
 
-    _export_include = ["id", "crypt_public", "sign_public", "starmap_id"]
+    _insert_required = ["id", "modified", "crypt_public", "sign_public", "starmap_id"]
     id = db.Column(db.String(32), primary_key=True)
 
     crypt_private = db.Column(db.Text)
@@ -765,7 +893,7 @@ t_starmap = db.Table(
     db.Column('star_id', db.String(32), db.ForeignKey('star.id'))
 )
 
-t_planet_vesicles = db.Table(
+t_starmap_vesicles = db.Table(
     'starmap_vesicles',
     db.Column('starmap_id', db.String(32), db.ForeignKey('starmap.id')),
     db.Column('vesicle_id', db.String(32), db.ForeignKey('vesicle.id'))
@@ -786,12 +914,13 @@ class Starmap(Serializable, db.Model):
     """
     __tablename__ = 'starmap'
 
-    _export_include = ["id", "modified", "author_id", "kind"]
-    _update_include = ["modified"]
+    _insert_required = ["id", "modified", "author_id", "kind", "state"]
+    _update_required = ["id", "modified", "index"]
 
     id = db.Column(db.String(32), primary_key=True)
-    modified = db.Column(db.DateTime, default=datetime.datetime.now(), onupdate=datetime.datetime.now())
+    modified = db.Column(db.DateTime, default=datetime.datetime.utcnow())
     kind = db.Column(db.String(16))
+    state = db.Column(db.Integer, default=0)
 
     author_id = db.Column(
         db.String(32),
@@ -829,20 +958,53 @@ class Starmap(Serializable, db.Model):
     def __len__(self):
         return self.index.paginate(1).total
 
-    def export(self, update=False, exclude=[], include=[]):
-        data = Serializable.export(self, exclude=exclude, include=include)
+    def get_state(self):
+        """
+        Return publishing state of this star.
 
-        for star in self.index.filter('Star.state > 0'):
-            data["index"].append(star.export())
+        Returns:
+            Integer:
+                -2 -- deleted
+                -1 -- unavailable
+                0 -- published
+                1 -- draft
+                2 -- private
+                3 -- updating
+        """
+        return STAR_STATES[self.state][0]
+
+    def set_state(self, new_state):
+        """
+        Set the publishing state of this star
+
+        Parameters:
+            new_state (int) code of the new state as defined in nucleus.STAR_STATES
+        """
+        if not isinstance(new_state, int) or new_state not in STAR_STATES.keys():
+            raise ValueError("{} ({}) is not a valid star state").format(
+                new_state, type(new_state))
+        else:
+            self.state = new_state
+
+    def export(self, update=False):
+        data = Serializable.export(self, exclude=["index", ], update=update)
+
+        data["index"] = list()
+        for star in self.index.filter('Star.state >= 0'):
+            data["index"].append({
+                "id": star.id,
+                "modified": star.modified.isoformat(),
+                "author_id": star.author.id
+            })
 
         return data
 
     @staticmethod
-    def create_from_changeset(changeset):
+    def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
         """Create a new Starmap object from a changeset
 
         Args:
-            changeset (dict): Contains all keys from self._export_include
+            changeset (dict): Contains all keys from self._insert_required
 
         Returns:
             Starmap: The new object
@@ -851,66 +1013,61 @@ class Starmap(Serializable, db.Model):
             ValueError: If a value is invalid
             KeyError: If a required Value is missing
         """
-        for k in (Starmap._export_include + "index"):
-            if k not in changeset.keys():
-                raise KeyError("Missing value '{}' in changeset".format(k))
-
-        modified_dt = iso8601.parse_date(changeset["modified"])
+        modified_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
 
         author = Persona.query.get(changeset["author_id"])
         if author is None:
             raise PersonaNotFoundError("Starmap author not known")
 
-        new_starmap = Starmap(
-            id=changeset["id"],
-            modified=modified_dt,
-            author=author,
-            kind=changeset["kind"]
-        )
+        if stub is not None:
+            new_starmap = stub
+            new_starmap.modified = modified_dt
+            new_starmap.author = author
+            new_starmap.kind = changeset["kind"]
+        else:
+            new_starmap = Starmap(
+                id=changeset["id"],
+                modified=modified_dt,
+                author=author,
+                kind=changeset["kind"]
+            )
 
-        request_objects = list()
+        request_list = list()
         for star_changeset in changeset["index"]:
             star = Star.query.get(star_changeset["id"])
+            star_changeset_modified = iso8601.parse_date(star_changeset["modified"]).replace(tzinfo=None)
 
-            if star is None:
-                star = Star.create_from_changeset(star_changeset)
-                db.session.add(star)
-                db.session.commit()
-
-            elif star.get_state() == -1 or star.modified < star_changeset["modified"]:
-                request_objects.append({
+            if star is None or star.get_state() == -1 or star.modified < star_changeset_modified:
+                request_list.append({
                     "type": "Star",
-                    "id": star_changeset["id"]
+                    "id": star_changeset["id"],
+                    "author_id": update_recipient.id,
+                    "recipient_id": update_sender.id,
                 })
 
-            new_starmap.index.append(star)
-
-            if len(star_changeset["planets"]) > 0:
-                for planet_changeset in star_changeset["planets"]:
-                    planet = Planet.query.get(planet_changeset["id"])
-
-                    if planet is None:
-                        planet = Planet.create_from_changeset(planet_changeset)
-
-                        db.session.add(planet)
+                if star is None:
+                    star_author = Persona.query.get(star_changeset["author_id"])
+                    if star_author is not None:
+                        star = Star(
+                            id=star_changeset["id"],
+                            modified=star_changeset_modified,
+                            author=star_author
+                        )
+                        star.set_state(-1)
+                        db.session.add(star)
                         db.session.commit()
 
-                    elif planet.get_state() == -1 or planet.modified < planet_changeset["modified"]:
-                        request_objects.append({
-                            "type": "Planet",
-                            "id": planet_changeset["id"]
-                        })
-
-                    star.planets.append(planet)
-                db.session.add(star)
-                db.session.commit()
+            new_starmap.index.append(star)
 
         db.session.add(new_starmap)
         db.session.commit()
 
-        request_objects.send(Starmap.create_from_changeset, request_objects)
+        for req in request_list:
+            request_objects.send(Starmap.create_from_changeset, message=req)
 
-    def update_from_changeset(self, changeset):
+        return new_starmap
+
+    def update_from_changeset(self, changeset, update_sender=None, update_recipient=None):
         """Update the Starmap's index using a changeset
 
         Args:
@@ -919,4 +1076,52 @@ class Starmap(Serializable, db.Model):
         Raises:
             ValueError: If a value in the changeset is invalid
         """
-        raise NotImplementedError("Updating Starmap not implemented")
+        # Update modified
+        modified = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
+        self.modified = modified
+
+        # Update index
+        remove_stars = set([s.id for s in self.index if s is not None])
+        added_stars = list()
+        request_list = list()
+        for star_changeset in changeset["index"]:
+            star = Star.query.get(star_changeset["id"])
+            star_changeset_modified = iso8601.parse_date(star_changeset["modified"]).replace(tzinfo=None)
+
+            if star is not None and star.id in remove_stars:
+                remove_stars.remove(star.id)
+
+            if star is None or star.get_state() == -1 or star.modified < star_changeset_modified:
+                # No copy of Star available or copy is outdated
+
+                request_list.append({
+                    "type": "Star",
+                    "id": star_changeset["id"],
+                    "author_id": update_recipient.id,
+                    "recipient_id": update_sender.id,
+                })
+
+                if star is None:
+                    star_author = Persona.query.get(star_changeset["author_id"])
+                    if star_author is not None:
+                        star = Star(
+                            id=star_changeset["id"],
+                            modified=star_changeset_modified,
+                            author=star_author
+                        )
+                        star.set_state(-1)
+                        db.session.add(star)
+                        db.session.commit()
+
+            self.index.append(star)
+            added_stars.append(star)
+
+        for s_id in remove_stars:
+            s = Star.query.get(s_id)
+            self.index.remove(s)
+
+        app.logger.info("Updated {}: {} stars added, {} requested, {} removed".format(
+            self, len(added_stars), len(request_list), len(remove_stars)))
+
+        for req in request_list:
+            request_objects.send(Starmap.create_from_changeset, message=req)

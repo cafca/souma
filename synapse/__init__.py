@@ -5,11 +5,11 @@ from dateutil.parser import parse as dateutil_parse
 from gevent.pool import Pool
 from uuid import uuid4
 
-from nucleus import notification_signals, PersonaNotFoundError, UnauthorizedError, VesicleStateError
+from nucleus import create_session, notification_signals, PersonaNotFoundError, UnauthorizedError, VesicleStateError
 from nucleus.models import Persona, Star, Planet, Starmap
 from nucleus.vesicle import Vesicle
 from synapse.electrical import ElectricalSynapse
-from web_ui import app, db
+from web_ui import app
 
 # These are Vesicle options which are recognized by this Synapse
 ALLOWED_MESSAGE_TYPES = [
@@ -54,14 +54,12 @@ class Synapse():
         signal('new-contact').connect(self.on_new_contact)
         signal('request-objects').connect(self.on_request_objects)
 
-    def _distribute_vesicle(self, vesicle, signed=False, recipients=None):
+    def _distribute_vesicle(self, vesicle, recipients=None):
         """
-        Distribute vesicle to all online peers. Uses Myelin if enabled.
+        Encrypt, sign and distribute vesicle to `recipients` using Myelin
 
         Args:
             vesicle (Vesicle): The message to transmit.
-            signed (Bool): Set to True to sign using the Persona
-                specified in vesicle.author_id
             recipients (List): List of Persona objects. If recipients is not
                 empty, the Vesicle is encrypted and the key is transmitted for
                 this list of Personas.
@@ -69,46 +67,36 @@ class Synapse():
         Returns:
             Vesicle: The (signed and encrypted) Vesicle object
         """
-
-        self.logger.debug("Distributing {} {} to {} recipients {}".format(
-            "signed" if signed else "unsigned",
+        self.logger.debug("Distributing {} to {} recipients {}".format(
             vesicle,
             len(recipients) if recipients is not None else "0",
             "via Myelin" if app.config["ENABLE_MYELIN"] else ""))
 
-        if recipients:
-            if vesicle.encrypted():
-                # If the vesicle was already encrypted, only add those new
-                # recipients that are contacts of the vesicle author
-                new_keycrypt = dict()
-                old_keycrypt = json.loads(vesicle.keycrypt)
+        if not hasattr(vesicle, "author"):
+            raise ValueError("Can't send Vesicle without defined author")
 
-                # First remove everyone from keycrypt that is not a current recipient
-                old_keycrypt = json.loads(vesicle.keycrypt)
-                remove_recipients = set(old_keycrypt.keys()) - set([r.id for r in recipients])
-                for recipient_id in remove_recipients:
-                    del old_keycrypt[recipient_id]
-                vesicle.keycrypt = json.dumps(new_keycrypt)
+        if vesicle.encrypted():
+            keycrypt = json.loads(vesicle.keycrypt)
 
-                # Then add the new recipients
-                vesicle.add_recipients(recipients)
+            # First remove everyone from keycrypt that is not a current recipient
+            keycrypt = json.loads(vesicle.keycrypt)
+            remove_recipients = set(keycrypt.keys()) - set([r.id for r in recipients])
+            for recipient_id in remove_recipients:
+                if recipient_id != vesicle.author_id:  # Don't remove author!
+                    del keycrypt[recipient_id]
+            vesicle.keycrypt = json.dumps(keycrypt)
 
-                # new_recipients = [rec for rec in recipients if rec in vesicle.author.contacts]
-                # for rec in new_recipients:
-                #     new_keycrypt[rec.id] = old_keycrypt[rec.id]
+            # Then add the new recipients
+            vesicle.add_recipients(recipients)
 
-                self.logger.info("{} was already encrypted.".format(self))
-            else:
-                vesicle.encrypt(recipients=recipients)
+            self.logger.debug("{} was already encrypted: Modified keycrypt.".format(vesicle))
+        else:
+            vesicle.encrypt(recipients=recipients)
 
-        if signed:
-            try:
-                vesicle.sign()
-            except VesicleStateError:
-                self.logger.info("{} was already signed".format(vesicle))
-
-        db.session.add(vesicle)
-        db.session.commit()
+        try:
+            vesicle.sign()
+        except VesicleStateError:
+            self.logger.info("{} was already signed".format(vesicle))
 
         if app.config["ENABLE_MYELIN"]:
             self.electrical.myelin_store(vesicle)
@@ -173,13 +161,14 @@ class Synapse():
         call = getattr(self.logger, level)
         call("{msg}:\n{list}".format(msg=msg, list="\n* ".join(str(e) for e in errors)))
 
-    def handle_object(self, vesicle, reader_persona):
+    def handle_object(self, vesicle, reader_persona, session):
         """
         Handle received object updates by verifying the request and calling
         an appropriate handler
 
         Args:
             vesicle (Vesicle): Vesicle containing the object changeset
+            reader_persona (Persona): Persona used for decrypting the Vesicle
         """
         # Validate response
         errors = list()
@@ -202,14 +191,17 @@ class Synapse():
             self.logger.error("Malformed object received\n{}".format("\n".join(errors)))
         else:
             handler = getattr(self, "object_{}".format(action))
-            new_obj = handler(author, reader_persona, object_type, obj)
+            new_obj = handler(author, reader_persona, object_type, obj, session)
 
             if new_obj is not None:
+                vesicle.handled = True
                 new_obj.vesicles.append(vesicle)
-                db.session.add(new_obj)
-                db.session.commit()
 
-    def handle_object_request(self, vesicle, reader_persona):
+                session.add(new_obj)
+                session.add(vesicle)
+                session.commit()
+
+    def handle_object_request(self, vesicle, reader_persona, session):
         """
         Act on received object requests by sending the object in question back
 
@@ -242,13 +234,23 @@ class Synapse():
             if obj is None:
                 self.logger.error("Requested object <{type} {id}> not found".format(
                     type=object_type, id=object_id[:6]))
+
+            elif hasattr(obj, "author") and recipient not in obj.author.contacts:
+                    self.logger.info("Requested {} not published for request author {}".format(obj, recipient))
+            elif isinstance(obj, Persona) and recipient not in obj.contacts:
+                    self.logger.info("Requested {} does not have requesting {} as a contact.".format(obj, recipient))
             else:
-                for vesicle in obj.vesicles:
+                for v in obj.vesicles:
                     # Send response
-                    self._distribute_vesicle(vesicle, recipients=[recipient, ])
-                    self.logger.info("Sent {} {} to {}".format(
-                        object_type, object_id, recipient
-                    ))
+                    # Modified vesicles (re-encrypted) don't get saved to DB
+                    self._distribute_vesicle(v, recipients=[recipient, ])
+                self.logger.info("Sent {}'s {} vesicles to {}".format(
+                    obj, len(obj.vesicles), recipient
+                ))
+
+        vesicle.handled = True
+        session.add(vesicle)
+        session.commit()
 
     def handle_vesicle(self, data):
         """
@@ -260,9 +262,6 @@ class Synapse():
         Returns:
             Vesicle: The Vesicle that was decrypted and loaded
             None: If no Vesicle could be loaded
-
-        Raises:
-            PersonaNotFoundError: If the Vesicle author cannot be retrieved
         """
 
         try:
@@ -278,99 +277,122 @@ class Synapse():
 
         if vesicle is None:
             self.logger.error("Failed handling Vesicle due to decoding error")
-        elif Vesicle.query.get(vesicle.id) is not None:
-            self.logger.info("Received duplicate {}".format(vesicle))
-            vesicle = None
         else:
+            old_vesicle = Vesicle.query.get(vesicle.id)
+            if old_vesicle is not None:
+                vesicle = old_vesicle
+
+            # Vesicle is loaded and has not yet been handled, start processing..
+            session = create_session()
+
             # Decrypt if neccessary
-            if vesicle.encrypted():
-                reader_persona = vesicle.decrypt()
+            import keyczar
+            if not vesicle.decrypted():
+                try:
+                    reader_persona = vesicle.decrypt()
+                except UnauthorizedError:
+                    self.logger.info("Not authorized to decrypt {}".format(vesicle))
+                except keyczar.errors.InvalidSignatureError:
+                    self.logger.warning("Failed decrypting {}: id={} h={}".format(vesicle, vesicle.id, vesicle._get_hashcode()))
+                    return vesicle
 
-            self.logger.debug("Received {} with payload:\n{}".format(vesicle, json.dumps(vesicle.data, indent=2)))
+            if old_vesicle is None:
+                session.add(vesicle)
+                session.commit()
 
-            # Store locally
-            db.session.add(vesicle)
-            db.session.commit()
+            if not vesicle.decrypted():
+                self.logger.debug("{} has encrypted payload.".format(vesicle))
+            else:
+                self.logger.info("{} has payload:\n{}".format(vesicle, json.dumps(vesicle.data, indent=2)))
 
             # Call handler depending on message type
-            if vesicle.message_type in ALLOWED_MESSAGE_TYPES:
-                handler = getattr(self, "handle_{}".format(vesicle.message_type))
-                handler(vesicle, reader_persona)
+            try:
+                if vesicle is not None and not vesicle.handled and vesicle.message_type in ALLOWED_MESSAGE_TYPES:
+                    handler = getattr(self, "handle_{}".format(vesicle.message_type))
+                    try:
+                        handler(vesicle, reader_persona, session)
+                    except UnauthorizedError, e:
+                        self.logger.error("Error handling {}: {}".format(vesicle, e))
+            except:
+                session.rollback()
+                raise
+            finally:
+                session.flush()
 
         return vesicle
 
-    def object_insert(self, author, recipient, object_type, obj):
+    def object_insert(self, author, recipient, object_type, obj, session):
         # Handle answer
-        for k in ["id", "modified"]:
-            if k not in obj.keys():
-                raise KeyError("Missing '{}' in object description".format(k))
-
         obj_class = globals()[object_type]
+        missing_keys = obj_class.validate_changeset(obj)
+        if len(missing_keys) > 0:
+            raise KeyError("Missing '{}' for creating {} from changeset".format(
+                ", ".join(missing_keys), obj_class.__name__))
+
+        if hasattr(obj, "author_id") and author.id != obj["author_id"]:
+            raise UnauthorizedError(
+                "Received object_insert Vesicle author {} does not match object author [{}]".format(
+                    author, obj["author_id"][:6]))
+
         o = obj_class.query.get(obj["id"])
-
-        try:
-            obj_modified = dateutil_parse(obj["modified"])
-        except ValueError:
-            self.logger.error("Malformed parameter 'modified': {}".format(obj["modified"]))
-            return
-
-        if o is None:
-            if hasattr(obj, "author_id") and author.id != obj["author_id"]:
-                raise UnauthorizedError(
-                    "Received object_insert Vesicle author {} does not match object author [{}]".format(
-                        author, obj["author_id"][:6]))
-
-            o = obj_class.create_from_changeset(obj)
-
-            db.session.add(o)
-            db.session.commit()
-
+        if o is None or (hasattr(o, "get_state") and o.get_state() == -1) or (isinstance(o, Persona) and o._stub is True):
+            o = obj_class.create_from_changeset(obj, stub=o, update_sender=author, update_recipient=recipient)
+            session.add(o)
+            if isinstance(o, Persona):
+                o.stub = False
+            else:
+                o.set_state(0)
             self.logger.info("Inserted new {}".format(o))
-        elif o.modified < obj_modified or (hasattr(o, "_stub") and o.stub is True):
-            self.object_update(author, recipient, object_type, obj)
-        else:
-            self.logger.info("Received already existing <{} [{}]>".format(object_type, obj["id"]))
 
         return o
 
-    def object_update(self, author, recipient, object_type, obj):
+    def object_update(self, author, recipient, object_type, obj, session):
         # Verify message
-        for k in ["id", "modified"]:
-            if k not in obj.keys():
-                raise KeyError("Missing '{}' in object description".format(k))
+        obj_class = globals()[object_type]
+        missing_keys = obj_class.validate_changeset(obj, update=True)
+        if len(missing_keys) > 0:
+            raise KeyError("Missing '{}' for updating {} from changeset".format(obj_class.__name__))
 
         obj_modified = dateutil_parse(obj["modified"])
 
         # Retrieve local object copy
-        obj_class = globals()[object_type]
         o = obj_class.query.get(obj["id"])
 
         if o is None:
-            self.logger.info("Received update for unknown <{} [{}]>".format(object_type, obj["id"][:6]))
+            self.logger.warning("Received update for unknown <{} [{}]>".format(object_type, obj["id"][:6]))
+
+            o = obj_class(id=obj["id"])
+            o.set_state(-1)
+            session.add(o)
+
             self.request_object(
                 object_type=object_type,
                 object_id=obj["id"],
                 author=recipient,
-                recipient=author)
+                recipient=author,
+                session=session)
         else:
-            if o.modified < obj_modified or (hasattr(o, "_stub") and o.stub is True):
-                o.update_from_changeset(obj)
-                db.session.add(o)
-                db.session.commit()
+            if o.modified <= obj_modified or (hasattr(o, "_stub") and o._stub is True):
+                o.update_from_changeset(obj, update_sender=author, update_recipient=recipient)
+                if isinstance(o, Persona):
+                    o.stub = False
+                else:
+                    o.set_state(0)
+                session.add(o)
                 self.logger.info("Applied update for {}".format(o))
             else:
                 self.logger.info("Received obsolete update ({})".format(obj))
 
         return o
 
-    def object_delete(self, author, recipient, object_type, obj):
+    def object_delete(self, author, recipient, object_type, obj, session):
         # Verify message
+        obj_class = globals()[object_type]
         for k in ["id", "modified"]:
             if k not in obj.keys():
-                raise KeyError("Missing '{}' in object description".format(k))
+                raise KeyError("Missing '{}' for deleting {} from changeset".format(k, obj_class.__name__))
 
         # Get the object's class from globals
-        obj_class = globals()[object_type]
         o = obj_class.query.get(obj["id"])
 
         if o is None:
@@ -382,12 +404,12 @@ class Synapse():
 
             if hasattr(o, "set_state"):
                 o.set_state(-2)
-                db.session.add(o)
-                db.session.commit()
+                o.text = None
+                session.add(o)
                 self.logger.info("{} marked deleted".format(o))
             else:
                 name = str(o)
-                db.session.delete(o)
+                session.delete(o)
                 o = None
                 self.logger.info("Permanently deleted {}".format(name))
         return o
@@ -400,8 +422,13 @@ class Synapse():
         author = Persona.query.get(message["author_id"])
         recipient = Persona.query.get(message["new_contact_id"])
 
-        self.request_object("Persona", message["new_contact_id"], author, recipient)
-        self.logger.info("Requesting new contact {}'s profile".format(recipient))
+        session = create_session()
+
+        if recipient._stub is True:
+            self.logger.info("Requesting profile of new contact {}".format(recipient))
+            self.request_object("Persona", message["new_contact_id"], author, recipient, session)
+
+        session.commit()
 
     def on_local_model_change(self, sender, message):
         """
@@ -433,8 +460,9 @@ class Synapse():
         obj_class = globals()[message["object_type"]]
         obj = obj_class.query.get(message["object_id"])
 
-        if not obj:
+        if obj is None:
             # TODO: Use different exception type
+            import pdb; pdb.set_trace()
             raise Exception("Could not find {} {}".format(obj_class, message["object_id"]))
 
         author = Persona.query.get(message["author_id"])
@@ -455,16 +483,29 @@ class Synapse():
                 "modified": obj.modified.isoformat()
             }
 
-        vesicle = Vesicle(id=uuid4().hex, message_type="object", data=data)
-        vesicle.author = author
-
-        db.session.add(vesicle)
-        db.session.commit()
-
-        # Add new vesicle to db
+        vesicle = Vesicle(
+            id=uuid4().hex,
+            message_type="object",
+            data=data,
+            author=author,
+            handled=True
+        )
         obj.vesicles.append(vesicle)
 
-        self._distribute_vesicle(vesicle, signed=True, recipients=author.contacts.all())
+        session = create_session()
+
+        try:
+            session.add(vesicle)
+            session.commit()
+        except:
+            session.rollback()
+            raise
+        else:
+            self.logger.info("Local {} changed: Distributing {}".format(obj, vesicle))
+            vesicle = self._distribute_vesicle(vesicle, recipients=author.contacts.all())
+
+        session.add(vesicle)
+        session.commit()
 
     def on_request_objects(self, sender, message):
         """React to request-objects signal by queuing a request
@@ -484,6 +525,8 @@ class Synapse():
             self.logger.warning("Missing request parameter '{}'".format(e))
             return
 
+        session = create_session()
+
         if "author_id" in message:
             author = self.electrical.get_persona(message["author_id"])
         else:
@@ -494,9 +537,15 @@ class Synapse():
         else:
             recipient = None
 
-        self.request_object(object_type, object_id, author, recipient)
+        try:
+            self.request_object(object_type, object_id, author, recipient, session)
+        except:
+            session.rollback()
+            raise
+        finally:
+            session.flush()
 
-    def request_object(self, object_type, object_id, author, recipient):
+    def request_object(self, object_type, object_id, author, recipient, session):
         """
         Send a request for an object to a Persona
 
@@ -512,21 +561,17 @@ class Synapse():
         obj_class = globals()[object_type]
         obj = obj_class.query.get(object_id)
 
-        # Set state to updating
-        if obj is not None and hasattr(obj, "set_state"):
-            obj.set_state(3)  # updating
-
         # Find a source if none is specified
         if recipient is None:
             sources = self._find_source(obj)
             recipient = sources[0] if len(sources) > 0 else None
 
         if recipient is None:
-            self.logger.info("No known source for <{} [{}]>".format(object_type, object_id[:6]))
+            self.logger.error("No known source for <{} [{}]>".format(object_type, object_id[:6]))
         else:
             # Try and find a contact of source we can use as this request's author
             if author is None:
-                author = recipient.contacts.filter_by(Persona.crypt_private != "").first()
+                author = recipient.contacts.filter_by(Persona.crypt_private!="").first()
 
             # Abort if no author was found
             if author is None:
@@ -546,11 +591,13 @@ class Synapse():
                 author=author,
                 data=data
             )
+            session.add(vesicle)
+            session.commit()
+            session.refresh(vesicle)
 
-            db.session.add(vesicle)
-            db.session.commit()
-
-            self._distribute_vesicle(vesicle, signed=True, recipients=[recipient])
+            vesicle = self._distribute_vesicle(vesicle, recipients=[recipient])
+            session.add(vesicle)
+            session.commit()
 
     def shutdown(self):
         self.pool.kill()

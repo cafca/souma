@@ -22,7 +22,7 @@
         <td>{{ star.author.username}}</td>
         <td>{{ star.modified | naturaltime }}</td>
         <td>{{ star.created | naturaltime}} </td>
-        <td>{{ star.get_state()[1] | capitalize}}</td>
+        <td>{{ star.get_state()}}</td>
         {% if star.state >= 0 %}
             <td><a class="btn" href="{{ url_for('delete_star', id=star.id) }}">Delete</a></td>
         {% else %}
@@ -47,7 +47,7 @@
     <tbody>
       {% for persona in personas %}
       <tr>
-        <td>{{ persona.id }}</td>
+        <td>{{ persona.id }}{% if persona.stub %} (stub){% endif %}</td>
         <td>{{ persona.username }}</td>
         <td>{{ persona.email }}</td>
         <td>{{ persona.modified }}</td>

@@ -2,17 +2,19 @@ import datetime
 import json
 import logging
 import requests
+import iso8601
 
 from base64 import b64encode
 from Crypto import Random
 from dateutil.parser import parse as dateutil_parse
 from gevent import Greenlet
 from hashlib import sha256
+from humanize import naturaltime
 from operator import itemgetter
 
-from nucleus import notification_signals, ERROR
+from nucleus import notification_signals, ERROR, create_session
 from nucleus.models import Persona, Souma
-from web_ui import app, db
+from web_ui import app
 
 API_VERSION = 0
 API_VERSION_LONG = 0.1
@@ -186,7 +188,7 @@ class ElectricalSynapse(object):
         """
 
         buf = 10  # seconds
-        remaining = (self._get_session(persona)['timeout'] - datetime.datetime.now()).seconds - buf
+        remaining = (self._get_session(persona)['timeout'] - datetime.datetime.utcnow()).seconds - buf
         if (remaining - buf) < 0:
             remaining = 2
 
@@ -265,7 +267,7 @@ class ElectricalSynapse(object):
             errors.append("No data received")
 
         error_strings = list()
-        if not parsing_failed and 'meta' in resp:
+        if not parsing_failed and "meta" in resp and 'errors' in resp["meta"]:
             for error in resp['meta']['errors']:
                 error_strings.append("{}: {}".format(error[0], error[1]))
 
@@ -324,7 +326,8 @@ class ElectricalSynapse(object):
                         offline += 1
                         self.logger.info("No online souma found for {}".format(contacts.get(p_id)))
 
-                self.logger.info("Updated peer list: {}/{} online".format(len(resp["sessions"]) - offline, len(resp)))
+                self.logger.info("Updated peer list: {}/{} online".format(
+                    len(resp["sessions"]) - offline, len(resp["sessions"])))
 
     def get_persona(self, persona_id):
         """Returns a Persona object for persona_id, loading it from Glia if neccessary
@@ -410,7 +413,8 @@ class ElectricalSynapse(object):
         # Determine offset
         offset = recipient.myelin_offset
         if offset is not None:
-            self.logger.info("Last vesicle received at {}".format(offset))
+            self.logger.debug("Last Vesicle for {} received {} ({})".format(
+                recipient, naturaltime(datetime.datetime.utcnow() - offset), offset))
             params["offset"] = str(recipient.myelin_offset)
 
         resp, errors = self._request_resource("GET", ["myelin", "recipient", recipient.id], params, None)
@@ -418,17 +422,22 @@ class ElectricalSynapse(object):
         if errors:
             self._log_errors("Error receiving from Myelin", errors)
         else:
-            for v in reversed(resp["vesicles"]):
+            for v in resp["vesicles"]:
                 vesicle = self.synapse.handle_vesicle(v)
-                if vesicle is not None and (offset is None or vesicle.created > offset):
-                    offset = vesicle.created
+                if vesicle is not None:
+                    myelin_modified = iso8601.parse_date(
+                        resp["meta"]["myelin_modified"][vesicle.id]).replace(tzinfo=None)
+                    if offset is None or myelin_modified > offset:
+                        offset = myelin_modified
 
         # Update recipient's offset if a more recent Vesicle has been received
         if offset is not None:
             if recipient.myelin_offset is None or offset > recipient.myelin_offset:
                 recipient.myelin_offset = offset
-                db.session.add(recipient)
-                db.session.commit()
+                session = create_session()
+                session.add(recipient)
+                session.commit()
+                # session.close()
 
         # Schedule this method to be called in again in interval seconds
         if interval is not None:
@@ -452,10 +461,10 @@ class ElectricalSynapse(object):
         resp, errors = self._request_resource("PUT", ["myelin", "vesicles", vesicle.id], payload=data)
 
         if errors:
-            self._log_errors("Error storing {}".format(vesicle), errors)
+            self._log_errors("Error transmitting {} to Myelin".format(vesicle), errors)
             return errors
         else:
-            self.logger.info("Stored {}".format(vesicle))
+            self.logger.debug("Transmitted {} to Myelin".format(vesicle))
 
     def on_local_model_changed(self, sender, message):
         """Check if Personas were changed and call register / unregister method"""
@@ -465,7 +474,7 @@ class ElectricalSynapse(object):
             if message["action"] == "insert":
                 self.persona_register(persona)
             elif message["action"] == "update":
-                self.logger.warning("Updating Persona profiles not yet supported")
+                self.logger.warning("Updating Persona profiles in Glia not yet supported")
             elif message["action"] == "delete":
                 self.persona_unregister(persona)
 
@@ -487,23 +496,33 @@ class ElectricalSynapse(object):
         else:
             pinfo = resp["personas"][0]
 
+            modified = iso8601.parse_date(pinfo["modified"])
+
             p = Persona.query.get(persona_id)
             if p is None:
+                session = create_session()
                 try:
                     p = Persona(
                         _stub=True,
                         id=persona_id,
                         username=pinfo["username"],
                         email=pinfo.get("email"),
+                        modified=modified,
                         sign_public=pinfo["sign_public"],
                         crypt_public=pinfo["crypt_public"]
                     )
-                    db.session.add(p)
-                    db.session.commit()
+                    session.add(p)
+                    session.commit()
                     self.logger.info("Loaded {} from Glia server".format(p))
                 except KeyError, e:
                     self.logger.warning("Missing key in server response for storing new Persona: {}".format(e))
                     errors.append("Missing key in server response for storing new Persona: {}".format(e))
+                except:
+                    session.rollback()
+                    raise
+                finally:
+                    # session.close()
+                    pass
             else:
                 # TODO: Update persona info
                 pass
@@ -608,6 +627,7 @@ class ElectricalSynapse(object):
             "personas": [{
                 'persona_id': persona.id,
                 'username': persona.username,
+                'modified': persona.modified.isoformat(),
                 'email_hash': persona.get_email_hash(),
                 'sign_public': persona.sign_public,
                 'crypt_public': persona.crypt_public,

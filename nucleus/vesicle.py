@@ -1,6 +1,7 @@
 import json
 import datetime
 import iso8601
+import keyczar
 
 from base64 import b64encode, b64decode
 from hashlib import sha256
@@ -30,10 +31,11 @@ class Vesicle(db.Model):
     message_type = db.Column(db.String(32))
     payload = db.Column(db.Text)
     signature = db.Column(db.Text)
-    created = db.Column(db.DateTime, default=datetime.datetime.now())
-    keycrypt = db.Column(db.Text(), default="{}")
-    enc = db.Column(db.String(16), default=DEFAULT_ENCODING)
-    _send_attributes = db.Column(db.Text, default=json.dumps(_default_send_attributes))
+    created = db.Column(db.DateTime, default=datetime.datetime.utcnow())
+    keycrypt = db.Column(db.Text(), default='{}')
+    enc = db.Column(db.String(16))
+    _send_attributes = db.Column(db.Text)
+    handled = db.Column(db.Boolean)
 
     author_id = db.Column(db.String(32), db.ForeignKey('persona.id', use_alter=True, name="fk_author_id"))
     author = db.relationship('Persona', primaryjoin="Persona.id==Vesicle.author_id", post_update=True)
@@ -41,25 +43,58 @@ class Vesicle(db.Model):
     _hashcode = None
     data = None
 
+    def __init__(self, id, message_type, author=None, data=None, payload=None,
+            signature=None, created=None, keycrypt='{}', enc=DEFAULT_ENCODING, handled=False):
+
+        db.Model.__init__(self,
+            id=id,
+            message_type=message_type,
+            author=author,
+            data=data,
+            payload=payload,
+            signature=signature,
+            created=created,
+            keycrypt=keycrypt,
+            enc=enc,
+            handled=handled)
+
+        self._send_attributes = json.dumps(Vesicle._default_send_attributes)
+
     def __str__(self):
-        """
-        Return string identifier
+        """Return string identifier
 
         Returns:
             String: Identifier
         """
-
         if hasattr(self, "author_id") and self.author_id is not None:
             if self.author is not None:
                 author = self.author
             else:
-                author = self.author_id[:6]
+                author = "<[{}]>".format(self.author_id[:6])
         else:
             author = "anon"
-        return "<vesicle {type}@{author}>".format(type=self.message_type, author=author)
+
+        try:
+            if not self.decrypted():
+                desc = "encrypted"
+            elif self.message_type == "object_request":
+                desc = "<{} [{}]>".format(self.data["type"], self.data["id"][:6])
+            else:
+                desc = "{}-<{} [{}]>".format(self.data["action"], self.data["object_type"], self.data["obj"]["id"])
+        except KeyError:
+            desc = "unknown"
+
+        return "<Vesicle {mt}:{desc} by {author} [{id}]>".format(
+            mt=self.message_type,
+            desc=desc,
+            author=author,
+            id=self.id[:6])
 
     def _get_hashcode(self, payload=None):
-        """Return the sha256 hashcode of self.payload
+        """Return the sha256 hashcode of unencrypted self.payload
+
+        If the hashcode is cached, that will be returned. Otherwise, it will
+        be computed if Vesicle is not encrypted and has a payload.
 
         Args:
             payload (String): (Optional) data to use instead of self.payload
@@ -68,14 +103,19 @@ class Vesicle(db.Model):
             String: The hashcode
 
         Raises:
+            VesicleStateError: If Vesicle is encrypted and hashcode is not cached
             ValueError: If no payload was provided by argument and self.payload is None
         """
-        payload = payload if payload is not None else self.payload
-
         if self._hashcode is None:
+            if self.encrypted():
+                raise VesicleStateError("Error computing hashcode: {} is encrypted".format(self))
+
             if payload is None:
-                raise ValueError("No payload found. (Vesicle is {} encrypted)".format(
-                    "" if self.encrypted() else "not"))
+                if self.payload is None:
+                    raise ValueError("Error computing hashcode: {} has no payload".format(self))
+                payload = self.payload
+
+            # AES keys can not be longer than 32 bytes
             self._hashcode = sha256(payload).hexdigest()[:32]
 
         return self._hashcode
@@ -86,6 +126,7 @@ class Vesicle(db.Model):
 
         Args:
             recipients (list): A list of recipient Persona objects who will be added to the keycrypt
+                author will always be added to the keycrypt!
 
         Raises:
             VesicleStateError: If this Vesicle is already encrypted
@@ -109,7 +150,9 @@ class Vesicle(db.Model):
         # AES encryption key. Here I derive it from the AES key because authentication is already
         # provided by the separate RSA signature.
         # TODO: Ask someone whether this is a good idea
-        key = AesKey(self._get_hashcode(payload=payload), HmacKey(self._hashcode), AES_BYTES)
+        self._hashcode = None
+        h = self._get_hashcode(payload=payload)
+        key = AesKey(h, HmacKey(h), AES_BYTES)
 
         # Encrypt payload using the AES key
         payload_encrypted = b64encode(key.Encrypt(payload))
@@ -122,7 +165,7 @@ class Vesicle(db.Model):
         self.add_send_attribute("author_id")
         self.add_send_attribute("keycrypt")
 
-        self.add_recipients(recipients)
+        self.add_recipients(recipients + [self.author], hashcode=h)
 
     def encrypted(self):
         """
@@ -147,8 +190,7 @@ class Vesicle(db.Model):
 
         Raises:
             ValueError: If this Vesice is already plaintext
-            KeyError: If no Key was found for decrypting with reader_persona
-            UnauthorizedError: If no Persona was found for decrypting
+            UnauthorizedError: If no Persona was found for decrypting or reader_persona is not authorized
         """
         # Validate state
         if not self.encrypted():
@@ -171,14 +213,10 @@ class Vesicle(db.Model):
                 raise UnauthorizedError("No key found decrypting {} for {}".format(self, reader_persona))
 
         # Retrieve hashcode
-        if self._hashcode is not None:
-            h = self._hashcode
-        else:
-            h = reader_persona.decrypt(keycrypt[reader_persona.id])
-            self._hashcode = h
+        self._hashcode = reader_persona.decrypt(keycrypt[reader_persona.id])
 
         # Generate the AES key (see encrypt() above)
-        key = AesKey(h, HmacKey(self._hashcode), AES_BYTES)
+        key = AesKey(self._hashcode, HmacKey(self._hashcode), AES_BYTES)
 
         # Decrypt the data
         data = key.Decrypt(b64decode(self.payload))
@@ -225,9 +263,7 @@ class Vesicle(db.Model):
             raise KeyError("Vesicle defines no author for signing")
 
         if not self.encrypted():
-            self.payload = json.dumps(self.data)
-            self.data = None
-            self.enc = self.enc.split("-")[0] + "-plain"
+            raise VesicleStateError("Vesicle must be encrypted for signing")
 
         self.signature = self.author.sign(self.payload)
 
@@ -250,28 +286,33 @@ class Vesicle(db.Model):
 
         return self.author.verify(self.payload, self.signature)
 
-    def add_recipients(self, recipients):
+    def add_recipients(self, recipients, hashcode=None):
         """
         Add Personas to the keycrypt
 
         Args:
             recipient (List): List of Persona instances to be added
+            hashcode (Str): (Optional) hashcode to use (for example when adding
+                recipients to an encrypted Vesicle)
 
         Raises:
             VesicleStateError: When trying to add recipients to a plaintext Vesicle
+            UnauthorizedError: If no hashcode provided and self.author is not controlled
         """
         if not self.encrypted():
             raise VesicleStateError("Can not add recipients to plaintext vesicles")
 
         keycrypt = json.loads(self.keycrypt)
 
+        if hashcode is None:
+            if not self.author.controlled():
+                raise UnauthorizedError("Must be Vesicle author to add recipients without known hashcode")
+            hashcode = self.author.decrypt(keycrypt[self.author_id])
+
         for recipient in recipients:
             if recipient.id not in keycrypt.keys():
-                key = recipient.encrypt(self._get_hashcode())
+                key = recipient.encrypt(hashcode)
                 keycrypt[recipient.id] = key
-                app.logger.info("Added {} as a recipient of {}".format(recipient, self))
-            else:
-                app.logger.info("{} is already a recipient of {}".format(recipient, self))
         self.keycrypt = json.dumps(keycrypt)
 
     def remove_recipient(self, recipient):
@@ -280,7 +321,13 @@ class Vesicle(db.Model):
 
         Args:
             recipient (Persona): Persona to be removed from the keycrypt
+
+        Raises:
+            UnauthorizedError: If trying to remove author from keycrypt
         """
+        if recipient.id == self.author_id:
+            raise UnauthorizedError("Can't remove author from keycrypt")
+
         keycrypt = json.loads(self.keycrypt)
         del keycrypt[recipient.id]
         self.keycrypt = json.dumps(keycrypt)
@@ -303,7 +350,7 @@ class Vesicle(db.Model):
         message = dict()
         for attr in self.get_send_attributes():
             message[attr] = getattr(self, attr)
-        message["created"] = datetime.datetime.now().isoformat()
+        message["created"] = datetime.datetime.utcnow().isoformat()
         message["souma_id"] = app.config["SOUMA_ID"]
         r = json.dumps(message)
 
@@ -326,6 +373,7 @@ class Vesicle(db.Model):
             ValueError: Unknown protocol version or malformed created timestamp
             KeyError: Missing key in vesicle JSON
             InvalidSignatureError: Does not match author_id's pubkey
+            PersonaNotFoundError: Vesicle author not found
         """
 
         msg = json.loads(data)
@@ -346,18 +394,13 @@ class Vesicle(db.Model):
             send_attributes = msg.keys()
             send_attributes.remove('souma_id')
             vesicle.send_attributes = send_attributes
-            app.logger.info("Added send_attributes {}".format(str(send_attributes)))
 
-            author = Persona.query.get(msg["author_id"])
-            if author is not None:
-                vesicle.author = author
-            else:
-                app.logger.warning("Vesicle author '{}' not found in local DB".format(msg["author_id"]))
-                vesicle.author_id = msg["author_id"]
+            vesicle.author = Persona.query.get(msg["author_id"])
+            if vesicle.author is None:
+                raise PersonaNotFoundError(msg["author_id"])
 
             if "signature" in msg:
                 vesicle.signature = msg["signature"]
-                vesicle.author_id = msg["author_id"]
         except KeyError, e:
             raise KeyError(e)
         except iso8601.ParseError, e:
