@@ -1,4 +1,5 @@
 {% macro planet(planet, scale) %}
+<!-- PLANET: {{planet.id}} -->
 {% if planet.kind == 'picture' %}
 <span class="content imagewrap">
     <img src="{{ url_for('static', filename=planet.filename) }}" onload="OnImageLoad(event, {% if scale %}scale=true{%else%}scale=false{%endif%});"/>

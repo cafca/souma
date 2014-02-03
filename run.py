@@ -3,18 +3,27 @@
 import gevent
 
 from web_ui import app, db
+
 from gevent.wsgi import WSGIServer
-from synapse.models import Starmap
-from synapse import Synapse
 from sqlalchemy.exc import OperationalError
+from uuid import uuid4
+
+from nucleus.models import Souma, Starmap
+from synapse import Synapse
 
 # Initialize database
 try:
-    db.session.execute("SELECT * FROM 'starmap' LIMIT 1")
+    local_souma = Souma.query.get(app.config["SOUMA_ID"])
 except OperationalError:
-    app.logger.info("Initializing database")
+    app.logger.info("Setting up database")
     db.create_all()
-    db.session.add(Starmap(app.config['SOMA_ID']))
+
+    app.logger.info("Setting up Nucleus for <Souma [{}]>".format(app.config['SOUMA_ID'][:6]))
+    local_souma = Souma(id=app.config['SOUMA_ID'])
+    local_souma.generate_keys()
+    local_souma.starmap = Starmap(id=uuid4().hex, kind="index")
+
+    db.session.add(local_souma)
     db.session.commit()
 
 if app.config['USE_DEBUG_SERVER']:
@@ -25,10 +34,9 @@ else:
 
     # Synapse
     app.logger.info("Starting Synapses")
-    synapse = Synapse(('0.0.0.0', app.config['SYNAPSE_PORT']))
-    synapse.start()
+    synapse = Synapse()
 
-    # gevent server
+    # Web UI
     if not app.config['NO_UI']:
         app.logger.info("Starting Web-UI")
         local_server = WSGIServer(('', app.config['LOCAL_PORT']), app)

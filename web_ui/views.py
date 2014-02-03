@@ -1,115 +1,32 @@
 import os
 import datetime
-import requests
-import werkzeug
 
-from flask import abort, flash, json, redirect, render_template, request, session, url_for
-from flaskext import uploads
+from flask import abort, flash, redirect, render_template, request, session, url_for, jsonify as json_response
 from hashlib import sha256
-from operator import itemgetter
 
-from web_ui import app, cache, db, logged_in, notification_signals, attachments
+from web_ui import app, cache, db, logged_in, attachments
+from web_ui import pagemanager
 from web_ui.forms import *
-from web_ui.helpers import get_active_persona, allowed_file
-from web_ui.models import Persona, Star, Planet, PicturePlanet, LinkPlanet
-from synapse.models import Message
+from web_ui.helpers import get_active_persona
+from nucleus import notification_signals, PersonaNotFoundError
+from nucleus.models import Persona, Star, Planet, PicturePlanet, LinkPlanet, Group, Starmap
 
 # Create blinker signal namespace
-star_created = notification_signals.signal('star-created')
-star_deleted = notification_signals.signal('star-deleted')
-persona_created = notification_signals.signal('persona-created')
+local_model_changed = notification_signals.signal('local-model-changed')
 contact_request_sent = notification_signals.signal('contact-request-sent')
 new_contact = notification_signals.signal('new-contact')
+group_created = notification_signals.signal('group-created')
 
-
-class PageManager():
-    def __init__(self):
-        self.layouts = app.config['LAYOUT_DEFINITIONS']
-        self.screen_size = (12.0, 8.0)
-
-    def auto_layout(self, stars):
-        """Return a layout for given stars in a list of css class, star pairs."""
-        # Rank stars by score
-        stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
-
-        # Find best layout by filling each one with stars and determining which one
-        # gives the best score
-        layout_scores = dict()
-        for layout in self.layouts:
-            print("\nLayout: {}".format(layout['name']))
-            layout_scores[layout['name']] = 0
-
-            for i, star_cell in enumerate(layout['stars']):
-                if i >= len(stars_ranked):
-                    continue
-                star = stars_ranked[i]
-
-                cell_score = self._cell_score(star_cell)
-                layout_scores[layout['name']] += star.hot() * cell_score
-                print("{}\t{}\t{}".format(star, star.hot() * cell_score, cell_score))
-            print("Score: {}".format(layout_scores[layout['name']]))
-
-        # Select best layout
-        selected_layouts = sorted(
-            layout_scores.iteritems(),
-            key=itemgetter(1),
-            reverse=True)
-
-        if len(selected_layouts) == 0:
-            app.logger.error("No fitting layout found")
-            return
-
-        for layout in self.layouts:
-            if layout['name'] == selected_layouts[0][0]:
-                break
-
-        print("Chosen {}".format(layout))
-
-        # Create list of elements in layout
-        page = list()
-        for i, star_cell in enumerate(layout['stars']):
-            if i >= len(stars_ranked):
-                break
-
-            star = stars_ranked[i]
-
-            # CSS class name format
-            # col   column at which the css container begins
-            # row   row at which it begins
-            # w     width of the container
-            # h     height of the container
-            css_class = "col{} row{} w{} h{}".format(
-                star_cell[0],
-                star_cell[1],
-                star_cell[2],
-                star_cell[3])
-            page.append([css_class, star])
-        return page
-
-    def _cell_score(self, cell):
-        """Return a score that describes how valuable a given cell on the screen is.
-        Cell on the top left is 1.0, score diminishes to the right and bottom. Bigger
-        cells get higher scores, cells off the screen get a 0.0"""
-        import math
-
-        # position score
-        if cell[0] > self.screen_size[0] or cell[1] > self.screen_size[1]:
-            pscore = 0.0
-        else:
-            score_x = 1.0 if cell[0] == 0 else 1.0 / (1.0 + (cell[0] / self.screen_size[0]))
-            score_y = 1.0 if cell[1] == 0 else 1.0 / (1.0 + (cell[1] / self.screen_size[1]))
-            pscore = (score_x + score_y) / 2.0
-
-        # size score (sigmoid)
-        area = cell[2] * cell[3]
-        sscore = 1.0 / (1 + pow(math.exp(1), -0.1 * (area - 12.0)))
-        return pscore * sscore
+pagemanager = pagemanager.PageManager()
 
 
 @app.context_processor
 def persona_context():
     """Makes controlled_personas available in templates"""
-    return dict(controlled_personas=Persona.query.filter('sign_private != ""'))
+    return dict(
+        controlled_personas=Persona.list_controlled(),
+        active_persona=Persona.query.get(get_active_persona())
+    )
 
 
 @app.before_request
@@ -166,7 +83,6 @@ def logout():
 
 @app.route('/setup', methods=['GET', 'POST'])
 def setup():
-    import os
     from Crypto.Protocol.KDF import PBKDF2
     from hashlib import sha256
 
@@ -181,7 +97,7 @@ def setup():
             password_hash = sha256(password).hexdigest()
 
             app.config['PASSWORD_HASH'] = password_hash
-            os.environ['SOMA_PASSWORD_HASH_{}'.format(app.config['LOCAL_PORT'])] = password_hash
+            os.environ['SOUMA_PASSWORD_HASH_{}'.format(app.config['LOCAL_PORT'])] = password_hash
             cache.set('password', password, 3600)
             return redirect(url_for('universe'))
     return render_template('setup.html', error=error)
@@ -192,7 +108,9 @@ def persona(id):
     """ Render home view of a persona """
 
     persona = Persona.query.filter_by(id=id).first_or_404()
-    starmap = Star.query.filter_by(creator_id=id)[:4]
+    stars = Star.query.filter(
+        Star.author_id == id,
+        Star.state >= 0)[:4]
 
     # TODO: Use new layout system
     vizier = Vizier([
@@ -206,7 +124,7 @@ def persona(id):
         'persona.html',
         layout="persona",
         vizier=vizier,
-        starmap=starmap,
+        stars=stars,
         persona=persona)
 
 
@@ -219,12 +137,15 @@ def create_persona():
     if form.validate_on_submit():
         # This is a unique ID which identifies the persona across all contexts
         uuid = uuid4().hex
+        created_dt = datetime.datetime.utcnow()
 
         # Save persona to DB
         p = Persona(
-            uuid,
-            request.form['name'],
-            request.form['email'])
+            id=uuid,
+            username=request.form['name'],
+            email=request.form['email'],
+            modified=created_dt,
+        )
 
         # Create keypairs
         p.generate_keys(cache.get('password'))
@@ -233,16 +154,46 @@ def create_persona():
         db.session.add(p)
         db.session.commit()
 
-        # Distribute "birth" certificate
-        data = dict({
+        p.profile = Starmap(
+            id=uuid4().hex,
+            author=p,
+            kind="persona_profile",
+            modified=created_dt
+        )
+        db.session.add(p.profile)
+
+        p.index = Starmap(
+            id=uuid4().hex,
+            author=p,
+            kind="index",
+            modified=created_dt
+        )
+        db.session.add(p.index)
+        db.session.commit()
+
+        local_model_changed.send(create_persona, message={
+            "author_id": p.id,
+            "action": "insert",
+            "object_id": p.id,
             "object_type": "Persona",
-            "object_id": uuid,
-            "change": "insert",
-            "change_time": p.modified.isoformat()
         })
 
-        message = Message(message_type="change_notification", data=data)
-        persona_created.send(create_persona, message=message)
+        local_model_changed.send(create_persona, message={
+            "author_id": p.id,
+            "action": "insert",
+            "object_id": p.profile.id,
+            "object_type": "Starmap",
+        })
+
+        local_model_changed.send(create_persona, message={
+            "author_id": p.id,
+            "action": "insert",
+            "object_id": p.index.id,
+            "object_type": "Starmap",
+        })
+
+        # Activate new Persona
+        session["active_persona"] = p.id
 
         flash("New persona {} created!".format(p.username))
         return redirect(url_for('persona', id=uuid))
@@ -264,7 +215,7 @@ def activate_persona(id):
         app.logger.error("Tried to activate foreign persona")
         flash("That is not you!")
     else:
-        app.logger.info("Activated persona {}".format(id))
+        app.logger.info("Activated {}".format(p))
         session['active_persona'] = id
     return redirect(url_for('universe'))
 
@@ -274,25 +225,37 @@ def create_star():
     from uuid import uuid4
     """ Create a new star """
 
-    # Load author drop down contents
-    controlled_personas = Persona.query.filter(Persona.sign_private != None).all()
-    creator_choices = [(p.id, p.username) for p in controlled_personas]
-    active_persona = Persona.query.get(session['active_persona'])
+    form = Create_star_form(default_author=get_active_persona())
+    form.author.choices = [(p.id, p.username) for p in Persona.list_controlled()]
+    form.author.data = get_active_persona()
 
-    form = Create_star_form(default_creator=session['active_persona'])
-    form.creator.choices = creator_choices
+    # Default is posting to author profile
+    if form.context.data is None:
+        form.context.data = Persona.query.get(form.author.data).profile.id
+
     if form.validate_on_submit():
         uuid = uuid4().hex
 
+        author = Persona.query.get(request.form["author"])
+        if not author.controlled():
+            app.logger.error("Can't create Star with foreign Persona {}".format(author))
+            flash("Can't create Star with foreign Persona {}".format(author))
+            return redirect(url_for('create_star')), 401
+
+        new_star_created = datetime.datetime.utcnow()
         new_star = Star(
-            uuid,
-            request.form['text'],
-            request.form['creator'])
+            id=uuid,
+            text=request.form['text'],
+            author=author,
+            created=new_star_created,
+            modified=new_star_created
+        )
         db.session.add(new_star)
         db.session.commit()
 
         flash('New star created!')
-        app.logger.info('Created new star {}'.format(new_star.id))
+        app.logger.info('Created new {}'.format(new_star))
+        model_change_messages = list()
 
         if 'picture' in request.files and request.files['picture'].filename != "":
             # compute hash
@@ -302,8 +265,9 @@ def create_star():
             # create or get planet
             planet = Planet.query.filter_by(id=picture_hash[:32]).first()
             if not planet:
-                app.logger.info("Storing submitted file")
-                filename = attachments.save(request.files['picture'], folder=picture_hash[:2], name=picture_hash[2:]+".")
+                app.logger.info("Creating new planet for submitted file")
+                filename = attachments.save(request.files['picture'],
+                    folder=picture_hash[:2], name=picture_hash[2:] + ".")
                 planet = PicturePlanet(
                     id=picture_hash[:32],
                     filename=os.path.join(attachments.name, filename))
@@ -315,7 +279,7 @@ def create_star():
             # commit
             db.session.add(new_star)
             db.session.commit()
-            app.logger.info("Attached planet {} to new star".format(planet))
+            app.logger.info("Attached {} to new {}".format(planet, new_star))
 
         if 'link' in request.form and request.form['link'] != "":
             link_hash = sha256(request.form['link']).hexdigest()[:32]
@@ -330,67 +294,90 @@ def create_star():
             new_star.planets.append(planet)
             db.session.add(new_star)
             db.session.commit()
-            app.logger.info("Attached planet {} to new star".format(planet))
+            app.logger.info("Attached {} to new {}".format(planet, new_star))
 
-        # Create certificate
-        data = dict({
+        model_change_messages.append({
+            "author_id": new_star.author.id,
+            "action": "insert",
+            "object_id": new_star.id,
             "object_type": "Star",
-            "object_id": uuid,
-            "change": "insert",
-            "change_time": new_star.modified.isoformat()
         })
 
-        message = Message(message_type="change_notification", data=data)
-        message.sign(new_star.creator)
+        # Add new Star to a Starmap depending on context
+        starmap = Starmap.query.get(request.form["context"])
+        if starmap is not None:
+            starmap.index.append(new_star)
+            starmap.modified = new_star_created
+            db.session.add(starmap)
 
-        star_created.send(create_star, message=new_star)
+            model_change_messages.append({
+                "author_id": new_star.author.id,
+                "action": "update",
+                "object_id": starmap.id,
+                "object_type": "Starmap"
+            })
 
-        return redirect(url_for('star', id=uuid))
-    return render_template('create_star.html', form=form, active_persona=active_persona)
+        db.session.commit()
+
+        # db.session.expunge_all()  # Remove everything from session before sending signal
+        for m in model_change_messages:
+            local_model_changed.send(create_star, message=m)
+
+        # if new star belongs to a group, show group page
+        if starmap is None:
+            return redirect(url_for('star', id=uuid))
+        else:
+            return redirect(starmap.get_absolute_url())
+
+    page = pagemanager.create_star_layout()
+
+    return render_template('create_star.html',
+                           form=form,
+                           page=page)
 
 
 @app.route('/s/<id>/delete', methods=["GET"])
 def delete_star(id):
     """ Delete a star """
     # TODO: Should only accept POST instead of GET
-    # TODO: Check permissions!
 
-    # Load instance and creator persona
+    # Load instance and author persona
     s = Star.query.get(id)
-
     if s is None:
         abort(404)
 
-    # Create deletion request
-    data = dict({
-        "object_type": "Star",
-        "object_id": s.id,
-        "change": "delete",
-        "change_time": datetime.datetime.now().isoformat()
-    })
+    if not s.author.controlled():
+        flash("You are not allowed to delete {}'s Stars".format(s.author))
+        app.logger.error("Tried to delete one of {}'s Stars".format(s.author))
+        return redirect(request.referrer)
+    else:
+        s.set_state(-2)
+        try:
+            db.session.add(s)
+            db.session.commit()
+        except:
+            app.logger.info("Error deleting {}".format(s))
+            db.session.rollback()
+        else:
+            message_delete = {
+                "author_id": s.author.id,
+                "action": "delete",
+                "object_id": s.id,
+                "object_type": "Star",
+            }
 
-    message = Message(message_type="change_notification", data=json.dumps(data))
-    if s.creator.sign_private is not None:
-        message.sign(s.creator)
+            local_model_changed.send(delete_star, message=message_delete)
 
-    # Delete instance from db
-    db.session.delete(s)
-    db.session.commit()
-
-    # Distribute deletion request
-    star_deleted.send(delete_star, message=message)
-
-    app.logger.info("Deleted star {}".format(id))
-
-    return redirect(url_for('debug'))
+            app.logger.info("Deleted star {}".format(id))
+        return redirect(url_for('debug'))
 
 
 @app.route('/')
 def universe():
     """ Render the landing page """
-    stars = Star.query.all()
-    pm = PageManager()
-    page = pm.auto_layout(stars)
+    # return only stars that are not in a group context
+    stars = Star.query.filter(Star.state >= 0).all()
+    page = pagemanager.star_layout(stars)
 
     if len(persona_context()['controlled_personas'].all()) == 0:
         return redirect(url_for('create_persona'))
@@ -398,16 +385,54 @@ def universe():
     if len(stars) == 0:
         return redirect(url_for('create_star'))
 
-    return render_template('universe.html', layout="sternenhimmel", stars=page)
+    return render_template('universe.html', page=page)
 
 
 @app.route('/s/<id>/', methods=['GET'])
 def star(id):
     """ Display a single star """
-    star = Star.query.filter_by(id=id).first_or_404()
-    creator = Persona.query.filter_by(id=id)
+    star = Star.query.filter(Star.id==id, Star.state>=0).first_or_404()
+    author = Persona.query.filter_by(id=id)
 
-    return render_template('star.html', layout="star", star=star, creator=creator)
+    return render_template('star.html', layout="star", star=star, author=author)
+
+
+@app.route('/s/<star_id>/1up', methods=['POST'])
+def oneup(star_id):
+    """
+    Issue a 1up to a Star using the currently activated Persona
+
+    Args:
+        star_id (string): ID of the Star
+    """
+    star = Star.query.get_or_404(star_id)
+    try:
+        oneup = star.toggle_oneup()
+    except PersonaNotFoundError:
+        error_message = "Please activate a Persona for upvoting"
+        oneup = None
+
+    resp = dict()
+    if oneup is None:
+        resp = {
+            "meta": {
+                "oneup_count": star.oneup_count(),
+                "error_message": error_message
+            }
+        }
+    else:
+        resp = {
+            "meta": {
+                "oneup_count": star.oneup_count(),
+            },
+            "oneups": [{
+                "id": oneup.id,
+                "author": oneup.author.id,
+                "state_value": oneup.state,
+                "state_name": oneup.get_state()
+            }]
+        }
+    return json_response(resp)
 
 
 @app.route('/debug/')
@@ -416,58 +441,87 @@ def debug():
     stars = Star.query.all()
     personas = Persona.query.all()
     planets = Planet.query.all()
+    groups = Group.query.all()
+    starmaps = Starmap.query.all()
 
-    return render_template('debug.html', stars=stars, personas=personas, planets=planets)
+    return render_template(
+        'debug.html',
+        stars=stars,
+        personas=personas,
+        planets=planets,
+        groups=groups,
+        starmaps=starmaps
+    )
 
 
 @app.route('/find-people', methods=['GET', 'POST'])
 def find_people():
     """Search for and follow people"""
+    from synapse.electrical import ElectricalSynapse
+
     form = FindPeopleForm(request.form)
-    found = None
-    error = None
+    error = found = None
+    found_processed = list()
+    found_new = list()
 
     if request.method == 'POST' and form.validate():
         # Compile message
-        email = request.form['email']
-        email_hash = sha256(email).hexdigest()
-        app.logger.info("Searching for {}".format(email))
-        data = {
-            "email_hash": email_hash
-        }
-        message = Message(message_type='find_people', data=data)
+        address = request.form['email']
 
-        # Send message
-        headers = {"Content-Type": "application/json"}
-        url = "http://{host}/find-people".format(host=app.config['LOGIN_SERVER'])
-        r = requests.post(url, message.json(), headers=headers)
+        # Create a temporary electrical synapse to make a synchronous glia request
+        electrical = ElectricalSynapse(None)
+        resp, errors = electrical.find_persona(address)
 
-        # Read response
-        try:
-            resp = r.json()
-        except ValueError:
-            app.logger.info("Error retrieving results: {}".format(r.data))
-            flash("Server error: Please try again.")
+        # TODO: This should flash an error message. It doesn't.
+        if errors:
+            flash("Server error: {}".format(str(errors)))
 
-        # TODO: Use message_errors() instead
-        if resp and resp['data'] and 'found' in resp['data']:
-            found = resp['data']['found']
+        elif resp and resp['personas']:
+            found = resp['personas']
+            active_persona = Persona.query.get(get_active_persona())
 
             for p in found:
-                if Persona.query.get(p['persona_id']) is None:
-                    app.logger.info("Storing new Persona {}".format(p['persona_id']))
-                    p_new = Persona(
-                        id=p['persona_id'],
-                        username=p['username'],
-                        email=email,
-                        crypt_public=p['crypt_public'],
-                        sign_public=p['sign_public'])
-                    db.session.add(p_new)
-                    db.session.commit()
-        else:
-            error = "No record for {}. Check the spelling!".format(email)
+                p_local = Persona.query.get(p['id'])
+                if p_local is None:
+                    import iso8601
+                    app.logger.info("Storing new Persona {}".format(p['id']))
 
-    return render_template('find_people.html', form=form, found=found, error=error)
+                    modified = iso8601.parse_date(p["modified"]).replace(tzinfo=None)
+
+                    p_new = Persona(
+                        id=p['id'],
+                        username=p['username'],
+                        modified=modified,
+                        email=address,
+                        crypt_public=p['crypt_public'],
+                        sign_public=p['sign_public']
+                    )
+                    p_new._stub = True
+                    found_new.append(p_new)
+                    found_processed.append({
+                        "id": p["id"],
+                        "username": p["username"],
+                        "incoming": None,
+                        "outgoing": None
+                        })
+                else:
+                    found_processed.append({
+                        "id": p["id"],
+                        "username": p["username"],
+                        "incoming": (active_persona in p_local.contacts),
+                        "outgoing": (p_local in active_persona.contacts)
+                    })
+
+            try:
+                for p in found_new:
+                    db.session.add(p)
+                db.session.commit()
+            except:
+                db.session.rollback()
+        else:
+            error = "No record for {}. Check the spelling!".format(address)
+
+    return render_template('find_people.html', form=form, found=found_processed, error=error)
 
 
 @app.route('/p/<persona_id>/add_contact', methods=['GET', "POST"])
@@ -482,13 +536,126 @@ def add_contact(persona_id):
         db.session.add(author)
         db.session.commit()
 
-        new_contact.send(add_contact, message={'new_contact': persona, 'author': author})
+        app.logger.info("Now sharing {}'s posts with {}".format(author, persona))
 
-        flash("Added {} to {}'s address book".format(persona.username, author.username))
-        app.logger.info("Added {} to {}'s contacts".format(persona, author))
+        local_model_changed.send(add_contact, message={
+            "author_id": author.id,
+            "action": "update",
+            "object_id": author.id,
+            "object_type": "Persona"
+        })
+
+        new_contact.send(add_contact, message={
+            'new_contact_id': persona.id,
+            'author_id': author.id
+        })
+
+        flash("Now sharing {}'s posts with {}".format(author, persona))
         return redirect(url_for('persona', id=persona.id))
 
     return render_template('add_contact.html', form=form, persona=persona)
+
+
+@app.route('/g/<id>/', methods=['GET'])
+def group(id):
+    """ Render home view of a group """
+
+    group = Group.query.filter_by(id=id).first_or_404()
+
+    form = Create_star_form(default_author=get_active_persona())
+    form.author.choices = [(p.id, p.username) for p in Persona.list_controlled()]
+
+    # Fill in group-id to be used in star creation
+    form.context.data = group.profile.id
+
+    # create layouted page for group
+    page = pagemanager.group_layout(group.profile.index.filter(Star.state >= 0))
+
+    return render_template(
+        'group.html',
+        group=group,
+        page=page,
+        form=form)
+
+
+@app.route('/g/create', methods=['GET', 'POST'])
+def create_group():
+    """ Render page for creating new group """
+
+    from uuid import uuid4
+
+    form = Create_group_form()
+    form.author.choices = [(p.id, p.username) for p in Persona.list_controlled()]
+    form.author.data = get_active_persona()
+
+    if form.validate_on_submit():
+        # create ID to identify the group across all contexts
+        uuid = uuid4().hex
+        created_dt = datetime.datetime.utcnow()
+
+        author = Persona.query.get(request.form["author"])
+        if not author.controlled():
+            app.logger.error("Can't create Group with foreign Persona {}".format(author))
+            flash("Can't create Group with foreign Persona {}".format(author))
+            return redirect(url_for('create_group')), 401
+
+        # Create group and add to DB
+        g = Group(
+            id=uuid,
+            author=author,
+            modified=created_dt,
+            groupname=request.form['groupname'],
+            description=request.form['description']
+        )
+
+        db.session.add(g)
+        db.session.commit()
+
+        index = Starmap(
+            id=uuid4().hex,
+            author=author,
+            kind="group_profile",
+            modified=created_dt
+        )
+        g.profile = index
+        db.session.add(index)
+        db.session.commit()
+
+        flash("New group {} created!".format(g.groupname))
+        app.logger.info("Created {} with {}".format(g, g.profile))
+
+        local_model_changed.send(create_group, message={
+            "author_id": author.id,
+            "action": "insert",
+            "object_id": g.id,
+            "object_type": "Group",
+        })
+
+        local_model_changed.send(create_group, message={
+            "author_id": author.id,
+            "action": "insert",
+            "object_id": g.profile.id,
+            "object_type": "Starmap",
+        })
+
+        return redirect(url_for('group', id=g.id))
+
+    page = pagemanager.create_group_layout()
+    return render_template(
+        'create_group.html',
+        form=form,
+        page=page,
+        next=url_for('create_group'))
+
+
+@app.route('/g/', methods=['GET'])
+def groups():
+    groups = Group.query.all()
+
+    return render_template(
+        'groups.html',
+        groups=groups
+    )
 
 
 class Vizier():

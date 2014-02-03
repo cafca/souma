@@ -2,7 +2,7 @@
 
 {% block content %}
 <section class="col1 row1 w4 h1">
-<h2><i class="icon-plus"></i> Create Persona</h2>
+<h2><i class="fa fa-plus"></i> Create Persona</h2>
 </section>
 
 <!-- <section class="col1 row2 w4 h6">
@@ -26,7 +26,7 @@
     <form method="POST" action="{{url_for('create_persona')}}">
         <div class="control-group {% if form.name.errors %}error{% endif %}">
             <div class="controls input-prepend">
-                <span class="add-on"><i class="icon-circle"></i></span>
+                <span class="add-on"><i class="fa fa-circle"></i></span>
                 {{ form.name(placeholder="Username")}}
             </div>
             {% if form.name.errors %}
@@ -35,7 +35,7 @@
         </div>
         <div class="control-group {% if form.email.errors %}error{% endif %}">
             <div class="controls input-prepend">
-                <span class="add-on"><i class="icon-envelope"></i></span>
+                <span class="add-on"><i class="fa fa-envelope"></i></span>
                 {{ form.email(placeholder="Email")}}
             </div>
             {% if form.email.errors %}

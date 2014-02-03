@@ -6,14 +6,14 @@
 </section>
 <section class="col1 row1 w4 h1">
     <h2>Find people you know</h2>
-    <p>Please enter Email-Addresses of people you want to find.</p>
+    <p>Sharing your content allows your friends to see everything you posted as <strong>{{ active_persona.username }}</strong>.</p>
 </section>
 
 <section class="col1 row3 w4 h2">
 <form method="POST" action="{{url_for('find_people')}}">
     <div class="control-group {% if form.email.errors %}error{% endif %}">
         <div class="input-prepend input-append controls">
-            <span class="add-on"><i class="icon-envelope"></i></span>
+            <span class="add-on"><i class="fa fa-envelope"></i></span>
             {{form.email(placeholder="Email")}}
             <button class="btn" type="submit">Find</button>
         </div>
@@ -38,14 +38,13 @@
         <tbody>
             {% for p in found %}
             <tr>
-                <td><a href="{{ url_for('persona', id=p.persona_id) }}" class="btn btn-link">
-                    <i class="icon-circle-blank"></i>
-                    {{p.username}}
-                    <{{p.persona_id|truncate(8, True, end="")}}>
+                <td><a href="{{ url_for('persona', id=p.id) }}" class="btn btn-link">
+                    <i class="fa fa-circle"></i>
+                    {{p.username}} <{{p.id|truncate(6, True, end="")}}>
                 </a></td>
                 <td>
-                    <form action="{{ url_for('add_contact', persona_id=p.persona_id)}}" method="POST">
-                        <button class="btn btn-small" type="submit">Follow</button>
+                    <form action="{{ url_for('add_contact', persona_id=p.id)}}" method="POST">
+                        <button class="btn btn-small" type="submit" {% if p.outgoing %}disabled=disabled{% endif %}>{% if p.outgoing %}Already sharing{% else %}Share my profile{% endif %}</button>
                     </form>
                 </td>
             </tr>

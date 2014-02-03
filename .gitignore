@@ -41,6 +41,7 @@ static/attachments/*
 
 # Misc
 .DS_Store
+*.swp
 secret_key
 
 operator_config.py

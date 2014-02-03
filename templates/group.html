@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% import "macros/star.html" as star_macros %}
+{% import "macros/planet.html" as planet_macros %}
+{% import "macros/create_star.html" as create_macro %}
+
+
+{% block content %}
+<!-- <section class="col0 row1 w3 h1">-->
+<section class='{{ page.header[0].css_class }}'> 
+    <span class="content">
+        <h1>{{group.groupname}}</h1>
+        <p>Description: {{group.description}}</p>
+    </span>
+</section>
+
+</form>
+
+
+{{ create_macro.create_star(page, form, active_persona) }}
+
+
+{% for star in page.stars %}
+    {% for planet in star.planets %}
+    <section class='{{ star.css_class }}'>
+        {{ planet_macros.planet(planet, False)}}
+    </section>
+    {% endfor %}
+
+    <section class="{%if star.planets|length() >= 1 %}image-overlay{% endif %} {{star.css_class}}">
+        {{ star_macros.star(star.content) }}
+    </section>
+{% endfor %}
+
+{% endblock %}

@@ -1,4 +1,6 @@
 @import "frameless.less";
+@font-face {font-family: Delicious; src: url('/static/fonts/Delicious-type1/DelicRom');}
+@font-face {font-family: Delicious; src: url('/static/fonts/Delicious-opentype/Delicious-Roman.otf');}
 
 //
 //  MAIN STYLES
@@ -90,7 +92,7 @@ article {
 
         span { margin: 5px 10px; }
     }
-    
+
     .hidden {
         display: none;
     }
@@ -111,7 +113,7 @@ article {
             background-color: white;
         }
 
-        a { 
+        a {
             color: black;
             text-decoration: none;
         }
@@ -136,8 +138,8 @@ article {
             border: 1px solid darken(white, 20%);
         }
 
-        .content { 
-            display: block; 
+        .content {
+            display: block;
         }
 
         .meta {
@@ -153,6 +155,14 @@ article {
             }
 
             a:hover { text-decoration: underline; }
+
+            form {
+                display: inline;
+            }
+
+            .btn {
+                line-height: 16px;
+            }
         }
 
         .fullsize-input > textarea, .fullsize-input > input {
@@ -183,7 +193,7 @@ article {
         .fileupload {
 
             .thumbnail {
-                width: 160px; 
+                width: 160px;
                 height: 120px;
                 border: none;
                 box-shadow: none;
