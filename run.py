@@ -21,7 +21,7 @@ except OperationalError:
     app.logger.info("Setting up Nucleus for <Souma [{}]>".format(app.config['SOUMA_ID'][:6]))
     local_souma = Souma(id=app.config['SOUMA_ID'])
     local_souma.generate_keys()
-    local_souma.starmap = Starmap(id=uuid4().hex)
+    local_souma.starmap = Starmap(id=uuid4().hex, kind="index")
 
     db.session.add(local_souma)
     db.session.commit()

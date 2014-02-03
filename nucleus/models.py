@@ -10,7 +10,7 @@ from sqlalchemy import ForeignKey
 from uuid import uuid4
 
 from nucleus import ONEUP_STATES, STAR_STATES, PLANET_STATES, \
-    PersonaNotFoundError, UnauthorizedError, notification_signals
+    PersonaNotFoundError, UnauthorizedError, notification_signals, CHANGE_TYPES
 from web_ui import app, db
 from web_ui.helpers import epoch_seconds
 
@@ -29,6 +29,20 @@ class Serializable():
 
     _insert_required = ["id", "modified"]
     _update_required = ["id", "modified"]
+
+    def authorize(self, action, author_id=None):
+        """Return True if this object authorizes `action` for `author_id`
+
+        Args:
+            action (String): Action to be performed (see Synapse.CHANGE_TYPES)
+            author_id (String): Persona ID that wants to perform the action
+
+        Returns:
+            Boolean: True if authorized
+        """
+        if action not in CHANGE_TYPES:
+            return False
+        return True
 
     def export(self, exclude=[], update=False):
         """Return this object as a dict.
@@ -78,12 +92,12 @@ class Serializable():
         return missing
 
     @staticmethod
-    def created_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
+    def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
         """Create a new instance from a changeset.
 
         Args:
             changeset (dict): Dictionary of model values. Requires all keys
-                defined in Serializable._insert_required with class-specific values.
+                defined in cls._insert_required with class-specific values.
             stub (Serializable): (Optional) model instance whose values will be
                 overwritten with those defined in changeset.
             update_sender (Persona): (Optional) author of this changeset. Will be
@@ -209,6 +223,20 @@ class Persona(Serializable, db.Model):
     def __repr__(self):
         return "<{} [{}]>".format(str(self.username), self.id[:6])
 
+    def authorize(self, action, author_id=None):
+        """Return True if this Persona authorizes `action` for `author_id`
+
+        Args:
+            action (String): Action to be performed (see Synapse.CHANGE_TYPES)
+            author_id (String): Persona ID that wants to perform the action
+
+        Returns:
+            Boolean: True if authorized
+        """
+        if Serializable.authorize(action, author_id=author_id):
+            return (self.id == author_id)
+        return False
+
     def controlled(self):
         """
         Return True if this Persona has private keys attached
@@ -217,6 +245,10 @@ class Persona(Serializable, db.Model):
             return True
         else:
             return False
+
+    @staticmethod
+    def list_controlled():
+        return Persona.query.filter('Persona.sign_private != ""')
 
     def get_email_hash(self):
         """Return sha256 hash of this user's email address"""
@@ -497,7 +529,7 @@ class Star(Serializable, db.Model):
 
     __tablename__ = "star"
 
-    _insert_required = ["id", "text", "created", "modified", "author_id", "planets", "group_id"]
+    _insert_required = ["id", "text", "created", "modified", "author_id", "planets"]
     _update_required = ["id", "text", "modified"]
 
     id = db.Column(db.String(32), primary_key=True)
@@ -523,13 +555,6 @@ class Star(Serializable, db.Model):
         primaryjoin="satellites.c.star_id==star.c.id",
         secondaryjoin="satellites.c.planet_id==planet.c.id")
 
-    group_id = db.Column(db.String(32), db.ForeignKey('group.id'))
-    group = db.relationship("Group",
-        backref="stars",
-        primaryjoin="Group.id==Star.group_id")
-
-    # and_(Group.id==Star.group_id, Star.state>=0)
-
     vesicles = db.relationship(
         'Vesicle',
         secondary='star_vesicles',
@@ -545,6 +570,20 @@ class Star(Serializable, db.Model):
             self.id[:6],
             (ascii_text[:24] if len(ascii_text) <= 24 else ascii_text[:22] + ".."))
 
+    def authorize(self, action, author_id=None):
+        """Return True if this Star authorizes `action` for `author_id`
+
+        Args:
+            action (String): Action to be performed (see Synapse.CHANGE_TYPES)
+            author_id (String): Persona ID that wants to perform the action
+
+        Returns:
+            Boolean: True if authorized
+        """
+        if Serializable.authorize(self, action, author_id=author_id):
+            return author_id == self.author.id
+        return False
+
     @staticmethod
     def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
         """See Serializable.create_from_changeset"""
@@ -557,13 +596,11 @@ class Star(Serializable, db.Model):
             star.author = None
             star.created = created_dt
             star.modified = modified_dt
-            star.group = None
         else:
             star = Star(
                 id=changeset["id"],
                 text=changeset["text"],
                 author=None,
-                group=None,
                 created=created_dt,
                 modified=modified_dt,
             )
@@ -574,14 +611,6 @@ class Star(Serializable, db.Model):
             star.author_id = changeset["author_id"]
         else:
             star.author = author
-
-        group = Group.query.get(changeset["group_id"])
-        if group is None:
-            # Todo: Send request for group
-            app.logger.warning("New star belongs to unknown group.")
-            star.group_id = changeset["group_id"]
-        else:
-            star.group = group
 
         app.logger.info("Created new Star from changeset")
 
@@ -861,6 +890,18 @@ class Souma(Serializable, db.Model):
     def __str__(self):
         return "<Souma [{}]>".format(self.id[:6])
 
+    def authorize(self, action, author_id=None):
+        """Return True if this Souma authorizes `action` for `author_id`
+
+        Args:
+            action (String): Action to be performed (see Synapse.CHANGE_TYPES)
+            author_id (String): Persona ID that wants to perform the action
+
+        Returns:
+            Boolean: True if authorized
+        """
+        return False
+
     def generate_keys(self):
         """ Generate new RSA keypairs for signing and encrypting. Commit to DB afterwards! """
 
@@ -979,10 +1020,43 @@ class Starmap(Serializable, db.Model):
         return (key in self.index)
 
     def __repr__(self):
-        return "<Starmap {} by {}>".format(self.id[:6], self.author)
+        if self.kind == "persona_profile":
+            name = "Persona-Profile"
+        elif self.kind == "group_profile":
+            name = "Group-Profile"
+        else:
+            name = "Starmap"
+
+        return "<{} (by {}) [{}]>".format(name, self.author, self.id[:6])
 
     def __len__(self):
         return self.index.paginate(1).total
+
+    def authorize(self, action, author_id=None):
+        """Return True if this Starmap authorizes `action` for `author_id`
+
+        Args:
+            action (String): Action to be performed (see Synapse.CHANGE_TYPES)
+            author_id (String): Persona ID that wants to perform the action
+
+        Returns:
+            Boolean: True if authorized
+        """
+        if Serializable.authorize(self, action, author_id=author_id):
+            if self.kind == "persona_profile":
+                p = Persona.query.filter(Persona.profile_id == self.id)
+                return p.id == author_id
+            elif self.kind == "group_profile":
+                # Everyone can update
+                if "action" == "update":
+                    return True
+                # Only author can insert and delete
+                elif self.author_id == author_id:
+                    return True
+            elif self.kind == "index":
+                p = Persona.query.filter(Persona.index_id == self.id)
+                return p.id == author_id
+        return False
 
     def get_state(self):
         """
@@ -1011,6 +1085,19 @@ class Starmap(Serializable, db.Model):
                 new_state, type(new_state))
         else:
             self.state = new_state
+
+    def get_absolute_url(self):
+        """Return URL for this Starmap depending on kind"""
+        # import pdb; pdb.set_trace()
+        if self.kind == "persona_profile":
+            p = Persona.query.filter(Persona.profile_id == self.id).first()
+            return url_for("persona", id=p.id)
+        elif self.kind == "group_profile":
+            g = Group.query.filter(Group.profile_id == self.id).first()
+            return url_for("group", id=g.id)
+        elif self.kind == "index":
+            p = Persona.query.filter(Persona.index_id == self.id).first()
+            return url_for("persona", id=p.id)
 
     def export(self, update=False):
         data = Serializable.export(self, exclude=["index", ], update=update)
@@ -1152,6 +1239,12 @@ class Starmap(Serializable, db.Model):
         for req in request_list:
             request_objects.send(Starmap.create_from_changeset, message=req)
 
+t_group_vesicles = db.Table(
+    'group_vesicles',
+    db.Column('group_id', db.String(32), db.ForeignKey('group.id')),
+    db.Column('vesicle_id', db.String(32), db.ForeignKey('vesicle.id'))
+)
+
 
 class Group(Serializable, db.Model):
     """
@@ -1160,12 +1253,27 @@ class Group(Serializable, db.Model):
     """
 
     __tablename__ = "group"
-    _insert_required = ["id", "modified", "groupname", "description", ]
-    _update_required = ["id", "modified", ]
+    _insert_required = ["id", "modified", "author_id", "groupname", "description", "profile_id", "state"]
+    _update_required = ["id", "modified", "state"]
 
     id = db.Column(db.String(32), primary_key=True)
+    modified = db.Column(db.DateTime, default=datetime.datetime.utcnow())
     groupname = db.Column(db.String(80))
     description = db.Column(db.Text)
+
+    state = db.Column(db.Integer, default=0)
+
+    author_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
+    author = db.relationship("Persona", primaryjoin="persona.c.id==group.c.author_id")
+
+    profile_id = db.Column(db.String(32), db.ForeignKey('starmap.id'))
+    profile = db.relationship('Starmap', primaryjoin='starmap.c.id==group.c.profile_id')
+
+    vesicles = db.relationship(
+        'Vesicle',
+        secondary='group_vesicles',
+        primaryjoin='group_vesicles.c.group_id==group.c.id',
+        secondaryjoin='group_vesicles.c.vesicle_id==vesicle.c.id')
 
     # Make this work if needed!
     """
@@ -1175,25 +1283,115 @@ class Group(Serializable, db.Model):
         primaryjoin='group.c.id==persona.c.?????_id' # TODO:How to HBTM?!
     )"""
 
-    # # returns only active posts
-    # posts = db.relationship(
-    #     "Star",
-    #     backref="group",
-    #     primaryjoin="and_(Group.id==Star.group_id, Star.state>=0)"
-    # )
+    def __repr__(self):
+        try:
+            name = " {} ".format(self.groupname.encode('utf-8'))
+        except AttributeError:
+            name = ""
+        return "<Group{}[{}]>".format(name, self.id[:6])
 
-    def __init__(self, id, name, description):
-        self.id = id
-        self.groupname = name
-        self.description = description
+    def authorize(self, action, author_id=None):
+        """Return True if this Group authorizes `action` for `author_id`
 
-    # def export(self, update=False):
-    #     data = Serializable.export(self, exclude=["posts", ])
+        Args:
+            action (String): Action to be performed (see Synapse.CHANGE_TYPES)
+            author_id (String): Persona ID that wants to perform the action
 
-    #     data["posts"] = list()
-    #     for post in self.posts:
-    #         data["posts"].append({
-    #             'id': post.id,
-    #             "modified": post.modified
-    #         })
-    #     return data
+        Returns:
+            Boolean: True if authorized
+        """
+        if Serializable.authorize(self, action, author_id=author_id):
+            return self.author_id == author_id
+        return False
+
+    def get_state(self):
+        """
+        Return publishing state of this Group. (temporarily uses planet states)
+
+        Returns:
+            Integer:
+                -2 -- deleted
+                -1 -- unavailable
+                0 -- published
+                1 -- draft
+                2 -- private
+                3 -- updating
+        """
+        return PLANET_STATES[self.state][0]
+
+    def set_state(self, new_state):
+        """
+        Set the publishing state of this Group (temporarily uses planet states)
+
+        Parameters:
+            new_state (int) code of the new state as defined in nucleus.PLANET_STATES
+        """
+        if not isinstance(new_state, int) or new_state not in PLANET_STATES.keys():
+            raise ValueError("{} ({}) is not a valid planet state").format(
+                new_state, type(new_state))
+        else:
+            self.state = new_state
+
+    @staticmethod
+    def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
+        """Create a new group from changeset"""
+        modified_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
+
+        if stub is not None:
+            group = stub
+            group.id = changeset["id"]
+            group.author = None
+            group.profile = None
+            group.modified = modified_dt
+            group.groupname = changeset["groupname"]
+            group.description = changeset["description"]
+        else:
+            group = Group(
+                id=changeset["id"],
+                modified=modified_dt,
+                author=None,
+                profile=None,
+                groupname=changeset["groupname"],
+                description=changeset["description"]
+            )
+
+        group.set_state(int(changeset["state"]))
+        request_list = list()
+
+        # Update profile
+        profile = Starmap.query.get(changeset["profile_id"])
+        if profile is None or profile.get_state() == -1:
+            request_list.append({
+                "type": "Starmap",
+                "id": changeset["profile_id"],
+                "author_id": update_recipient.id if update_recipient else None,
+                "recipient_id": update_sender.id if update_sender else None,
+            })
+
+        if profile is None:
+            profile = Starmap(
+                id=changeset["profile_id"],
+                kind="group_profile"
+            )
+            profile.state = -1
+
+        group.profile = profile
+
+        # Update author
+        author = Persona.query.get(changeset["author_id"])
+        if author is None or author._stub:
+            request_list.append({
+                "type": "Persona",
+                "id": changeset["author_id"],
+                "author_id": update_recipient.id if update_recipient else None,
+                "recipient_id": update_sender.id if update_sender else None,
+            })
+
+        if author is None:
+            author = Persona(
+                id=changeset["author_id"],
+            )
+            author._stub = True
+
+        group.author = author
+        return group

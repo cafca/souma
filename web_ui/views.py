@@ -5,7 +5,7 @@ from flask import abort, flash, redirect, render_template, request, session, url
 from hashlib import sha256
 
 from web_ui import app, cache, db, logged_in, attachments
-from web_ui.pagemanager import *
+from web_ui import pagemanager
 from web_ui.forms import *
 from web_ui.helpers import get_active_persona
 from nucleus import notification_signals, PersonaNotFoundError
@@ -17,13 +17,16 @@ contact_request_sent = notification_signals.signal('contact-request-sent')
 new_contact = notification_signals.signal('new-contact')
 group_created = notification_signals.signal('group-created')
 
-pagemanager = PageManager()
+pagemanager = pagemanager.PageManager()
 
 
 @app.context_processor
 def persona_context():
     """Makes controlled_personas available in templates"""
-    return dict(controlled_personas=Persona.query.filter('sign_private != ""'))
+    return dict(
+        controlled_personas=Persona.list_controlled(),
+        active_persona=Persona.query.get(get_active_persona())
+    )
 
 
 @app.before_request
@@ -107,8 +110,7 @@ def persona(id):
     persona = Persona.query.filter_by(id=id).first_or_404()
     stars = Star.query.filter(
         Star.author_id == id,
-        Star.state >= 0,
-        Star.group_id == '')[:4]
+        Star.state >= 0)[:4]
 
     # TODO: Use new layout system
     vizier = Vizier([
@@ -155,7 +157,7 @@ def create_persona():
         p.profile = Starmap(
             id=uuid4().hex,
             author=p,
-            kind="profile",
+            kind="persona_profile",
             modified=created_dt
         )
         db.session.add(p.profile)
@@ -190,6 +192,9 @@ def create_persona():
             "object_type": "Starmap",
         })
 
+        # Activate new Persona
+        session["active_persona"] = p.id
+
         flash("New persona {} created!".format(p.username))
         return redirect(url_for('persona', id=uuid))
 
@@ -220,13 +225,13 @@ def create_star():
     from uuid import uuid4
     """ Create a new star """
 
-    # Load author drop down contents
-    controlled_personas = Persona.query.filter(Persona.sign_private != None).all()
-    author_choices = [(p.id, p.username) for p in controlled_personas]
-    active_persona = Persona.query.get(session['active_persona'])
+    form = Create_star_form(default_author=get_active_persona())
+    form.author.choices = [(p.id, p.username) for p in Persona.list_controlled()]
+    form.author.data = get_active_persona()
 
-    form = Create_star_form(default_author=session['active_persona'])
-    form.author.choices = author_choices
+    # Default is posting to author profile
+    if form.context.data is None:
+        form.context.data = Persona.query.get(form.author.data).profile.id
 
     if form.validate_on_submit():
         uuid = uuid4().hex
@@ -237,20 +242,11 @@ def create_star():
             flash("Can't create Star with foreign Persona {}".format(author))
             return redirect(url_for('create_star')), 401
 
-        group_id = request.form['group_id']
-        group = None
-        if group_id != "":
-            group = Group.query.get(group_id)
-            if group is None:
-                flash('Selected group not found')
-                return redirect(url_for('create_star'))
-
         new_star_created = datetime.datetime.utcnow()
         new_star = Star(
             id=uuid,
             text=request.form['text'],
             author=author,
-            group=group,
             created=new_star_created,
             modified=new_star_created
         )
@@ -259,6 +255,7 @@ def create_star():
 
         flash('New star created!')
         app.logger.info('Created new {}'.format(new_star))
+        model_change_messages = list()
 
         if 'picture' in request.files and request.files['picture'].filename != "":
             # compute hash
@@ -299,43 +296,44 @@ def create_star():
             db.session.commit()
             app.logger.info("Attached {} to new {}".format(planet, new_star))
 
-        # Add new Star to author's profile
-        author_profile = new_star.author.profile
-        author_profile.index.append(new_star)
-        author_profile.modified = new_star_created
-        db.session.add(author_profile)
-        db.session.commit()
-
-        message_star_insert = {
+        model_change_messages.append({
             "author_id": new_star.author.id,
             "action": "insert",
             "object_id": new_star.id,
             "object_type": "Star",
-        }
+        })
 
-        message_profile_update = {
-            "author_id": new_star.author.id,
-            "action": "update",
-            "object_id": author_profile.id,
-            "object_type": "Starmap"
-        }
+        # Add new Star to a Starmap depending on context
+        starmap = Starmap.query.get(request.form["context"])
+        if starmap is not None:
+            starmap.index.append(new_star)
+            starmap.modified = new_star_created
+            db.session.add(starmap)
+
+            model_change_messages.append({
+                "author_id": new_star.author.id,
+                "action": "update",
+                "object_id": starmap.id,
+                "object_type": "Starmap"
+            })
+
+        db.session.commit()
 
         # db.session.expunge_all()  # Remove everything from session before sending signal
-        local_model_changed.send(create_star, message=message_star_insert)
-        local_model_changed.send(create_star, message=message_profile_update)
+        for m in model_change_messages:
+            local_model_changed.send(create_star, message=m)
 
         # if new star belongs to a group, show group page
-        if new_star.group_id:
-            return redirect(url_for('group', id=new_star.group_id))
-
-        return redirect(url_for('star', id=uuid))
+        if starmap is None:
+            return redirect(url_for('star', id=uuid))
+        else:
+            return redirect(starmap.get_absolute_url())
 
     page = pagemanager.create_star_layout()
 
     return render_template('create_star.html',
                            form=form,
-                           page=page,
-                           active_persona=active_persona)
+                           page=page)
 
 
 @app.route('/s/<id>/delete', methods=["GET"])
@@ -378,7 +376,7 @@ def delete_star(id):
 def universe():
     """ Render the landing page """
     # return only stars that are not in a group context
-    stars = Star.query.filter(Star.state >= 0, Star.group_id == '').all()
+    stars = Star.query.filter(Star.state >= 0).all()
     page = pagemanager.star_layout(stars)
 
     if len(persona_context()['controlled_personas'].all()) == 0:
@@ -393,7 +391,7 @@ def universe():
 @app.route('/s/<id>/', methods=['GET'])
 def star(id):
     """ Display a single star """
-    star = Star.query.filter(Star.id==id, Star.state >= 0).first_or_404()
+    star = Star.query.filter(Star.id==id, Star.state>=0).first_or_404()
     author = Persona.query.filter_by(id=id)
 
     return render_template('star.html', layout="star", star=star, author=author)
@@ -444,13 +442,15 @@ def debug():
     personas = Persona.query.all()
     planets = Planet.query.all()
     groups = Group.query.all()
+    starmaps = Starmap.query.all()
 
     return render_template(
         'debug.html',
         stars=stars,
         personas=personas,
         planets=planets,
-        groups=groups
+        groups=groups,
+        starmaps=starmaps
     )
 
 
@@ -546,25 +546,19 @@ def group(id):
 
     group = Group.query.filter_by(id=id).first_or_404()
 
-    # Load author drop down contents
-    controlled_personas = Persona.query.filter(Persona.sign_private != None).all()
-    author_choices = [(p.id, p.username) for p in controlled_personas]
-    active_persona = Persona.query.get(session['active_persona'])
-
-    form = Create_star_form(default_author=session['active_persona'])
-    form.author.choices = author_choices
+    form = Create_star_form(default_author=get_active_persona())
+    form.author.choices = [(p.id, p.username) for p in Persona.list_controlled()]
 
     # Fill in group-id to be used in star creation
-    form.group_id.data = group.id
+    form.context.data = group.profile.id
 
     # create layouted page for group
-    page = pagemanager.group_layout(group.stars)
+    page = pagemanager.group_layout(group.profile.index.filter(Star.state >= 0))
 
     return render_template(
         'group.html',
         group=group,
         page=page,
-        active_persona=active_persona,
         form=form)
 
 
@@ -575,22 +569,59 @@ def create_group():
     from uuid import uuid4
 
     form = Create_group_form()
+    form.author.choices = [(p.id, p.username) for p in Persona.list_controlled()]
+    form.author.data = get_active_persona()
+
     if form.validate_on_submit():
         # create ID to identify the group across all contexts
         uuid = uuid4().hex
+        created_dt = datetime.datetime.utcnow()
+
+        author = Persona.query.get(request.form["author"])
+        if not author.controlled():
+            app.logger.error("Can't create Group with foreign Persona {}".format(author))
+            flash("Can't create Group with foreign Persona {}".format(author))
+            return redirect(url_for('create_group')), 401
 
         # Create group and add to DB
         g = Group(
-            uuid,
-            request.form['groupname'],
-            request.form['description'])
+            id=uuid,
+            author=author,
+            modified=created_dt,
+            groupname=request.form['groupname'],
+            description=request.form['description']
+        )
 
         db.session.add(g)
         db.session.commit()
 
-        group_created.send(create_group, message=g)
+        index = Starmap(
+            id=uuid4().hex,
+            author=author,
+            kind="group_profile",
+            modified=created_dt
+        )
+        g.profile = index
+        db.session.add(index)
+        db.session.commit()
 
         flash("New group {} created!".format(g.groupname))
+        app.logger.info("Created {} with {}".format(g, g.profile))
+
+        local_model_changed.send(create_group, message={
+            "author_id": author.id,
+            "action": "insert",
+            "object_id": g.id,
+            "object_type": "Group",
+        })
+
+        local_model_changed.send(create_group, message={
+            "author_id": author.id,
+            "action": "insert",
+            "object_id": g.profile.id,
+            "object_type": "Starmap",
+        })
+
         return redirect(url_for('group', id=g.id))
 
     page = pagemanager.create_group_layout()

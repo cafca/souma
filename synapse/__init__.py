@@ -5,8 +5,8 @@ from dateutil.parser import parse as dateutil_parse
 from gevent.pool import Pool
 from uuid import uuid4
 
-from nucleus import create_session, notification_signals, PersonaNotFoundError, UnauthorizedError, VesicleStateError
-from nucleus.models import Persona, Star, Planet, Starmap
+from nucleus import create_session, notification_signals, PersonaNotFoundError, UnauthorizedError, VesicleStateError, CHANGE_TYPES
+from nucleus.models import Persona, Star, Planet, Starmap, Group
 from nucleus.vesicle import Vesicle
 from synapse.electrical import ElectricalSynapse
 from web_ui import app
@@ -17,8 +17,7 @@ ALLOWED_MESSAGE_TYPES = [
     "object_request",
 ]
 
-CHANGE_TYPES = ("insert", "update", "delete")
-OBJECT_TYPES = ("Star", "Planet", "Persona", "Starmap")
+OBJECT_TYPES = ("Star", "Planet", "Persona", "Starmap", "Group")
 
 
 class Synapse():
@@ -373,16 +372,19 @@ class Synapse():
                 recipient=author,
                 session=session)
         else:
-            if o.modified <= obj_modified or (hasattr(o, "_stub") and o._stub is True):
-                o.update_from_changeset(obj, update_sender=author, update_recipient=recipient)
-                if isinstance(o, Persona):
-                    o.stub = False
+            if o.authorize("update", author.id):
+                if o.modified <= obj_modified or (hasattr(o, "_stub") and o._stub is True):
+                    o.update_from_changeset(obj, update_sender=author, update_recipient=recipient)
+                    if isinstance(o, Persona):
+                        o.stub = False
+                    else:
+                        o.set_state(0)
+                    session.add(o)
+                    self.logger.info("Applied update for {}".format(o))
                 else:
-                    o.set_state(0)
-                session.add(o)
-                self.logger.info("Applied update for {}".format(o))
+                    self.logger.info("Received obsolete update ({})".format(obj))
             else:
-                self.logger.info("Received obsolete update ({})".format(obj))
+                self.logger.warning("{} is not authorized to update {} - update canceled.".format(author, o))
 
         return o
 
@@ -399,20 +401,19 @@ class Synapse():
         if o is None:
             self.logger.info("Request to delete unknown <{} [{}]>".format(object_type, obj["id"]))
         else:
-            if o.author != author:
-                raise UnauthorizedError("Deletion request not signed by original object's author.\n" +
-                    "{} is not {}".format(o.author, author))
-
-            if hasattr(o, "set_state"):
-                o.set_state(-2)
-                o.text = None
-                session.add(o)
-                self.logger.info("{} marked deleted".format(o))
+            if o.authorize("delete", author.id):
+                if hasattr(o, "set_state"):
+                    o.set_state(-2)
+                    o.text = None
+                    session.add(o)
+                    self.logger.info("{} marked deleted".format(o))
+                else:
+                    name = str(o)
+                    session.delete(o)
+                    o = None
+                    self.logger.info("Permanently deleted {}".format(name))
             else:
-                name = str(o)
-                session.delete(o)
-                o = None
-                self.logger.info("Permanently deleted {}".format(name))
+                self.logger.warning("Object deletion not authorized!")
         return o
 
     def on_new_contact(self, sender, message):

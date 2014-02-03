@@ -52,6 +52,8 @@ ONEUP_STATES = {
     1: "unknown author"
 }
 
+CHANGE_TYPES = ("insert", "update", "delete")
+
 
 class InvalidSignatureError(Exception):
     """Throw this error when a signature fails authenticity checks"""

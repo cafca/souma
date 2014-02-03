@@ -18,12 +18,13 @@ class Create_star_form(Form):
     picture = FileField('Picture')
     #link = URLField('Link', validators=[url()])
     link = URLField('Link')
-    group_id = HiddenField('', validators=[Optional(), Length(min=32, max=32)])
+    context = HiddenField('Context', validators=[])
 
 
 class Create_group_form(Form):
     """ Generate form for creating a group """
 
+    author = HiddenField('Author', validators=[Required(), ])
     groupname = TextField('Group name', validators=[Required(), ])
     description = TextField('Description', validators=[Required(), ], widget=widgets.TextArea())
 
