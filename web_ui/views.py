@@ -461,6 +461,7 @@ def find_people():
 
     form = FindPeopleForm(request.form)
     error = found = None
+    found_processed = list()
     found_new = list()
 
     if request.method == 'POST' and form.validate():
@@ -477,9 +478,11 @@ def find_people():
 
         elif resp and resp['personas']:
             found = resp['personas']
+            active_persona = Persona.query.get(get_active_persona())
 
             for p in found:
-                if Persona.query.get(p['id']) is None:
+                p_local = Persona.query.get(p['id'])
+                if p_local is None:
                     import iso8601
                     app.logger.info("Storing new Persona {}".format(p['id']))
 
@@ -495,6 +498,19 @@ def find_people():
                     )
                     p_new._stub = True
                     found_new.append(p_new)
+                    found_processed.append({
+                        "id": p["id"],
+                        "username": p["username"],
+                        "incoming": None,
+                        "outgoing": None
+                        })
+                else:
+                    found_processed.append({
+                        "id": p["id"],
+                        "username": p["username"],
+                        "incoming": (active_persona in p_local.contacts),
+                        "outgoing": (p_local in active_persona.contacts)
+                    })
 
             try:
                 for p in found_new:
@@ -505,7 +521,7 @@ def find_people():
         else:
             error = "No record for {}. Check the spelling!".format(address)
 
-    return render_template('find_people.html', form=form, found=found, error=error)
+    return render_template('find_people.html', form=form, found=found_processed, error=error)
 
 
 @app.route('/p/<persona_id>/add_contact', methods=['GET', "POST"])
@@ -520,7 +536,7 @@ def add_contact(persona_id):
         db.session.add(author)
         db.session.commit()
 
-        app.logger.info("Added {} to {}'s contacts".format(persona, author))
+        app.logger.info("Now sharing {}'s posts with {}".format(author, persona))
 
         local_model_changed.send(add_contact, message={
             "author_id": author.id,
@@ -534,7 +550,7 @@ def add_contact(persona_id):
             'author_id': author.id
         })
 
-        flash("Added {} to {}'s address book".format(persona.username, author.username))
+        flash("Now sharing {}'s posts with {}".format(author, persona))
         return redirect(url_for('persona', id=persona.id))
 
     return render_template('add_contact.html', form=form, persona=persona)
