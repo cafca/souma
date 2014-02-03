@@ -233,7 +233,7 @@ class Persona(Serializable, db.Model):
         Returns:
             Boolean: True if authorized
         """
-        if Serializable.authorize(action, author_id=author_id):
+        if Serializable.authorize(self, action, author_id=author_id):
             return (self.id == author_id)
         return False
 
@@ -1048,7 +1048,7 @@ class Starmap(Serializable, db.Model):
                 return p.id == author_id
             elif self.kind == "group_profile":
                 # Everyone can update
-                if "action" == "update":
+                if action == "update":
                     return True
                 # Only author can insert and delete
                 elif self.author_id == author_id:
