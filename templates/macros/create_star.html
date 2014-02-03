@@ -103,9 +103,9 @@
     </section>
 
     <section class="col0 row0 w0 h0" style="display:none">
-        {{ form.creator() }}
-        {% if form.creator.errors %}
-            <ul class="errors">{% for error in form.creator.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+        {{ form.author() }}
+        {% if form.author.errors %}
+            <ul class="errors">{% for error in form.author.errors %}<li>{{ error }}</li>{% endfor %}</ul>
         {% endif %}
     </section>
 </form>

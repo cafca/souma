@@ -1,6 +1,7 @@
 import os
+import datetime
 
-from flask import abort, flash, json, redirect, render_template, request, session, url_for, jsonify as json_response
+from flask import abort, flash, redirect, render_template, request, session, url_for, jsonify as json_response
 from hashlib import sha256
 
 from web_ui import app, cache, db, logged_in, attachments
@@ -8,17 +9,13 @@ from web_ui.pagemanager import *
 from web_ui.forms import *
 from web_ui.helpers import get_active_persona
 from nucleus import notification_signals, PersonaNotFoundError
-from nucleus.models import Persona, Star, Planet, PicturePlanet, LinkPlanet, Group
-from nucleus.vesicle import Vesicle
+from nucleus.models import Persona, Star, Planet, PicturePlanet, LinkPlanet, Group, Starmap
 
 # Create blinker signal namespace
-star_created = notification_signals.signal('star-created')
-star_deleted = notification_signals.signal('star-deleted')
-persona_created = notification_signals.signal('persona-created')
+local_model_changed = notification_signals.signal('local-model-changed')
 contact_request_sent = notification_signals.signal('contact-request-sent')
 new_contact = notification_signals.signal('new-contact')
 group_created = notification_signals.signal('group-created')
-
 
 pagemanager = PageManager()
 
@@ -108,8 +105,8 @@ def persona(id):
     """ Render home view of a persona """
 
     persona = Persona.query.filter_by(id=id).first_or_404()
-    starmap = Star.query.filter(
-        Star.creator_id == id,
+    stars = Star.query.filter(
+        Star.author_id == id,
         Star.state >= 0,
         Star.group_id == '')[:4]
 
@@ -125,7 +122,7 @@ def persona(id):
         'persona.html',
         layout="persona",
         vizier=vizier,
-        starmap=starmap,
+        stars=stars,
         persona=persona)
 
 
@@ -138,12 +135,15 @@ def create_persona():
     if form.validate_on_submit():
         # This is a unique ID which identifies the persona across all contexts
         uuid = uuid4().hex
+        created_dt = datetime.datetime.utcnow()
 
         # Save persona to DB
         p = Persona(
-            uuid,
-            request.form['name'],
-            request.form['email'])
+            id=uuid,
+            username=request.form['name'],
+            email=request.form['email'],
+            modified=created_dt,
+        )
 
         # Create keypairs
         p.generate_keys(cache.get('password'))
@@ -152,7 +152,43 @@ def create_persona():
         db.session.add(p)
         db.session.commit()
 
-        persona_created.send(create_persona, message=p)
+        p.profile = Starmap(
+            id=uuid4().hex,
+            author=p,
+            kind="profile",
+            modified=created_dt
+        )
+        db.session.add(p.profile)
+
+        p.index = Starmap(
+            id=uuid4().hex,
+            author=p,
+            kind="index",
+            modified=created_dt
+        )
+        db.session.add(p.index)
+        db.session.commit()
+
+        local_model_changed.send(create_persona, message={
+            "author_id": p.id,
+            "action": "insert",
+            "object_id": p.id,
+            "object_type": "Persona",
+        })
+
+        local_model_changed.send(create_persona, message={
+            "author_id": p.id,
+            "action": "insert",
+            "object_id": p.profile.id,
+            "object_type": "Starmap",
+        })
+
+        local_model_changed.send(create_persona, message={
+            "author_id": p.id,
+            "action": "insert",
+            "object_id": p.index.id,
+            "object_type": "Starmap",
+        })
 
         flash("New persona {} created!".format(p.username))
         return redirect(url_for('persona', id=uuid))
@@ -186,19 +222,38 @@ def create_star():
 
     # Load author drop down contents
     controlled_personas = Persona.query.filter(Persona.sign_private != None).all()
-    creator_choices = [(p.id, p.username) for p in controlled_personas]
+    author_choices = [(p.id, p.username) for p in controlled_personas]
     active_persona = Persona.query.get(session['active_persona'])
 
-    form = Create_star_form(default_creator=session['active_persona'])
-    form.creator.choices = creator_choices
+    form = Create_star_form(default_author=session['active_persona'])
+    form.author.choices = author_choices
+
     if form.validate_on_submit():
         uuid = uuid4().hex
 
+        author = Persona.query.get(request.form["author"])
+        if not author.controlled():
+            app.logger.error("Can't create Star with foreign Persona {}".format(author))
+            flash("Can't create Star with foreign Persona {}".format(author))
+            return redirect(url_for('create_star')), 401
+
+        group_id = request.form['group_id']
+        group = None
+        if group_id != "":
+            group = Group.query.get(group_id)
+            if group is None:
+                flash('Selected group not found')
+                return redirect(url_for('create_star'))
+
+        new_star_created = datetime.datetime.utcnow()
         new_star = Star(
-            uuid,
-            request.form['text'],
-            request.form['creator'],
-            request.form['group_id'])
+            id=uuid,
+            text=request.form['text'],
+            author=author,
+            group=group,
+            created=new_star_created,
+            modified=new_star_created
+        )
         db.session.add(new_star)
         db.session.commit()
 
@@ -213,8 +268,9 @@ def create_star():
             # create or get planet
             planet = Planet.query.filter_by(id=picture_hash[:32]).first()
             if not planet:
-                app.logger.info("Storing submitted file")
-                filename = attachments.save(request.files['picture'], folder=picture_hash[:2], name=picture_hash[2:]+".")
+                app.logger.info("Creating new planet for submitted file")
+                filename = attachments.save(request.files['picture'],
+                    folder=picture_hash[:2], name=picture_hash[2:] + ".")
                 planet = PicturePlanet(
                     id=picture_hash[:32],
                     filename=os.path.join(attachments.name, filename))
@@ -243,7 +299,30 @@ def create_star():
             db.session.commit()
             app.logger.info("Attached {} to new {}".format(planet, new_star))
 
-        star_created.send(create_star, message=new_star)
+        # Add new Star to author's profile
+        author_profile = new_star.author.profile
+        author_profile.index.append(new_star)
+        author_profile.modified = new_star_created
+        db.session.add(author_profile)
+        db.session.commit()
+
+        message_star_insert = {
+            "author_id": new_star.author.id,
+            "action": "insert",
+            "object_id": new_star.id,
+            "object_type": "Star",
+        }
+
+        message_profile_update = {
+            "author_id": new_star.author.id,
+            "action": "update",
+            "object_id": author_profile.id,
+            "object_type": "Starmap"
+        }
+
+        # db.session.expunge_all()  # Remove everything from session before sending signal
+        local_model_changed.send(create_star, message=message_star_insert)
+        local_model_changed.send(create_star, message=message_profile_update)
 
         # if new star belongs to a group, show group page
         if new_star.group_id:
@@ -263,28 +342,41 @@ def create_star():
 def delete_star(id):
     """ Delete a star """
     # TODO: Should only accept POST instead of GET
-    # TODO: Check permissions!
 
-    # Load instance and creator persona
+    # Load instance and author persona
     s = Star.query.get(id)
-
     if s is None:
         abort(404)
 
-    s.set_state(-2)
-    db.session.add(s)
-    db.session.commit()
+    if not s.author.controlled():
+        flash("You are not allowed to delete {}'s Stars".format(s.author))
+        app.logger.error("Tried to delete one of {}'s Stars".format(s.author))
+        return redirect(request.referrer)
+    else:
+        s.set_state(-2)
+        try:
+            db.session.add(s)
+            db.session.commit()
+        except:
+            app.logger.info("Error deleting {}".format(s))
+            db.session.rollback()
+        else:
+            message_delete = {
+                "author_id": s.author.id,
+                "action": "delete",
+                "object_id": s.id,
+                "object_type": "Star",
+            }
 
-    star_deleted.send(delete_star, message=s)
+            local_model_changed.send(delete_star, message=message_delete)
 
-    app.logger.info("Deleted star {}".format(id))
-    return redirect(url_for('debug'))
+            app.logger.info("Deleted star {}".format(id))
+        return redirect(url_for('debug'))
 
 
 @app.route('/')
 def universe():
     """ Render the landing page """
-
     # return only stars that are not in a group context
     stars = Star.query.filter(Star.state >= 0, Star.group_id == '').all()
     page = pagemanager.star_layout(stars)
@@ -302,9 +394,10 @@ def universe():
 def star(id):
     """ Display a single star """
     star = Star.query.filter(Star.id==id, Star.state >= 0).first_or_404()
-    creator = Persona.query.filter_by(id=id)
+    author = Persona.query.filter_by(id=id)
 
-    return render_template('star.html', layout="star", star=star, creator=creator)
+    return render_template('star.html', layout="star", star=star, author=author)
+
 
 @app.route('/s/<star_id>/1up', methods=['POST'])
 def oneup(star_id):
@@ -336,12 +429,13 @@ def oneup(star_id):
             },
             "oneups": [{
                 "id": oneup.id,
-                "creator": oneup.creator.id,
+                "author": oneup.author.id,
                 "state_value": oneup.state,
                 "state_name": oneup.get_state()
             }]
         }
     return json_response(resp)
+
 
 @app.route('/debug/')
 def debug():
@@ -366,15 +460,12 @@ def find_people():
     from synapse.electrical import ElectricalSynapse
 
     form = FindPeopleForm(request.form)
-    found = None
-    error = None
+    error = found = None
+    found_new = list()
 
     if request.method == 'POST' and form.validate():
         # Compile message
         address = request.form['email']
-        payload = {
-            "email_hash": [sha256(address).hexdigest(), ]
-        }
 
         # Create a temporary electrical synapse to make a synchronous glia request
         electrical = ElectricalSynapse(None)
@@ -389,15 +480,28 @@ def find_people():
 
             for p in found:
                 if Persona.query.get(p['id']) is None:
+                    import iso8601
                     app.logger.info("Storing new Persona {}".format(p['id']))
+
+                    modified = iso8601.parse_date(p["modified"]).replace(tzinfo=None)
+
                     p_new = Persona(
                         id=p['id'],
                         username=p['username'],
+                        modified=modified,
                         email=address,
                         crypt_public=p['crypt_public'],
-                        sign_public=p['sign_public'])
-                    db.session.add(p_new)
-                    db.session.commit()
+                        sign_public=p['sign_public']
+                    )
+                    p_new._stub = True
+                    found_new.append(p_new)
+
+            try:
+                for p in found_new:
+                    db.session.add(p)
+                db.session.commit()
+            except:
+                db.session.rollback()
         else:
             error = "No record for {}. Check the spelling!".format(address)
 
@@ -416,10 +520,21 @@ def add_contact(persona_id):
         db.session.add(author)
         db.session.commit()
 
-        new_contact.send(add_contact, message={'new_contact': persona, 'author': author})
+        app.logger.info("Added {} to {}'s contacts".format(persona, author))
+
+        local_model_changed.send(add_contact, message={
+            "author_id": author.id,
+            "action": "update",
+            "object_id": author.id,
+            "object_type": "Persona"
+        })
+
+        new_contact.send(add_contact, message={
+            'new_contact_id': persona.id,
+            'author_id': author.id
+        })
 
         flash("Added {} to {}'s address book".format(persona.username, author.username))
-        app.logger.info("Added {} to {}'s contacts: {}".format(persona, author, author.contacts))
         return redirect(url_for('persona', id=persona.id))
 
     return render_template('add_contact.html', form=form, persona=persona)
@@ -433,18 +548,17 @@ def group(id):
 
     # Load author drop down contents
     controlled_personas = Persona.query.filter(Persona.sign_private != None).all()
-    creator_choices = [(p.id, p.username) for p in controlled_personas]
+    author_choices = [(p.id, p.username) for p in controlled_personas]
     active_persona = Persona.query.get(session['active_persona'])
 
-    form = Create_star_form(default_creator=session['active_persona'])
-    form.creator.choices = creator_choices
+    form = Create_star_form(default_author=session['active_persona'])
+    form.author.choices = author_choices
 
     # Fill in group-id to be used in star creation
     form.group_id.data = group.id
 
     # create layouted page for group
-    starmap = group.posts
-    page = pagemanager.group_layout(starmap)
+    page = pagemanager.group_layout(group.stars)
 
     return render_template(
         'group.html',

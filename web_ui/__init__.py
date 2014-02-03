@@ -26,6 +26,12 @@ parser.add_argument('--no_ui',
     action="store_true",
     help="skip starting the web ui server")
 
+parser.add_argument('-v',
+    '--verbose',
+    default=False,
+    action="store_true",
+    help="gimme moar-logs")
+
 parser.add_argument('-p',
     '--port',
     type=int,
@@ -34,18 +40,21 @@ parser.add_argument('-p',
 parser.add_argument('-g',
     '--glia',
     default=app.config['LOGIN_SERVER'],
-    help="glia server")
+    help="glia server url")
 
 args = parser.parse_args()
 app.config['NO_UI'] = args.no_ui
 app.config['LOGIN_SERVER'] = args.glia
 
+if args.verbose is True:
+    app.config["LOG_LEVEL"] = logging.DEBUG
+
 if args.port is not None:
-  app.config['LOCAL_PORT'] = args.port
-  app.config['LOCAL_ADDRESS'] = "{}:{}".format(app.config['LOCAL_HOSTNAME'], args.port)
-  app.config['SYNAPSE_PORT'] = args.port + 50
-  app.config['DATABASE'] = 'souma_{}.db'.format(app.config['LOCAL_PORT'])
-  app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///" + app.config['DATABASE']
+    app.config['LOCAL_PORT'] = args.port
+    app.config['LOCAL_ADDRESS'] = "{}:{}".format(app.config['LOCAL_HOSTNAME'], args.port)
+    app.config['SYNAPSE_PORT'] = args.port + 50
+    app.config['DATABASE'] = 'souma_{}.db'.format(app.config['LOCAL_PORT'])
+    app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///" + app.config['DATABASE']
 
 
 # Load/set secret key
@@ -59,14 +68,14 @@ except IOError:
 
 if len(app.config['SECRET_KEY']) != 24:
     raise ValueError('Secret key must be 24 bytes, not {}'.format(
-      len(app.config['SECRET_KEY'])))
+        len(app.config['SECRET_KEY'])))
 
 
 # Generate ID used to identify this machine
-app.config['SOUMA_ID'] = SHA256.new(app.config['SECRET_KEY']+str(app.config['LOCAL_PORT'])).hexdigest()[:32]
+app.config['SOUMA_ID'] = SHA256.new(app.config['SECRET_KEY'] + str(app.config['LOCAL_PORT'])).hexdigest()[:32]
 
 if 'SOUMA_PASSWORD_HASH_{}'.format(app.config['LOCAL_PORT']) in os.environ:
-    app.config['PASSWORD_HASH'] = os.environ['SOUMA_PASSWORD_HASH_{}'.format(LOCAL_PORT)]
+    app.config['PASSWORD_HASH'] = os.environ['SOUMA_PASSWORD_HASH_{}'.format(app.config["LOCAL_PORT"])]
 else:
     app.config['PASSWORD_HASH'] = None
 

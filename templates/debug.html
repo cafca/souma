@@ -7,7 +7,7 @@
         <tr>
             <th>ID</th>
             <th>Message</th>
-            <th>Creator</th>
+            <th>Author</th>
             <th>Modified</th>
             <th>Created</th>
             <th>State</th>
@@ -20,10 +20,10 @@
       <tr>
         <td>{{ star.id }}</td>
         <td>{{ star.text }}</td>
-        <td>{{ star.creator.username}}</td>
+        <td>{{ star.author.username}}</td>
         <td>{{ star.modified | naturaltime }}</td>
         <td>{{ star.created | naturaltime}} </td>
-        <td>{{ star.get_state()[1] | capitalize}}</td>
+        <td>{{ star.get_state()}}</td>
         <td>{{ star.group_id }} </td>
         {% if star.state >= 0 %}
             <td><a class="btn" href="{{ url_for('delete_star', id=star.id) }}">Delete</a></td>
@@ -33,7 +33,7 @@
       </tr>
       {% endfor %}
     </tbody>
-</table>  
+</table>
 
 <h1>Personas</h1>
 <table class="table">
@@ -49,7 +49,7 @@
     <tbody>
       {% for persona in personas %}
       <tr>
-        <td>{{ persona.id }}</td>
+        <td>{{ persona.id }}{% if persona.stub %} (stub){% endif %}</td>
         <td>{{ persona.username }}</td>
         <td>{{ persona.email }}</td>
         <td>{{ persona.modified }}</td>
@@ -57,7 +57,7 @@
       </tr>
       {% endfor %}
     </tbody>
-</table>  
+</table>
 
 <h1>Planets</h1>
 <table class="table">
@@ -83,7 +83,7 @@
       </tr>
       {% endfor %}
     </tbody>
-</table>  
+</table>
 
 <h1>Groups</h1>
 <table class="table">
@@ -103,7 +103,5 @@
       </tr>
       {% endfor %}
     </tbody>
-</table>  
-
-
+</table>
 {%endblock%}

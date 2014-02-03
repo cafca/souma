@@ -1,6 +1,10 @@
 import logging
 import blinker
 
+from web_ui import db, app
+
+from sqlalchemy.orm import sessionmaker
+
 ERROR = {
     "MISSING_MESSAGE_TYPE": (1, "No message type found."),
     "MISSING_PAYLOAD": (2, "No data payload found."),
@@ -33,21 +37,60 @@ STAR_STATES = {
     3: (3, "updating")
 }
 
+# Possible states of planets
+PLANET_STATES = {
+    -1: (-1, "unavailable"),
+    0: (0, "published"),
+    1: (1, "private"),
+    2: (2, "updating")
+}
+
 # Possible states of 1ups
 ONEUP_STATES = {
     -1: "disabled",
     0: "active",
-    1: "unknown creator"
+    1: "unknown author"
 }
+
 
 class InvalidSignatureError(Exception):
     """Throw this error when a signature fails authenticity checks"""
     pass
 
+
 class PersonaNotFoundError(Exception):
     """Throw this error when the Persona profile specified for an action is not available"""
     pass
 
+
 class UnauthorizedError(Exception):
     """Throw this error when the active Persona is not authorized for an action"""
     pass
+
+
+class VesicleStateError(Exception):
+    """Throw this error when a Vesicle's state does not allow for an action"""
+    pass
+
+
+# Import at bottom to avoid circular imports
+# Import all models to allow querying db binds
+from nucleus.models import *
+from vesicle import Vesicle
+
+# _Session is a custom sessionmaker that returns a session prefconfigured with the
+# model bindings from Nucleus
+_Session = sessionmaker(bind=db.get_engine(app))
+
+
+def create_session():
+    """Return a session to be used for database connections
+
+    Returns:
+        Session: SQLAlchemy session object
+    """
+    # Produces integrity errors!
+    # return _Session()
+
+    # db.session is managed by Flask-SQLAlchemy and bound to a request
+    return db.session
