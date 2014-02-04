@@ -108,9 +108,7 @@ def persona(id):
     """ Render home view of a persona """
 
     persona = Persona.query.filter_by(id=id).first_or_404()
-    stars = Star.query.filter(
-        Star.author_id == id,
-        Star.state >= 0)[:4]
+    stars = persona.profile.index
 
     # TODO: Use new layout system
     vizier = Vizier([
@@ -391,7 +389,7 @@ def universe():
 @app.route('/s/<id>/', methods=['GET'])
 def star(id):
     """ Display a single star """
-    star = Star.query.filter(Star.id==id, Star.state>=0).first_or_404()
+    star = Star.query.filter(Star.id == id, Star.state >= 0).first_or_404()
     author = Persona.query.filter_by(id=id)
 
     return render_template('star.html', layout="star", star=star, author=author)
@@ -503,7 +501,7 @@ def find_people():
                         "username": p["username"],
                         "incoming": None,
                         "outgoing": None
-                        })
+                    })
                 else:
                     found_processed.append({
                         "id": p["id"],
