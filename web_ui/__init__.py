@@ -18,6 +18,9 @@ app = Flask('souma')
 app.config.from_object("default_config")
 app.jinja_env.filters['naturaltime'] = naturaltime
 
+# Create application data folder
+if not os.path.exists(app.config["USER_DATA"]):
+    os.mkdir(app.config["USER_DATA"], 0700)
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description='Start Souma client')
@@ -57,13 +60,15 @@ if args.port is not None:
     app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///" + app.config['DATABASE']
 
 
-# Load/set secret key
+""" Load/set secret key """
 try:
-    with open('secret_key', 'rb') as f:
+    with open(app.config["SECRET_KEY_FILE"], 'rb') as f:
         app.config['SECRET_KEY'] = f.read()
 except IOError:
+    # Create new secret key
     app.config['SECRET_KEY'] = os.urandom(24)
-    with open('secret_key', 'wb') as f:
+    with open(app.config["SECRET_KEY_FILE"], 'wb') as f:
+        os.chmod(app.config["SECRET_KEY_FILE"], 0700)
         f.write(app.config['SECRET_KEY'])
 
 if len(app.config['SECRET_KEY']) != 24:
