@@ -35,6 +35,12 @@ parser.add_argument('-v',
     action="store_true",
     help="gimme moar-logs")
 
+parser.add_argument('-r',
+    '--reset',
+    default=False,
+    action="store_true",
+    help="reset database and secret key (irreversible!)")
+
 parser.add_argument('-p',
     '--port',
     type=int,
@@ -51,6 +57,11 @@ app.config['LOGIN_SERVER'] = args.glia
 
 if args.verbose is True:
     app.config["LOG_LEVEL"] = logging.DEBUG
+
+if args.reset is True:
+    # Delete database and secret key
+    os.remove(app.config["DATABASE"])
+    os.remove(app.config["SECRET_KEY_FILE"])
 
 if args.port is not None:
     app.config['LOCAL_PORT'] = args.port
