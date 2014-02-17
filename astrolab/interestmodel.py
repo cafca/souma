@@ -1,9 +1,10 @@
-from astrolab import topic_model
+from topicmodel import TopicModel
 from web_ui import db, app
 from nucleus.models import Persona, Oneup, Star, LinkPlanet
 from sklearn.naive_bayes import GaussianNB
 from helpers import get_site_content
 from datetime import datetime
+import pdb
 
 
 class InterestModel(db.Model):
@@ -32,34 +33,56 @@ class InterestModel(db.Model):
 
 
 def update():
-    app.logger.info("Test1")
+    app.logger.info("Update interest model")
+    topic_model = TopicModel('../enwiki_lda.model', '../enwiki__wordids.txt')
     for persona in Persona.query.all():
         interestmodel = InterestModel.query.filter_by(persona_id=persona.id).first()
 
         if interestmodel is None:
             interestmodel = InterestModel(persona.id)
 
-        fit(interestmodel)
+        fit(interestmodel, topic_model)
+
+    del topic_model
+    app.logger.info("Update finished")
 
 
-def fit(interestmodel):
-    app.logger.info("Fitting")
-    train_set = list()
-    for oneup in Oneup.query.filter_by(creator_id=interestmodel.persona_id):
-        star = Star.query.get(oneup.star_id)
+def fit(interestmodel, topic_model):
+    train_set_pos = []
+    train_set_neg = []
+    for star in Star.query.filter_by(state=0):
+        like = star.creator_id == interestmodel.persona_id
+        if not like:
+            like = Oneup.query.filter_by(star_id=star.id, creator_id=interestmodel.persona_id).all()
+            
 
+        content = star.text
         for planet in star.planets:
             if isinstance(planet, LinkPlanet):
                 link = planet.url
                 link_content = get_site_content(link)
-                topics = topic_model.get_topics_text(link_content)
-                train_set.append(topics)
+                content += ' ' + link_content
 
-        topics = topic_model.get_topics_text(star.text)
-        train_set.append(topics)
 
-    if len(train_set) > 0:
-        train_labels = [[1] * len(train_set)]
+        topics = topic_model.get_topics_text(content)
+
+        if like:
+            train_set_pos.append(topics)
+        else:
+            train_set_neg.append(topics)
+
+
+    app.logger.info("Fitting persona %s"%interestmodel.persona_id)
+    app.logger.info("Positive: %d    Negative: %d"%(len(train_set_pos),len(train_set_neg)))
+    if len(train_set_pos) > 0:
+        train_labels = [[1] * len(train_set_pos)]
+        train_set = train_set_pos
+
+        if len(train_set_neg) > 0:
+            train_set.extend(train_set_neg)
+            train_labels.extend([[0] * len(train_set_neg)])
+
+        pdb.set_trace()
         interestmodel.classifier.fit(train_set, train_labels)
+
     interestmodel.last_fit = datetime.now()
-    app.logger.info("Finished")
