@@ -41,6 +41,6 @@ setup(
     license="Apache License 2.0",
     description="A Cognitive Network for Groups",
     long_description=open("README.md").read(),
-    install_requires=[],
+    install_requires=open("requirements.txt").read(),
     **extra_options
 )
