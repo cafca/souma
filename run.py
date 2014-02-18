@@ -11,6 +11,9 @@ from uuid import uuid4
 from nucleus.models import Souma, Starmap
 from synapse import Synapse
 
+from astrolab.helpers import repeated_func_schedule
+from astrolab.interestmodel import update
+
 # Initialize database
 try:
     local_souma = Souma.query.get(app.config["SOUMA_ID"])
@@ -35,6 +38,8 @@ else:
     # Synapse
     app.logger.info("Starting Synapses")
     synapse = Synapse()
+
+    repeated_func_schedule(60 * 60, update)
 
     # Web UI
     if not app.config['NO_UI']:
