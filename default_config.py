@@ -1,5 +1,8 @@
-import os
+import appdirs
 import logging
+import os
+
+USER_DATA = appdirs.user_data_dir("souma", "souma", roaming=True)
 
 #
 # --------------------- FLASK OPTIONS ---------------------
@@ -12,10 +15,12 @@ LOCAL_ADDRESS = "{}:{}".format(LOCAL_HOSTNAME, LOCAL_PORT)
 DEBUG = True
 USE_DEBUG_SERVER = False
 
+SECRET_KEY_FILE = os.path.join(USER_DATA, "secret_key")
+
 # Uncomment to log DB statements
 # SQLALCHEMY_ECHO = True
 
-DATABASE = 'souma_{}.db'.format(LOCAL_PORT)
+DATABASE = os.path.join(USER_DATA, 'souma_{}.db'.format(LOCAL_PORT))
 SQLALCHEMY_DATABASE_URI = "sqlite:///" + DATABASE
 
 # uploads are placed in the UPLOADS_DEFAULT_DEST/'attachments' subfolder by flask-uploads
