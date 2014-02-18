@@ -67,7 +67,7 @@ if args.port is not None:
     app.config['LOCAL_PORT'] = args.port
     app.config['LOCAL_ADDRESS'] = "{}:{}".format(app.config['LOCAL_HOSTNAME'], args.port)
     app.config['SYNAPSE_PORT'] = args.port + 50
-    app.config['DATABASE'] = 'souma_{}.db'.format(app.config['LOCAL_PORT'])
+    app.config['DATABASE'] = os.path.join(app.config["USER_DATA"], 'souma_{}.db'.format(app.config["LOCAL_PORT"]))
     app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///" + app.config['DATABASE']
 
 
