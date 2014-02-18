@@ -33,8 +33,11 @@ class InterestModel(db.Model):
 
 
 def update():
-    app.logger.info("Update interest model")
-    topic_model = TopicModel('../enwiki_lda.model', '../enwiki__wordids.txt')
+    app.logger.info("Updating interest model")
+
+    topic_model = TopicModel(
+        app.config["TOPIC_MODEL"], app.config["TOPIC_MODEL_IDS"])
+
     for persona in Persona.query.all():
         interestmodel = InterestModel.query.filter_by(persona_id=persona.id).first()
 

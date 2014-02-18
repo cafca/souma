@@ -14,6 +14,11 @@ from synapse import Synapse
 from astrolab.helpers import repeated_func_schedule
 from astrolab.interestmodel import update
 
+def setup_astrolab():
+    """Download topic model and schedule model updates"""
+
+    repeated_func_schedule(60 * 60, update)
+
 # Initialize database
 try:
     local_souma = Souma.query.get(app.config["SOUMA_ID"])
@@ -39,7 +44,8 @@ else:
     app.logger.info("Starting Synapses")
     synapse = Synapse()
 
-    repeated_func_schedule(60 * 60, update)
+    # Setup Astrolab
+    gevent.spawn(setup_astrolab())
 
     # Web UI
     if not app.config['NO_UI']:

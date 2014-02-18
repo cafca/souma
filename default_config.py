@@ -23,6 +23,9 @@ SECRET_KEY_FILE = os.path.join(USER_DATA, "secret_key")
 DATABASE = os.path.join(USER_DATA, 'souma_{}.db'.format(LOCAL_PORT))
 SQLALCHEMY_DATABASE_URI = "sqlite:///" + DATABASE
 
+TOPIC_MODEL = os.path.join(USER_DATA, 'enwiki_lda.model')
+TOPIC_MODEL_IDS = os.path.join(USER_DATA, 'enwiki__wordids.txt')
+
 # uploads are placed in the UPLOADS_DEFAULT_DEST/'attachments' subfolder by flask-uploads
 # this is configured in web_ui/__init__.py
 UPLOADS_DEFAULT_DEST = os.path.join(os.path.abspath(os.path.dirname(__file__)), "static")
