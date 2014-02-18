@@ -16,7 +16,11 @@ if sys.platform == 'darwin':
     extra_options = dict(
         setup_requires=['py2app'],
         app=APP,
-        options=dict(py2app=dict(argv_emulation=True)),
+        options=dict(py2app={
+            "argv_emulation": True,
+            "bdist_base": "../build",
+            "dist_dir": "../dist"
+        }),
     )
 elif sys.platform == 'win32':
     extra_options = dict(
@@ -32,7 +36,7 @@ setup(
     version="0.2",
     author="Cognitive Networks Group",
     author_email="cognitive-networks@googlegroups.com",
-    packages=["soma.nucleus", "soma.web_ui", "soma.synapse"],
+    packages=["nucleus", "web_ui", "synapse", "astrolab"],
     scripts=["run.py"],
     license="Apache License 2.0",
     description="A Cognitive Network for Groups",
