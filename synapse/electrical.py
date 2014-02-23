@@ -32,14 +32,14 @@ class GliaAuth(requests.auth.AuthBase):
         rand = self.rng.read(16)
 
         # app.logger.debug("Authenticating {}\nID: {}\nRand: {}\nPath: {}\nPayload: {}".format(
-        #    r, str(self.souma.id), rand, r.url, self.payload))
+        #    r, str(self.souma.id), rand, str(r.url), self.payload))
 
         r.headers['Glia-Souma'] = self.souma.id
         r.headers['Glia-Rand'] = b64encode(rand)
         r.headers['Glia-Auth'] = self.souma.sign("".join([
             str(self.souma.id),
             rand,
-            r.url,
+            str(r.url),
             self.payload
         ]))
         return r
