@@ -68,13 +68,6 @@ else:
     extra_options = dict(
         scripts=APP)
 
-print 'Deleting build dirs...'
-try:
-    shutil.rmtree('../build')
-    shutil.rmtree('../dist')
-except OSError:
-    pass
-
 setup(
     name="Souma",
     version="0.2",
