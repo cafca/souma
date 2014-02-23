@@ -97,7 +97,10 @@ def setup():
             password_hash = sha256(password).hexdigest()
 
             app.config['PASSWORD_HASH'] = password_hash
-            os.environ['SOUMA_PASSWORD_HASH_{}'.format(app.config['LOCAL_PORT'])] = password_hash
+            with open(app.config["SECRET_KEY_FILE"], "w") as f:
+                f.seek(24)  # After the secret key
+                f.write(password_hash)
+
             cache.set('password', password, 3600)
             return redirect(url_for('universe'))
     return render_template('setup.html', error=error)

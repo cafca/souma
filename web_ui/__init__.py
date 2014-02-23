@@ -74,9 +74,16 @@ if args.port is not None:
 """ Load/set secret key """
 try:
     with open(app.config["SECRET_KEY_FILE"], 'rb') as f:
-        app.config['SECRET_KEY'] = f.read()
+        app.config['SECRET_KEY'] = f.read(24)
+    with open(app.config["SECRET_KEY_FILE"], "r") as f:
+        f.seek(24)
+        app.config['PASSWORD_HASH'] = f.read()
+
+    app.logger.debug("Souma secret: {} bytes\nPassword hash: {} bytes".format(
+        len(app.config["SECRET_KEY"]), len(app.config["PASSWORD_HASH"])))
 except IOError:
     # Create new secret key
+    app.logger.debug("Creating new secret key")
     app.config['SECRET_KEY'] = os.urandom(24)
     with open(app.config["SECRET_KEY_FILE"], 'wb') as f:
         os.chmod(app.config["SECRET_KEY_FILE"], 0700)
