@@ -2,7 +2,6 @@ import logging
 import json
 
 from dateutil.parser import parse as dateutil_parse
-from gevent.pool import Pool
 from uuid import uuid4
 
 from nucleus import create_session, notification_signals, PersonaNotFoundError, UnauthorizedError, VesicleStateError, CHANGE_TYPES
@@ -33,7 +32,6 @@ class Synapse():
 
         # Core setup
         self.starmap = Starmap.query.get(app.config['SOUMA_ID'])
-        self.vesicle_pool = Pool(10)
 
         # Connect to glia
         self.electrical = ElectricalSynapse(self)

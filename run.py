@@ -1,12 +1,13 @@
 #!/usr/bin/python
 
-import gevent
 import requests
+import sys
 
 from web_ui import app, db
 
 from gevent import Greenlet
 from gevent.wsgi import WSGIServer
+from gevent.event import Event
 from sqlalchemy.exc import OperationalError
 from uuid import uuid4
 
@@ -57,6 +58,31 @@ def setup_astrolab():
 
     repeated_func_schedule(60 * 60, update)
 
+""" patch gevent for py2app """
+if getattr(sys, 'frozen', None) == 'macosx_app':
+        import imp
+        import httplib
+
+        original_load_module = imp.load_module
+        original_find_module = imp.find_module
+
+        def custom_load_module(name, file, pathname, description):
+            if name == '__httplib__':
+                return httplib
+            return original_load_module(name, file, pathname, description)
+
+        def custom_find_module(name, path=None):
+            if name == 'httplib':
+                return (None, None, None)
+            return original_find_module(name, path)
+
+        imp.load_module = custom_load_module
+        imp.find_module = custom_find_module
+
+        # Verify that the patch is working properly (you can remove these lines safely)
+        __httplib__ = imp.load_module('__httplib__', *imp.find_module('httplib'))
+        assert __httplib__ is httplib
+
 """ Initialize database """
 try:
     local_souma = Souma.query.get(app.config["SOUMA_ID"])
@@ -80,7 +106,7 @@ if app.config['USE_DEBUG_SERVER']:
     # flask development server
     app.run(app.config['LOCAL_HOSTNAME'], app.config['LOCAL_PORT'])
 else:
-    shutdown = gevent.event.Event()
+    shutdown = Event()
 
     # Synapse
     app.logger.info("Starting Synapses")

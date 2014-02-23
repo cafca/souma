@@ -26,8 +26,8 @@ SQLALCHEMY_DATABASE_URI = "sqlite:///" + DATABASE
 
 TOPIC_MODEL = os.path.join(USER_DATA, 'enwiki_lda.model')
 TOPIC_MODEL_IDS = os.path.join(USER_DATA, 'enwiki__wordids.txt')
-TOPIC_MODEL_UPDATE = "https://dl.dropboxusercontent.com/u/46877/topic_model/enwiki_lda.model"
-TOPIC_MODEL_IDS_UPDATE = "https://dl.dropboxusercontent.com/u/46877/topic_model/enwiki__wordids.txt"
+TOPIC_MODEL_UPDATE = "http://dl.dropboxusercontent.com/u/46877/topic_model/enwiki_lda.model"
+TOPIC_MODEL_IDS_UPDATE = "http://dl.dropboxusercontent.com/u/46877/topic_model/enwiki__wordids.txt"
 
 # uploads are placed in the UPLOADS_DEFAULT_DEST/'attachments' subfolder by flask-uploads
 # this is configured in web_ui/__init__.py
