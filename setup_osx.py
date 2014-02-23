@@ -47,14 +47,16 @@ if sys.platform == 'darwin':
             "argv_emulation": True,
             "bdist_base": "../build",
             "dist_dir": "../dist",
-            "site_packages": True,
+            "iconfile": "static/images/icon_osx.icns",
             "includes": ["sqlalchemy.dialects.sqlite", "sqlalchemy.ext.declarative", "wtforms.ext",
                 "jinja2.ext", "wtforms.ext.csrf", "sklearn", "sklearn.utils"],
             "packages": ["nucleus", "web_ui", "synapse", "astrolab"],
             "plist": {
+                "CFBundleShortVersionString": "0.2",
                 "LSBackgroundOnly": True,
                 "LSUIElement": True
-            }
+            },
+            "site_packages": True,
         }),
     )
 elif sys.platform == 'win32':
