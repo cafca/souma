@@ -19,7 +19,6 @@ group_created = notification_signals.signal('group-created')
 
 pagemanager = pagemanager.PageManager()
 
-
 @app.context_processor
 def persona_context():
     """Makes controlled_personas available in templates"""
@@ -33,18 +32,18 @@ def persona_context():
 def before_request():
     """Preprocess requests"""
 
-    allowed_paths = [
-        '/setup',
-        '/login']
-
     session['active_persona'] = get_active_persona()
 
-    if app.config['PASSWORD_HASH'] is None and request.path not in allowed_paths and request.path[1:7] != 'static':
-        app.logger.info("Redirecting to Setup")
-        return redirect(url_for('setup', _external=True))
+    def pass_thru(path):
+        """Return True if no auth required for path"""
+        allowed_paths = [
+            '/setup',
+            '/login'
+        ]
+        return path in allowed_paths or request.path[1:7] == 'static'
 
-    if request.path not in allowed_paths and not logged_in() and request.path[1:7] != 'static':
-        app.logger.info("Redirecting to Login")
+    if not pass_thru(request.path) and not logged_in():
+        app.logger.info("Not logged in: Redirecting to Login")
         return redirect(url_for('login', _external=True))
 
 
@@ -56,8 +55,15 @@ def teardown_request(exception):
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Display a login form and create a session if the correct pw is submitted"""
+    """Display a login form and create a session if the correct pw is submitted. Redirect to /setup if no pw hash."""
     from Crypto.Protocol.KDF import PBKDF2
+
+    try:
+        with open(app.config["PASSWORD_HASH_FILE"], "r") as f:
+            password_hash = f.read()
+    except IOError:
+        app.logger.info("No password hash found: Redirecting to Setup")
+        return redirect(url_for('setup', _external=True))
 
     error = None
     if request.method == 'POST':
@@ -65,7 +71,7 @@ def login():
         salt = app.config['SECRET_KEY']
         pw_submitted = PBKDF2(request.form['password'], salt)
 
-        if sha256(pw_submitted).hexdigest() != app.config['PASSWORD_HASH']:
+        if sha256(pw_submitted).hexdigest() != password_hash:
             error = 'Invalid password'
         else:
             cache.set('password', pw_submitted, 3600)
@@ -96,8 +102,9 @@ def setup():
             password = PBKDF2(request.form['password'], salt)
             password_hash = sha256(password).hexdigest()
 
-            app.config['PASSWORD_HASH'] = password_hash
-            os.environ['SOUMA_PASSWORD_HASH_{}'.format(app.config['LOCAL_PORT'])] = password_hash
+            with open(app.config["PASSWORD_HASH_FILE"], "w") as f:
+                f.write(password_hash)
+
             cache.set('password', password, 3600)
             return redirect(url_for('universe'))
     return render_template('setup.html', error=error)

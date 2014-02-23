@@ -57,10 +57,13 @@ def setup_astrolab():
 
     repeated_func_schedule(60 * 60, update)
 
-# Initialize database
+""" Initialize database """
 try:
     local_souma = Souma.query.get(app.config["SOUMA_ID"])
 except OperationalError:
+    local_souma = None
+
+if local_souma is None:
     app.logger.info("Setting up database")
     db.create_all()
 
@@ -72,6 +75,7 @@ except OperationalError:
     db.session.add(local_souma)
     db.session.commit()
 
+""" Start app """
 if app.config['USE_DEBUG_SERVER']:
     # flask development server
     app.run(app.config['LOCAL_HOSTNAME'], app.config['LOCAL_PORT'])
