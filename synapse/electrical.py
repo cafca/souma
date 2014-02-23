@@ -79,7 +79,7 @@ class ElectricalSynapse(object):
         # Register souma if neccessary
         if errors:
             # Check for SOUMA_NOT_FOUND error code in server response
-            if ERROR["SOUMA_NOT_FOUND"](None)[0] in map(itemgetter(0), server_info["meta"]["errors"]):
+            if server_info and ERROR["SOUMA_NOT_FOUND"](None)[0] in map(itemgetter(0), server_info["meta"]["errors"]):
                 if self.souma_register():
                     server_info, errors = self._request_resource("GET", [])
                 else:

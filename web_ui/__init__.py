@@ -57,6 +57,7 @@ app.config['LOGIN_SERVER'] = args.glia
 
 if args.verbose is True:
     app.config["LOG_LEVEL"] = logging.DEBUG
+    app.logger.debug("Verbose logs active")
 
 if args.reset is True:
     # Delete database and secret key
