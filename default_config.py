@@ -15,7 +15,8 @@ LOCAL_ADDRESS = "{}:{}".format(LOCAL_HOSTNAME, LOCAL_PORT)
 DEBUG = True
 USE_DEBUG_SERVER = False
 
-SECRET_KEY_FILE = os.path.join(USER_DATA, "secret_key")
+SECRET_KEY_FILE = os.path.join(USER_DATA, "secret_key.dat")
+PASSWORD_HASH_FILE = os.path.join(USER_DATA, "pw_hash.dat")
 
 # Uncomment to log DB statements
 # SQLALCHEMY_ECHO = True

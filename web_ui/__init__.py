@@ -62,6 +62,7 @@ if args.reset is True:
     # Delete database and secret key
     os.remove(app.config["DATABASE"])
     os.remove(app.config["SECRET_KEY_FILE"])
+    os.remove(app.config["PASSWORD_HASH_FILE"])
 
 if args.port is not None:
     app.config['LOCAL_PORT'] = args.port
@@ -75,12 +76,6 @@ if args.port is not None:
 try:
     with open(app.config["SECRET_KEY_FILE"], 'rb') as f:
         app.config['SECRET_KEY'] = f.read(24)
-    with open(app.config["SECRET_KEY_FILE"], "r") as f:
-        f.seek(24)
-        app.config['PASSWORD_HASH'] = f.read()
-
-    app.logger.debug("Souma secret: {} bytes\nPassword hash: {} bytes".format(
-        len(app.config["SECRET_KEY"]), len(app.config["PASSWORD_HASH"])))
 except IOError:
     # Create new secret key
     app.logger.debug("Creating new secret key")
@@ -88,11 +83,6 @@ except IOError:
     with open(app.config["SECRET_KEY_FILE"], 'wb') as f:
         os.chmod(app.config["SECRET_KEY_FILE"], 0700)
         f.write(app.config['SECRET_KEY'])
-
-if len(app.config['SECRET_KEY']) != 24:
-    raise ValueError('Secret key must be 24 bytes, not {}'.format(
-        len(app.config['SECRET_KEY'])))
-
 
 # Generate ID used to identify this machine
 app.config['SOUMA_ID'] = SHA256.new(app.config['SECRET_KEY'] + str(app.config['LOCAL_PORT'])).hexdigest()[:32]
