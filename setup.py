@@ -12,51 +12,12 @@ import shutil
 from setuptools import setup
 
 APP = ['run.py']
-DATA_FILES = ['templates', 'static']
 
-
-class SklearnRecipe(object):
-    """ Recipe for using sklearn in py2app """
-    def check(self, dist, mf):
-        m = mf.findNode('sklearn')
-        if m is None:
-            return None
-        # Don't put sklearn in the site-packages.zip file
-        return dict(
-            packages=['sklearn']
-        )
-import py2app.recipes
-py2app.recipes.sklearn = SklearnRecipe()
-
-
-""" Patch gevent implicit loader """
-patched = False
-with open("../lib/python2.7/site-packages/gevent/os.py", "r+") as f:
-    patch = "\n# make os.path available here\nmy_os = __import__('os')\npath = my_os.path\n"
-    for line in f.readlines():
-        if line == "# make os.path available here":
-            patched = True
-    if not patched:
-        f.write(patch)
 
 """ Platform specific options """
 if sys.platform == 'darwin':
     extra_options = dict(
-        setup_requires=['py2app'],
         app=['run.py'],
-        options=dict(py2app={
-            "argv_emulation": True,
-            "bdist_base": "../build",
-            "dist_dir": "../dist",
-            "site_packages": True,
-            "includes": ["sqlalchemy.dialects.sqlite", "sqlalchemy.ext.declarative", "wtforms.ext",
-                "jinja2.ext", "wtforms.ext.csrf", "sklearn", "sklearn.utils"],
-            "packages": ["nucleus", "web_ui", "synapse", "astrolab"],
-            "plist": {
-                "LSBackgroundOnly": True,
-                "LSUIElement": True
-            }
-        }),
     )
 elif sys.platform == 'win32':
     extra_options = dict(
@@ -82,10 +43,9 @@ setup(
     url="https://github.com/ciex/souma/",
     scripts=["run.py", "set_hosts.py"],
     packages=["nucleus", "web_ui", "synapse", "astrolab"],
-    data_files=DATA_FILES,
     license="Apache License 2.0",
     description="A Cognitive Network for Groups",
-    long_description=open("README.md").read(),
+    long_description=open("README").read(),
     install_requires=open("requirements.txt").read(),
     **extra_options
 )
