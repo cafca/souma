@@ -115,7 +115,10 @@ def persona(id):
     """ Render home view of a persona """
 
     persona = Persona.query.filter_by(id=id).first_or_404()
-    stars = persona.profile.index
+    if hasattr(persona, "profile"):
+        stars = persona.profile.index
+    else:
+        stars = []
 
     # TODO: Use new layout system
     vizier = Vizier([
