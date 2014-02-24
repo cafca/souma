@@ -37,7 +37,7 @@ except OSError:
 
 setup(
     name="Souma",
-    version="0.2",
+    version="0.2.1",
     author="Cognitive Networks Group",
     author_email="cognitive-networks@googlegroups.com",
     url="https://github.com/ciex/souma/",
