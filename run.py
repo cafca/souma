@@ -2,6 +2,7 @@
 
 import requests
 import sys
+import webbrowser
 
 from web_ui import app, db
 
@@ -120,5 +121,6 @@ else:
         app.logger.info("Starting Web-UI")
         local_server = WSGIServer(('', app.config['LOCAL_PORT']), app)
         local_server.start()
+        webbrowser.open("http://{}".format(app.config["LOCAL_ADDRESS"]))
 
     shutdown.wait()
