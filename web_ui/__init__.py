@@ -59,18 +59,23 @@ if args.verbose is True:
     app.config["LOG_LEVEL"] = logging.DEBUG
     app.logger.debug("Verbose logs active")
 
-if args.reset is True:
-    # Delete database and secret key
-    os.remove(app.config["DATABASE"])
-    os.remove(app.config["SECRET_KEY_FILE"])
-    os.remove(app.config["PASSWORD_HASH_FILE"])
-
 if args.port is not None:
     app.config['LOCAL_PORT'] = args.port
     app.config['LOCAL_ADDRESS'] = "{}:{}".format(app.config['LOCAL_HOSTNAME'], args.port)
     app.config['SYNAPSE_PORT'] = args.port + 50
     app.config['DATABASE'] = os.path.join(app.config["USER_DATA"], 'souma_{}.db'.format(app.config["LOCAL_PORT"]))
     app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///" + app.config['DATABASE']
+    app.config["SECRET_KEY_FILE"] = os.path.join(app.config["USER_DATA"], "secret_key_{}.dat".format(args.port))
+    app.config["PASSWORD_HASH_FILE"] = os.path.join(app.config["USER_DATA"], "pw_hash_{}.dat".format(args.port))
+
+if args.reset is True:
+    for fileid in ["DATABASE", "SECRET_KEY_FILE", "PASSWORD_HASH_FILE"]:
+        try:
+            os.remove(app.config[fileid])
+        except OSError:
+            app.logger.warning("RESET: {} not found".format(fileid))
+        else:
+            app.logger.warning("RESET: {} deleted")
 
 
 """ Load/set secret key """
