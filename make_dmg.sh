@@ -3,6 +3,8 @@
 # This script creates an OS X app bundle and puts that into a disk image ready
 # for installing
 
+rm ../Souma.dmg
+
 # Create app bundle
 echo "Creating app bundle"
 python setup_osx.py py2app

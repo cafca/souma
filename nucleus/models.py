@@ -1044,7 +1044,7 @@ class Starmap(Serializable, db.Model):
         """
         if Serializable.authorize(self, action, author_id=author_id):
             if self.kind == "persona_profile":
-                p = Persona.query.filter(Persona.profile_id == self.id)
+                p = Persona.query.filter(Persona.profile_id == self.id).first()
                 return p.id == author_id
             elif self.kind == "group_profile":
                 # Everyone can update
