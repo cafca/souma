@@ -322,6 +322,7 @@ class Persona(Serializable, db.Model):
             p.crypt_public = changeset["crypt_public"]
             p.sign_public = changeset["sign_public"]
             p.modified = modified_dt
+            p._stub = False
         else:
             p = Persona(
                 id=changeset["id"],
