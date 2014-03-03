@@ -115,7 +115,7 @@ def persona(id):
     """ Render home view of a persona """
 
     persona = Persona.query.filter_by(id=id).first_or_404()
-    if hasattr(persona, "profile"):
+    if hasattr(persona, "profile") and hasattr(persona.profile, "index"):
         stars = persona.profile.index
     else:
         stars = []
