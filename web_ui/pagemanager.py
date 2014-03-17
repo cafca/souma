@@ -106,6 +106,41 @@ class PageManager(object):
 
         return page
 
+    def persona_layout(self, persona, stars=None):
+        """Return page for a Persona's profile page"""
+
+        if stars is None and hasattr(persona, "profile") and hasattr(persona.profile, "index"):
+            stars = persona.profile.index
+
+        context = 'persona_page'
+        layouts = self._get_layouts_for(context)
+
+        # currently no logic to choose among different layouts
+        assert(len(layouts) == 1)
+        best_layout = layouts[0]
+
+        page = Page()
+
+        # Add vcard to group page
+        section = 'vcard'
+        page.add_to_section(section, best_layout[section], None)
+
+        if stars is not None:
+            # Add the stars of the profile to page
+            section = 'stars'
+
+            # Rank stars by score
+            stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
+
+            for i, star_cell in enumerate(best_layout[section]):
+                if i >= len(stars_ranked):
+                    break
+
+                star = stars_ranked[i]
+                page.add_to_section(section, star_cell, star)
+
+        return page
+
     def star_layout(self, stars):
         """Return the optimal layouted page for the given stars."""
 

@@ -120,19 +120,12 @@ def persona(id):
     else:
         stars = []
 
-    # TODO: Use new layout system
-    vizier = Vizier([
-        [1, 5, 6, 2],
-        [1, 1, 6, 4],
-        [7, 1, 2, 2],
-        [7, 3, 2, 2],
-        [7, 5, 2, 2]])
+    page = pagemanager.persona_layout(persona, stars=stars)
 
     return render_template(
         'persona.html',
         layout="persona",
-        vizier=vizier,
-        stars=stars,
+        page=page,
         persona=persona)
 
 
