@@ -107,7 +107,8 @@ db = SQLAlchemy(app)
 
 
 # Setup attachment access
-attachments = uploads.UploadSet('attachments', uploads.IMAGES)
+attachments = uploads.UploadSet('attachments', uploads.IMAGES,
+    default_dest=lambda app_x: app_x.config["UPLOADS_DEFAULT_DEST"])
 uploads.configure_uploads(app, (attachments))
 
 

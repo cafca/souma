@@ -2,6 +2,7 @@ import os
 import datetime
 
 from flask import abort, flash, redirect, render_template, request, session, url_for, jsonify as json_response
+from flask.helpers import send_from_directory
 from hashlib import sha256
 
 from web_ui import app, cache, db, logged_in, attachments
@@ -18,6 +19,7 @@ new_contact = notification_signals.signal('new-contact')
 group_created = notification_signals.signal('group-created')
 
 pagemanager = pagemanager.PageManager()
+
 
 @app.context_processor
 def persona_context():
@@ -110,12 +112,21 @@ def setup():
     return render_template('setup.html', error=error)
 
 
+@app.route('/attachments/<path:filename>')
+def attachment(filename):
+    return send_from_directory(app.config["USER_DATA"], filename)
+
+
 @app.route('/p/<id>/')
 def persona(id):
     """ Render home view of a persona """
 
     persona = Persona.query.filter_by(id=id).first_or_404()
-    stars = persona.profile.index
+
+    if hasattr(persona, "profile") and hasattr(persona.profile, "index"):
+        stars = persona.profile.index.filter(Star.state >= 0)
+    else:
+        stars = []
 
     # TODO: Use new layout system
     vizier = Vizier([

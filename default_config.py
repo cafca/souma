@@ -26,7 +26,7 @@ SQLALCHEMY_DATABASE_URI = "sqlite:///" + DATABASE
 
 # uploads are placed in the UPLOADS_DEFAULT_DEST/'attachments' subfolder by flask-uploads
 # this is configured in web_ui/__init__.py
-UPLOADS_DEFAULT_DEST = os.path.join(os.path.abspath(os.path.dirname(__file__)), "static")
+UPLOADS_DEFAULT_DEST = os.path.join(USER_DATA, "attachments")
 ALLOWED_EXTENSIONS = set(['txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'])
 SEND_FILE_MAX_AGE_DEFAULT = 1
 
