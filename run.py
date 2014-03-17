@@ -41,7 +41,10 @@ else:
 
     # Synapse
     app.logger.info("Starting Synapses")
-    synapse = Synapse()
+    try:
+        synapse = Synapse()
+    except Exception, e:
+        app.logger(e)
 
     repeated_func_schedule(60 * 60, update)
 
