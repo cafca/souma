@@ -111,7 +111,10 @@ else:
 
     # Synapse
     app.logger.info("Starting Synapses")
-    synapse = Synapse()
+    try:
+        synapse = Synapse()
+    except Exception, e:
+        app.logger(e)
 
     # Setup Astrolab
     Greenlet.spawn(setup_astrolab)
