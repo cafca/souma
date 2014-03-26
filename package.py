@@ -2,17 +2,46 @@
 Script to install Souma on OsX, Windows, and Unix
 
 Usage:
-    python setup.py py2app
+    python package.py py2app
+    python package.py py2exe
 """
 import ez_setup
 ez_setup.use_setuptools()
 
+from setuptools import setup
 import sys
 import shutil
-from setuptools import setup
+import py2exe
 
 APP = ['run.py']
 DATA_FILES = ['templates', 'static']
+
+# might need to explicitly include dll:
+# data_files=[('.', 'libmmd.dll')
+# also:
+# http://stackoverflow.com/questions/10060765/create-python-exe-without-msvcp90-dll
+WIN_OPTIONS = {
+    "dist_dir": "../dist",
+    "includes": ["sqlalchemy.dialects.sqlite", "sqlalchemy.ext.declarative", "wtforms.ext", "jinja2.ext", "wtforms.ext.csrf", "sklearn", "sklearn.utils"],
+    "packages": ["nucleus", "web_ui", "synapse", "astrolab"],
+    "dll_excludes": ["libmmd.dll", "libifcoremd.dll", "libiomp5md.dll", "MSVCP90.dll"],
+}
+
+DARWIN_OPTIONS = {
+    "argv_emulation": True,
+    "bdist_base": "../build",
+    "dist_dir": "../dist",
+    "iconfile": "static/images/icon_osx.icns",
+    "includes": ["sqlalchemy.dialects.sqlite", "sqlalchemy.ext.declarative", "wtforms.ext", "jinja2.ext", "wtforms.ext.csrf", "sklearn", "sklearn.utils"],
+    "packages": ["nucleus", "web_ui", "synapse", "astrolab"],
+    "site_packages": True,
+    "plist": {
+        "CFBundleShortVersionString": "0.2",
+        "LSBackgroundOnly": True,
+        "LSUIElement": True
+    },
+}
+
 
 
 """ Platform specific options """
@@ -43,26 +72,13 @@ if sys.platform == 'darwin':
     extra_options = dict(
         setup_requires=['py2app'],
         app=['run.py'],
-        options=dict(py2app={
-            "argv_emulation": True,
-            "bdist_base": "../build",
-            "dist_dir": "../dist",
-            "iconfile": "static/images/icon_osx.icns",
-            "includes": ["sqlalchemy.dialects.sqlite", "sqlalchemy.ext.declarative", "wtforms.ext",
-                "jinja2.ext", "wtforms.ext.csrf", "sklearn", "sklearn.utils"],
-            "packages": ["nucleus", "web_ui", "synapse", "astrolab"],
-            "plist": {
-                "CFBundleShortVersionString": "0.2",
-                "LSBackgroundOnly": True,
-                "LSUIElement": True
-            },
-            "site_packages": True,
-        }),
-    )
+        options=dict(py2app=DARWIN_OPTIONS))
+
 elif sys.platform == 'win32':
     extra_options = dict(
         setup_requires=['py2exe'],
         app=APP,
+        options=dict(py2exe=WIN_OPTIONS)
     )
 else:
     extra_options = dict(
