@@ -13,14 +13,16 @@
     <tbody>
       {% for group in groups %}
       <tr>
-        <td>  
+        <td>
             <a href="{{ url_for('group', id=group.id) }}"> {{ group.groupname }} </a>
         </td>
         <td>{{ group.description }}</td>
       </tr>
       {% endfor %}
     </tbody>
-</table>  
+</table>
+
+<a class="btn" href="{{url_for('create_group')}}"><i class="fa fa-magic"></i> Create Group</a>
 
 
 {%endblock%}

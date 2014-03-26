@@ -4,12 +4,21 @@ Script to install Souma on OsX, Windows, and Unix
 Usage:
     python setup.py py2app
 """
-import ez_setup
-ez_setup.use_setuptools()
+
+try:
+    from ez_setup import use_setuptools
+    use_setuptools()
+except ImportError:
+    print("Not using ez_setup")
+    pass
+
+try:
+    from setuptools import setup
+except ImportError:
+    print("Not using setuptools")
+    from distutils.core import setup
 
 import sys
-import shutil
-from setuptools import setup
 
 APP = ['run.py']
 
@@ -28,20 +37,14 @@ else:
     extra_options = dict(
         scripts=APP)
 
-print 'Deleting build dirs...'
-try:
-    shutil.rmtree('../build')
-    shutil.rmtree('../dist')
-except OSError:
-    pass
-
 setup(
     name="Souma",
     version="0.2.1",
     author="Cognitive Networks Group",
     author_email="cognitive-networks@googlegroups.com",
     url="https://github.com/ciex/souma/",
-    scripts=["run.py", "set_hosts.py"],
+    scripts=["run.py", "set_hosts.py", "ez_setup.py"],
+    data_files=["web_ui/layouts.json"],
     packages=["nucleus", "web_ui", "synapse", "astrolab"],
     license="Apache License 2.0",
     description="A Cognitive Network for Groups",

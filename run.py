@@ -6,7 +6,7 @@ import webbrowser
 
 from web_ui import app, db
 
-from gevent import Greenlet
+from gevent import Greenlet, sleep
 from gevent.wsgi import WSGIServer
 from gevent.event import Event
 from sqlalchemy.exc import OperationalError
@@ -21,6 +21,7 @@ from astrolab.interestmodel import update
 
 def setup_astrolab():
     """Download topic model and schedule model updates"""
+    sleep(0)
     model_filename = app.config["TOPIC_MODEL"]
     word_ids_filename = app.config["TOPIC_MODEL_IDS"]
 
@@ -111,10 +112,10 @@ else:
 
     # Synapse
     app.logger.info("Starting Synapses")
-    synapse = Synapse()
-
-    # Setup Astrolab
-    Greenlet.spawn(setup_astrolab)
+    try:
+        synapse = Synapse()
+    except Exception, e:
+        app.logger(e)
 
     # Web UI
     if not app.config['NO_UI']:
@@ -122,5 +123,8 @@ else:
         local_server = WSGIServer(('', app.config['LOCAL_PORT']), app)
         local_server.start()
         webbrowser.open("http://{}".format(app.config["LOCAL_ADDRESS"]))
+
+    # Setup Astrolab
+    Greenlet.spawn(setup_astrolab)
 
     shutdown.wait()
