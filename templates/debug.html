@@ -26,7 +26,9 @@
         <td>{{ star.get_state()}}</td>
         <td>{{ star.vesicles | length }}</td>
         {% if star.get_state() >= 0 and star.author.controlled() %}
-            <td><a class="btn" href="{{ url_for('delete_star', id=star.id) }}">Delete</a></td>
+            <td><form action="{{url_for('delete_star', id=star.id)}}" method="POST">
+                <button class="btn" type="submit">Delete</a>
+            </form></td>
         {% else %}
             <td>&nbsp;</td>
         {% endif %}
