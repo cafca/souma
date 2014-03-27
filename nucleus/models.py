@@ -473,50 +473,6 @@ class Persona(Serializable, db.Model):
             request_objects.send(Persona.create_from_changeset, message=req)
 
 
-class Oneup(Serializable, db.Model):
-    """A 1up is a vote that signals interest in a Star"""
-
-    __tablename__ = "oneup"
-    id = db.Column(db.String(32), primary_key=True)
-    created = db.Column(db.DateTime, default=datetime.datetime.utcnow())
-    modified = db.Column(db.DateTime, default=datetime.datetime.utcnow())
-    state = db.Column(db.Integer, default=0)
-
-    author = db.relationship("Persona",
-        backref=db.backref('oneups'),
-        primaryjoin="Persona.id==Oneup.author_id")
-    author_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
-
-    star_id = db.Column(db.String(32), db.ForeignKey('star.id'))
-
-    def __repr__(self):
-        return "<1up <Persona {}> -> <Star {}> ({})>".format(self.author_id[:6], self.star_id[:6], self.get_state())
-
-    def get_state(self):
-        """
-        Return publishing state of this 1up.
-
-        Returns:
-            Integer:
-                -1 -- (disabled)
-                 0 -- (active)
-                 1 -- (unknown author)
-        """
-        return ONEUP_STATES[self.state][0]
-
-    def set_state(self, new_state):
-        """
-        Set the publishing state of this 1up
-
-        Parameters:
-            new_state (int) code of the new state as defined in nucleus.ONEUP_STATES
-        """
-        if not isinstance(new_state, int) or new_state not in ONEUP_STATES.keys():
-            raise ValueError("{} ({}) is not a valid 1up state").format(
-                new_state, type(new_state))
-        else:
-            self.state = new_state
-
 t_star_vesicles = db.Table(
     'star_vesicles',
     db.Column('star_id', db.String(32), db.ForeignKey('star.id')),
@@ -869,6 +825,101 @@ class LinkPlanet(Planet):
     def update_from_changeset(changeset, update_sender=None, update_recipient=None):
         """Update a new Planet object from a changeset (See Serializable.update_from_changeset). """
         raise NotImplementedError
+
+
+class Oneup(Planet):
+    """A 1up is a vote that signals interest in a Star"""
+
+    _insert_required = ["id", "created", "modified", "source", "author_id", "star_id"]
+    _update_required = ["id", "modified", "state"]
+
+    author = db.relationship("Persona",
+        backref=db.backref('oneups'),
+        primaryjoin="Persona.id==Oneup.author_id")
+    author_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
+
+    star_id = db.Column(db.String(32), db.ForeignKey('star.id'))
+
+    __mapper_args__ = {
+        'polymorphic_identity': 'oneup'
+    }
+
+    def __repr__(self):
+        return "<1up <Persona {}> -> <Star {}> ({})>".format(self.author_id[:6], self.star_id[:6], self.get_state())
+
+    def get_state(self):
+        """
+        Return publishing state of this 1up.
+
+        Returns:
+            Integer:
+                -1 -- (disabled)
+                 0 -- (active)
+                 1 -- (unknown author)
+        """
+        return ONEUP_STATES[self.state][0]
+
+    def set_state(self, new_state):
+        """
+        Set the publishing state of this 1up
+
+        Parameters:
+            new_state (int) code of the new state as defined in nucleus.ONEUP_STATES
+        """
+        if not isinstance(new_state, int) or new_state not in ONEUP_STATES.keys():
+            raise ValueError("{} ({}) is not a valid 1up state").format(
+                new_state, type(new_state))
+        else:
+            self.state = new_state
+
+    @staticmethod
+    def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
+        """Create a new Oneup object from a changeset (See Serializable.create_from_changeset). """
+        created_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
+        modified_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
+
+        if stub is not None:
+            oneup = stub
+            oneup.title = None
+            oneup.created = created_dt
+            oneup.modified = modified_dt
+            oneup.author = None
+            oneup.source = changeset["source"],
+            oneup.star_id = changeset["star_id"]
+        else:
+            oneup = Oneup(
+                id=changeset["id"],
+                title=None,
+                created=created_dt,
+                modified=modified_dt,
+                author=None,
+                source=changeset["source"],
+                star_id=changeset["star_id"],
+            )
+
+        oneup.set_state(changeset["state"])
+
+        author = Persona.query.get(changeset["author_id"])
+        if author is None:
+            # TODO: Send request for author
+            oneup.author_id = changeset["author_id"]
+            if oneup.get_state() >= 0:
+                oneup.set_state(1)
+        else:
+            oneup.author = author
+
+        app.logger.info("Created {} from changeset".format(oneup))
+
+        return oneup
+
+    def update_from_changeset(self, changeset, update_sender=None, update_recipient=None):
+        """Update a new Oneup object from a changeset (See Serializable.update_from_changeset). """
+        modified_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
+        self.modified = modified_dt
+
+        self.set_state(changeset["state"])
+
+        app.logger.info("Updated {} from changeset".format(self))
 
 
 class Souma(Serializable, db.Model):
