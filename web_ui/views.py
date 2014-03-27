@@ -447,6 +447,15 @@ def oneup(star_id):
                 "state_name": oneup.get_state()
             }]
         }
+
+        message_oneup = {
+            "author_id": oneup.author.id,
+            "action": "update" if oneup.get_state() < 0 else "insert",
+            "object_id": oneup.id,
+            "object_type": "Oneup",
+        }
+
+        local_model_changed.send(oneup, message=message_oneup)
     return json_response(resp)
 
 
