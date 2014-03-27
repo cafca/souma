@@ -352,11 +352,9 @@ def create_star():
                            page=page)
 
 
-@app.route('/s/<id>/delete', methods=["GET"])
+@app.route('/s/<id>/delete', methods=["POST"])
 def delete_star(id):
     """ Delete a star """
-    # TODO: Should only accept POST instead of GET
-
     # Load instance and author persona
     s = Star.query.get(id)
     if s is None:
@@ -383,9 +381,10 @@ def delete_star(id):
             }
 
             local_model_changed.send(delete_star, message=message_delete)
+            flash("Unpublished and requested deletion of {}".format(s))
 
             app.logger.info("Deleted star {}".format(id))
-        return redirect(url_for('debug'))
+        return redirect(url_for('universe'))
 
 
 @app.route('/')
