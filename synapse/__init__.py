@@ -6,7 +6,7 @@ from gevent.pool import Pool
 from uuid import uuid4
 
 from nucleus import create_session, notification_signals, PersonaNotFoundError, UnauthorizedError, VesicleStateError, CHANGE_TYPES
-from nucleus.models import Persona, Star, Planet, Starmap, Group
+from nucleus.models import Persona, Star, Planet, Starmap, Group, Oneup
 from nucleus.vesicle import Vesicle
 from synapse.electrical import ElectricalSynapse
 from web_ui import app
@@ -17,7 +17,7 @@ ALLOWED_MESSAGE_TYPES = [
     "object_request",
 ]
 
-OBJECT_TYPES = ("Star", "Planet", "Persona", "Starmap", "Group")
+OBJECT_TYPES = ("Star", "Planet", "Persona", "Starmap", "Group", "Oneup")
 
 
 class Synapse():
