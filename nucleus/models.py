@@ -592,6 +592,18 @@ class Star(Serializable, db.Model):
         return False
 
     @staticmethod
+    def non_comments():
+        """ Returns a prefiltered query for active Stars that aren't comments.
+            Usage: Star.non_comments().all()
+                     -or-
+                   Star.non_comments().filter(#some_filter)
+        """
+
+        return Star.query\
+            .filter(Star.state >= 0)\
+            .filter(Star.parent_id == None)
+
+    @staticmethod
     def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
         """See Serializable.create_from_changeset"""
         created_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)

@@ -108,9 +108,7 @@ def persona(id):
     """ Render home view of a persona """
 
     persona = Persona.query.filter_by(id=id).first_or_404()
-    stars = Star.query.filter(
-        Star.author_id == id,
-        Star.state >= 0)[:4]
+    stars = Star.non_comments().filter(Star.author_id == id)[:4]
 
     # TODO: Use new layout system
     vizier = Vizier([
@@ -382,8 +380,7 @@ def delete_star(id):
 @app.route('/')
 def universe():
     """ Render the landing page """
-    # return only stars that are not in a group context
-    stars = Star.query.filter(Star.state >= 0).all()
+    stars = Star.non_comments().all()
     page = pagemanager.star_layout(stars)
 
     if len(persona_context()['controlled_personas'].all()) == 0:
