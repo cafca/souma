@@ -12,6 +12,7 @@ from nucleus.models import Souma, Starmap
 from synapse import Synapse
 
 # Initialize database
+#db.drop_all()
 try:
     local_souma = Souma.query.get(app.config["SOUMA_ID"])
 except OperationalError:

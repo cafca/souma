@@ -1,4 +1,4 @@
-{% macro star(star, csrf_token='', author='') %}
+{% macro star(star, author, csrf_token='') %}
 <!-- STAR: {{star.id}} -->
 <span class="content">
     {% if star.title %}
@@ -53,5 +53,21 @@
             </button>
         </span>
     </form>
+</span>
+
+<span class="meta">
+    {% for comment in star.comments%}
+        <span class="inline-semantic">
+            {% if comment.title %}
+                <a href="{{ url_for('star', id=comment.id) }}">
+                    <h1>{{ comment.title }}</h1>
+                </a>
+            {% endif %}
+
+            {% if comment.text %}
+                <p>{{ comment.text }}</p>
+            {% endif %}
+        </span>
+    {% endfor %}
 </span>
 {% endmacro %}

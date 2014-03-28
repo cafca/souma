@@ -563,7 +563,9 @@ class Star(Serializable, db.Model):
 
     parent = db.relationship(
         'Star',
-        primaryjoin='Star.id==Star.parent_id')
+        primaryjoin='and_(Star.id==Star.parent_id, Star.state>=0)',
+        backref=db.backref('comments', lazy="dynamic"),
+        remote_side='Star.id')
     parent_id = db.Column(db.String(32), db.ForeignKey('star.id'))
 
     def __repr__(self):

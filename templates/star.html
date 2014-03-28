@@ -11,11 +11,11 @@
     {% endfor %}
 
     <section class="col7 row1 w5 h2">
-        {{ star_macros.star(star) }}
+        {{ star_macros.star(star, author=session.active_persona) }}
     </section>
 {% else %}
     <section class="col1 row1 w6 h2">
-        {{ star_macros.star(star) }}
+        {{ star_macros.star(star, author=session.active_persona) }}
     </section>
 {% endif %}
 {% endblock %}
