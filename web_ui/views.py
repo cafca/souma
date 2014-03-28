@@ -233,6 +233,9 @@ def create_star():
     if form.context.data is None:
         form.context.data = Persona.query.get(form.author.data).profile.id
 
+    # TODO: Find way to get CSRF into star-macro, so we can enable it
+    # here
+    form.csrf_enabled = False
     if form.validate_on_submit():
         uuid = uuid4().hex
 
@@ -250,6 +253,10 @@ def create_star():
             created=new_star_created,
             modified=new_star_created
         )
+
+        if 'parent_id' in request.values:
+            new_star.parent_id = request.values.get('parent_id')
+
         db.session.add(new_star)
         db.session.commit()
 

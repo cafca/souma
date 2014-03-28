@@ -561,6 +561,11 @@ class Star(Serializable, db.Model):
         primaryjoin='star_vesicles.c.star_id==star.c.id',
         secondaryjoin='star_vesicles.c.vesicle_id==vesicle.c.id')
 
+    parent = db.relationship(
+        'Star',
+        primaryjoin='Star.id==Star.parent_id')
+    parent_id = db.Column(db.String(32), db.ForeignKey('star.id'))
+
     def __repr__(self):
         try:
             ascii_text = self.text.encode('utf-8')
