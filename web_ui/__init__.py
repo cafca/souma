@@ -59,10 +59,13 @@ if args.verbose is True:
     app.config["LOG_LEVEL"] = logging.DEBUG
 
 if args.reset is True:
-    # Delete database and secret key
-    os.remove(app.config["DATABASE"])
-    os.remove(app.config["SECRET_KEY_FILE"])
-    os.remove(app.config["PASSWORD_HASH_FILE"])
+    for fileid in ["DATABASE", "SECRET_KEY_FILE", "PASSWORD_HASH_FILE"]:
+        try:
+            os.remove(app.config[fileid])
+        except OSError:
+            app.logger.warning("RESET: {} not found".format(fileid))
+        else:
+            app.logger.warning("RESET: {} deleted")
 
 if args.port is not None:
     app.config['LOCAL_PORT'] = args.port

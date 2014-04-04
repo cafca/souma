@@ -124,7 +124,7 @@ def persona(id):
     persona = Persona.query.filter_by(id=id).first_or_404()
 
     if hasattr(persona, "profile") and hasattr(persona.profile, "index"):
-        stars = persona.profile.index.filter(Star.state >= 0)
+        stars = persona.profile.index.filter(Star.state >= 0).filter(Star.parent_id == None)
     else:
         stars = []
 
@@ -249,6 +249,9 @@ def create_star():
     if form.context.data is None:
         form.context.data = Persona.query.get(form.author.data).profile.id
 
+    # TODO: Find way to get CSRF into star-macro, so we can enable it
+    # here
+    form.csrf_enabled = False
     if form.validate_on_submit():
         uuid = uuid4().hex
 
@@ -266,6 +269,10 @@ def create_star():
             created=new_star_created,
             modified=new_star_created
         )
+
+        if 'parent_id' in request.values:
+            new_star.parent_id = request.values.get('parent_id')
+
         db.session.add(new_star)
         db.session.commit()
 
@@ -390,8 +397,7 @@ def delete_star(id):
 @app.route('/')
 def universe():
     """ Render the landing page """
-    # return only stars that are not in a group context
-    stars = Star.query.filter(Star.state >= 0).all()
+    stars = Star.query.filter(Star.parent_id == None).all()
     page = pagemanager.star_layout(stars)
 
     if len(persona_context()['controlled_personas'].all()) == 0:

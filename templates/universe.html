@@ -12,7 +12,7 @@
 {% endfor %}
 
 <section class="{%if star.content.planets|length() >= 1 %}image-overlay{% endif %} {{ star.css_class }}">
-    {{ star_macros.star(star.content) }}
+    {{ star_macros.star(star.content, author=active_persona, controlled_personas=controlled_personas) }}
 </section>
 
 {% endfor %}

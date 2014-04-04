@@ -555,11 +555,16 @@ class Star(Serializable, db.Model):
         primaryjoin="satellites.c.star_id==star.c.id",
         secondaryjoin="satellites.c.planet_id==planet.c.id")
 
-    vesicles = db.relationship(
-        'Vesicle',
+    vesicles = db.relationship('Vesicle',
         secondary='star_vesicles',
         primaryjoin='star_vesicles.c.star_id==star.c.id',
         secondaryjoin='star_vesicles.c.vesicle_id==vesicle.c.id')
+
+    parent = db.relationship('Star',
+        primaryjoin='and_(Star.id==Star.parent_id, Star.state>=0)',
+        backref=db.backref('comments', lazy="dynamic"),
+        remote_side='Star.id')
+    parent_id = db.Column(db.String(32), db.ForeignKey('star.id'))
 
     def __repr__(self):
         try:
@@ -698,6 +703,15 @@ class Star(Serializable, db.Model):
             Int: Number of upvotes
         """
         return self.oneups.filter_by(state=0).paginate(1).total
+
+    def comment_count(self):
+        """
+        Return the number of comemnts this Star has receieved
+
+        Returns:
+            Int: Number of comments
+        """
+        return self.comments.filter_by(state=0).paginate(1).total
 
     def toggle_oneup(self, author_id=None):
         """
