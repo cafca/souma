@@ -125,6 +125,10 @@ article {
             }
 
             .content img {display: none;}
+
+            .comment {
+                display: none;
+            }
         }
 
         &.w5, &.w6, &.w7, &.w8 {
@@ -136,6 +140,10 @@ article {
 
         &.framed {
             border: 1px solid darken(white, 20%);
+        }
+
+        .comment {
+            margin-top: .5em;
         }
 
         .content {
@@ -203,11 +211,21 @@ article {
     }
 }
 
+.comment-modal {
+    ul > li {
+        list-style: none;
+    }
+
+    .caption, a {
+        color: lighten(black, 50%);
+    }
+}
+
 .w3, .w4, .w5, .w6, .w7, .w8, .w9, .w10, .w11, .w12, .w13, .w14, .w15, .w16 {
 &.image-overlay {
     background-color: none);
     color: white;
-    transition: 1s;
+    transition: .25s;
 
     &:hover {
         background-color: rgba(0,0,0,0.15);
@@ -215,11 +233,19 @@ article {
         .meta a {
             color: white;
         }
+
+        input {
+            opacity: 1;
+        }
     }
 
     .meta a {
         display: inline;
         color: #333;
+    }
+
+    .meta > span {
+        margin-top: 3px;
     }
 
     // i + span:after { content:"\A"; white-space:pre; }
@@ -230,11 +256,23 @@ article {
         margin: 0 0 0 6px;
     }
 
+    .comment {
+        margin: -1em 6px;
+    }
+
     .content {
         padding: 6px 6px 0;
     }
+
     .meta {
         padding: 0 6px;
+    }
+
+    input {
+        opacity: 0;
+        transition: opacity .25s ease-in-out;
+        -moz-transition: opacity .25s ease-in-out;
+        -webkit-transition: opacity .25s ease-in-out;
     }
 
     .inline-semantic {

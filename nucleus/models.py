@@ -718,6 +718,15 @@ class Star(Serializable, db.Model):
         """
         return self.oneups.filter_by(state=0).paginate(1).total
 
+    def comment_count(self):
+        """
+        Return the number of comemnts this Star has receieved
+
+        Returns:
+            Int: Number of comments
+        """
+        return self.comments.filter_by(state=0).paginate(1).total
+
     def toggle_oneup(self, author_id=None):
         """
         Toggle 1up for this Star on/off

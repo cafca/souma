@@ -6,7 +6,7 @@
 
 {% block content %}
 <!-- <section class="col0 row1 w3 h1">-->
-<section class='{{ page.header[0].css_class }}'> 
+<section class='{{ page.header[0].css_class }}'>
     <span class="content">
         <h1>{{group.groupname}}</h1>
         <p>Description: {{group.description}}</p>
@@ -27,7 +27,7 @@
     {% endfor %}
 
     <section class="{%if star.planets|length() >= 1 %}image-overlay{% endif %} {{star.css_class}}">
-        {{ star_macros.star(star.content, author=session.active_persona) }}
+        {{ star_macros.star(star.content, author=active_persona, controlled_personas=controlled_personas) }}
     </section>
 {% endfor %}
 
