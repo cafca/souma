@@ -90,7 +90,7 @@ setup(
     author="Cognitive Networks Group",
     author_email="cognitive-networks@googlegroups.com",
     url="https://github.com/ciex/souma/",
-    scripts=["run.py", "set_hosts.py"],
+    scripts=["run.py"],
     packages=["nucleus", "web_ui", "synapse", "astrolab"],
     data_files=DATA_FILES,
     license="Apache License 2.0",
