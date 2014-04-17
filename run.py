@@ -136,7 +136,7 @@ else:
         app.logger.info("Starting Web-UI")
         local_server = WSGIServer(('', app.config['LOCAL_PORT']), app)
         local_server.start()
-        webbrowser.open("http://{}".format(app.config["LOCAL_ADDRESS"]))
+        webbrowser.open("http://{}/".format(app.config["LOCAL_ADDRESS"]))
 
     # Setup Astrolab
     Greenlet.spawn(setup_astrolab)
