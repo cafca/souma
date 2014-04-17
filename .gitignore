@@ -45,3 +45,4 @@ static/attachments/*
 secret_key
 
 operator_config.py
+distribute-*.tar.gz
