@@ -117,8 +117,9 @@ def attachment(filename):
     return send_from_directory(app.config["USER_DATA"], filename)
 
 
-@app.route('/p/<id>/')
-def persona(id):
+@app.route('/p/<id>/', defaults={'current_page': 1})
+@app.route('/p/<id>/page/<int:current_page>')
+def persona(id, current_page=1):
     """ Render home view of a persona """
 
     persona = Persona.query.filter_by(id=id).first_or_404()
@@ -128,7 +129,7 @@ def persona(id):
     else:
         stars = []
 
-    page = pagemanager.persona_layout(persona, stars=stars)
+    page = pagemanager.persona_layout(persona, stars=stars, current_page=current_page)
 
     return render_template(
         'persona.html',
@@ -387,16 +388,18 @@ def delete_star(id):
         return redirect(url_for('universe'))
 
 
-@app.route('/')
-def universe():
+@app.route('/', defaults={'current_page': 1})
+@app.route('/page/<int:current_page>')
+def universe(current_page=1):
     """ Render the landing page """
-    stars = Star.query.filter(Star.parent_id == None).all()
-    page = pagemanager.star_layout(stars)
+
+    stars = Star.query.filter(Star.parent_id == None)
+    page = pagemanager.star_layout(stars, current_page=current_page)
 
     if len(persona_context()['controlled_personas'].all()) == 0:
         return redirect(url_for('create_persona'))
 
-    if len(stars) == 0:
+    if page.pagination.total == 0:
         return redirect(url_for('create_star'))
 
     return render_template('universe.html', page=page)
@@ -570,11 +573,13 @@ def add_contact(persona_id):
     return render_template('add_contact.html', form=form, persona=persona)
 
 
-@app.route('/g/<id>/', methods=['GET'])
+@app.route('/g/<id>/', defaults={'current_page': 1}, methods=['GET'])
+@app.route('/g/<id>/page/<int:current_page>', methods=['GET'])
 def group(id):
     """ Render home view of a group """
 
     group = Group.query.filter_by(id=id).first_or_404()
+    stars = group.profile.index.filter(Star.state >= 0)
 
     form = Create_star_form(default_author=get_active_persona())
     form.author.choices = [(p.id, p.username) for p in Persona.list_controlled()]
@@ -583,7 +588,7 @@ def group(id):
     form.context.data = group.profile.id
 
     # create layouted page for group
-    page = pagemanager.group_layout(group.profile.index.filter(Star.state >= 0))
+    page = pagemanager.group_layout(stars, current_page=current_page)
 
     return render_template(
         'group.html',
