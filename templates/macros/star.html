@@ -1,9 +1,22 @@
+{% import "macros/planet.html" as planet_macros %}
 
 {% macro star(star, author, controlled_personas, csrf_token='', controls="default") %}
+
 <!-- STAR: {{star.id}} -->
+
+{% for planet in star.planets %}
+    {% if planet.kind == 'picture' %}
+        {{ planet_macros.planet(planet, False)}}
+    {% endif %}
+{% endfor %}
+
 <span class="content">
     {% if star.text %}
-        <p>{{ star.text }}</p>
+        {% if star.link_url() %}
+            <p>{{ star.text }} <a href="{{ star.link_url() }}"><i class="fa fa-external-link"></i></a></p>
+        {% else %}
+            <p>{{ star.text }}</p>
+        {% endif %}
     {% endif %}
 </span>
 

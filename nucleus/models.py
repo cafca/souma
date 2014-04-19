@@ -755,6 +755,21 @@ class Star(Serializable, db.Model):
 
         return oneup
 
+    def link_url(self):
+        """Return URL if this Star has a Link-Planet """
+
+        for planet in self.planets:
+            if planet.kind == "link":
+                return planet.url
+        return None
+
+    def has_picture(self):
+        """Return True if this Star has a Picture-Planet"""
+        for p in self.planets:
+            if p.kind == "picture":
+                return True
+        return False
+
 
 t_satellites = db.Table(
     'satellites',
