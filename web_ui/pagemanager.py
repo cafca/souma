@@ -15,7 +15,15 @@ class PageManager(object):
         the concrete subclass.
         """
 
+        # Dimension of layout in cells
         self.screen_size = (12.0, 8.0)
+
+        # Number of items on one page
+        # Flask-SQLAlchemy pagination requires this to be static, i.e.
+        # it is not possible to have different number of items on consecutive
+        # pages. If we need that, we will have to implement our own pagination.
+        self.page_size = 7
+
         self.all_layouts = app.config['LAYOUT_DEFINITIONS']
 
     def _add_static_section(self, page, section, layout):
@@ -33,15 +41,20 @@ class PageManager(object):
         return [layout for layout in self.all_layouts if
                 context in layout['context']]
 
-    def group_layout(self, stars):
+    def group_layout(self, stars, current_page=1):
         context = 'group_page'
         layouts = self._get_layouts_for(context)
+
+        pagination = stars.paginate(current_page, self.page_size)
+        stars = pagination.items
 
         # currently no logic to choose among different layouts
         assert(len(layouts) == 1)
         best_layout = layouts[0]
 
         page = Page()
+
+        setattr(page, "pagination", pagination)
 
         # Add header to group page
         section = 'header'
@@ -106,7 +119,7 @@ class PageManager(object):
 
         return page
 
-    def persona_layout(self, persona, stars=None):
+    def persona_layout(self, persona, stars=None, current_page=1):
         """Return page for a Persona's profile page"""
 
         if stars is None and hasattr(persona, "profile") and hasattr(persona.profile, "index"):
@@ -115,11 +128,17 @@ class PageManager(object):
         context = 'persona_page'
         layouts = self._get_layouts_for(context)
 
+        pagination = stars.paginate(current_page, self.page_size)
+        stars = pagination.items
+
         # currently no logic to choose among different layouts
         assert(len(layouts) == 1)
         best_layout = layouts[0]
 
         page = Page()
+
+        # Add pagination information
+        setattr(page, "pagination", pagination)
 
         # Add vcard to group page
         section = 'vcard'
@@ -141,13 +160,16 @@ class PageManager(object):
 
         return page
 
-    def star_layout(self, stars):
+    def star_layout(self, stars, current_page=1):
         """Return the optimal layouted page for the given stars."""
 
         context = 'star_page'
         layouts = self._get_layouts_for(context)
 
         section = 'stars'
+
+        pagination = stars.paginate(current_page, self.page_size)
+        stars = pagination.items
 
         # Rank stars by score
         stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
@@ -187,6 +209,10 @@ class PageManager(object):
         # print("Chosen {}".format(layout))
 
         page = Page()
+
+        # Add pagination information
+        setattr(page, "pagination", pagination)
+
         for i, star_cell in enumerate(layout[section]):
             if i >= len(stars_ranked):
                 break

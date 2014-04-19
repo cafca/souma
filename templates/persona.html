@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% import "macros/star.html" as star_macros %}
 {% import "macros/planet.html" as planet_macros %}
+{% import "macros/pagination.html" as pagination %}
 
 {% block content %}
 <section class="{{ page.vcard[0].css_class }}">
@@ -21,5 +22,7 @@
         {{ star_macros.star(star.content, author=active_persona, controlled_personas=controlled_personas) }}
     </section>
 {% endfor %}
+
+{{ pagination.render_pagination(page.pagination, "persona", id=persona.id) }}
 
 {% endblock %}
