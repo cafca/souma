@@ -68,6 +68,7 @@
     {% endif %}
 </span>
 
+{% if controls == "extended" %}
 <div class="comment">
     <form action="{{ url_for('create_star', parent_id=star.id) }}" method="POST">
             <input type="text" name="text" placeholder="write a comment as {{author.username}}...">
@@ -76,6 +77,7 @@
             <input type="hidden" name="context" value="">
     </form>
 </div>
+{% endif %}
 
 
 <!-- Modal -->
