@@ -3,13 +3,6 @@
 {% macro star(star, author, controlled_personas, csrf_token='', controls="default") %}
 
 <!-- STAR: {{star.id}} -->
-
-{% for planet in star.planets %}
-    {% if planet.kind == 'picture' %}
-        {{ planet_macros.planet(planet, False)}}
-    {% endif %}
-{% endfor %}
-
 <span class="content">
     {% if star.text %}
         {% if star.link_url() %}
@@ -91,6 +84,14 @@
     </form>
 </div>
 {% endif %}
+
+{% for planet in star.planets %}
+    {% if planet.kind == 'picture' %}
+    <span class="imagewrap-outer">
+        {{ planet_macros.planet(planet, False)}}
+    </span>
+    {% endif %}
+{% endfor %}
 
 
 <!-- Modal -->
