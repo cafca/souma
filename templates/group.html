@@ -26,7 +26,7 @@
     </section>
     {% endfor %}
 
-    <section class="{%if star.planets|length() >= 1 %}image-overlay{% endif %} {{star.css_class}}">
+    <section class="{%if star.planets.count() >= 1 %}image-overlay{% endif %} {{star.css_class}}">
         {{ star_macros.star(star.content) }}
     </section>
 {% endfor %}

@@ -3,7 +3,7 @@
 {% import "macros/planet.html" as planet_macros %}
 
 {% block content %}
-{% if star.planets|length() > 0 %}
+{% if star.planets.count() > 0 %}
     {% for planet in star.planets %}
     <section class="col2 row1 w5 h7">
         {{ planet_macros.planet(planet, True) }}

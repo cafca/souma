@@ -516,13 +516,10 @@ class Star(Serializable, db.Model):
         primaryjoin="Persona.id==Star.author_id")
     author_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
 
-    oneups = db.relationship('Oneup',
-        backref='star',
-        lazy='dynamic')
-
     planets = db.relationship('Planet',
         secondary='satellites',
-        backref=db.backref('stars'),
+        backref=db.backref('star'),
+        lazy="dynamic",
         primaryjoin="satellites.c.star_id==star.c.id",
         secondaryjoin="satellites.c.planet_id==planet.c.id")
 
@@ -658,8 +655,7 @@ class Star(Serializable, db.Model):
         """
         Return True if active Persona has 1upped this Star
         """
-        active_persona = Persona.query.get(session["active_persona"])
-        oneup = self.oneups.filter_by(author=active_persona).first()
+        oneup = Oneup.query.filter(Oneup.author_id == session["active_persona"]).first()
         if oneup is None or oneup.state < 0:
             return False
         else:
@@ -672,7 +668,7 @@ class Star(Serializable, db.Model):
         Returns:
             Int: Number of upvotes
         """
-        return self.oneups.filter_by(state=0).paginate(1).total
+        return Oneup.query.filter(Oneup.star_id == self.id).filter(Oneup.state == 0).paginate(1).total
 
     def toggle_oneup(self, author_id=None):
         """
@@ -701,7 +697,8 @@ class Star(Serializable, db.Model):
             raise UnauthorizedError("Can't toggle 1ups with foreign Persona {}".format(author))
 
         # Check whether 1up has been previously issued
-        oneup = self.oneups.filter_by(author=author).first()
+        import pdb; pdb.set_trace()
+        oneup = Oneup.query.filter(Oneup.star_id == self.id).filter(Oneup.author_id == author.id).first()
         if oneup is not None:
             old_state = oneup.get_state()
             oneup.set_state(-1) if oneup.state == 0 else oneup.set_state(0)
@@ -945,6 +942,8 @@ class Oneup(Planet):
             oneup.star_id = changeset["star_id"]
         else:
             star.planets.append(oneup)
+
+        import pdb; pdb.set_trace()
 
         return oneup
 
