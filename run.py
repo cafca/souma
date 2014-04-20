@@ -63,6 +63,25 @@ def setup_astrolab():
 
     repeated_func_schedule(60 * 60, update)
 
+
+def watch_layouts():
+    import json
+
+    mtime_last = 0
+    layout_filename = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'web_ui', 'layouts.json')
+    while True:
+        sleep(1)
+        mtime_cur = os.path.getmtime(layout_filename)
+        if mtime_cur != mtime_last:
+            app.logger.info("Loading new layout definitions")
+            try:
+                with open(layout_filename) as f:
+                    app.config['LAYOUT_DEFINITIONS'] = json.load(f)
+            except IOError:
+                app.logger.error("Failed loading layout definitions")
+                app.config['LAYOUT_DEFINITIONS'] = dict()
+        mtime_last = mtime_cur
+
 """ patch gevent for py2app """
 if getattr(sys, 'frozen', None) == 'macosx_app':
         import imp
@@ -140,5 +159,6 @@ else:
 
     # Setup Astrolab
     Greenlet.spawn(setup_astrolab)
+    Greenlet.spawn(watch_layouts)
 
     shutdown.wait()

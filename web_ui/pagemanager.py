@@ -38,7 +38,7 @@ class PageManager(object):
     def _get_layouts_for(self, context):
         """ Returns all layouts appropriate for context """
 
-        return [layout for layout in self.all_layouts if
+        return [layout for layout in app.config['LAYOUT_DEFINITIONS'] if
                 context in layout['context']]
 
     def group_layout(self, stars, current_page=1):

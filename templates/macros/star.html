@@ -1,9 +1,15 @@
+{% import "macros/planet.html" as planet_macros %}
 
-{% macro star(star, author, controlled_personas, csrf_token='', controls="default") %}
+{% macro star(star, author, controlled_personas, csrf_token='', controls="default", display_planets=True) %}
+
 <!-- STAR: {{star.id}} -->
 <span class="content">
     {% if star.text %}
-        <p>{{ star.text }}</p>
+        {% if star.link_url() %}
+            <p>{{ star.text }} <a href="{{ star.link_url() }}"><i class="fa fa-external-link"></i></a></p>
+        {% else %}
+            <p>{{ star.text }}</p>
+        {% endif %}
     {% endif %}
 </span>
 
@@ -68,6 +74,7 @@
     {% endif %}
 </span>
 
+{% if controls == "extended" %}
 <div class="comment">
     <form action="{{ url_for('create_star', parent_id=star.id) }}" method="POST">
             <input type="text" name="text" placeholder="write a comment as {{author.username}}...">
@@ -76,6 +83,17 @@
             <input type="hidden" name="context" value="">
     </form>
 </div>
+{% endif %}
+
+{% if display_planets %}
+    {% for planet in star.planets %}
+        {% if planet.kind in ['picture', 'linkedpicture'] %}
+        <span class="imagewrap-outer">
+            {{ planet_macros.planet(planet, False)}}
+        </span>
+        {% endif %}
+    {% endfor %}
+{% endif %}
 
 
 <!-- Modal -->

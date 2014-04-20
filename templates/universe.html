@@ -1,18 +1,12 @@
 {% extends "base.html" %}
 {% import "macros/star.html" as star_macros %}
-{% import "macros/planet.html" as planet_macros %}
 {% import "macros/pagination.html" as pagination %}
 
 {% block content %}
 
 {% for star in page.stars %}
-{% for planet in star.content.planets %}
-<section class='{{ star.css_class }}'>
-    {{ planet_macros.planet(planet, False)}}
-</section>
-{% endfor %}
 
-<section class="{%if star.content.planets|length() >= 1 %}image-overlay{% endif %} {{ star.css_class }}">
+<section class="{%if star.content.has_picture() %}image-overlay{% endif %} {{ star.css_class }}">
     {{ star_macros.star(star.content, author=active_persona, controlled_personas=controlled_personas) }}
 </section>
 

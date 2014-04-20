@@ -36,25 +36,24 @@
         </div>
 
         <div class="fullsize-input">
-            {{ form.link(default='Enter a URL', disabled='disabled') }}
+            {{ form.link(default='Enter a URL', placeholder="Optional link address") }}
         </div>
     </section>
 
-    <!-- File attachment field -->
+    <!-- Linked picture attachment field -->
     <section class="card {{ page.create_star_form[2].css_class }}">
         <div class="card-handle">
-            <i class="fa fa-file"></i>
+            <i class="fa fa-camera"></i>
         </div>
-        <div class="fileupload fileupload-new" data-provides="fileupload">
-            <div class="sidenav">
-                <div class="btn btn-file btn-small">
-                    <span class="fileupload-new">Select image</span>
-                    <span class="fileupload-exists">Change</span>
-                    {{ form.picture() }}
-                </div>
-                <a href="#" class="btn  btn-small fileupload-exists" data-dismiss="fileupload">Remove</a>
-            </div>
-          <div class="fileupload-preview thumbnail"></div>
+
+        <div class="sidenav">
+            {% if form.linkedpicture.errors %}
+                {% for error in form.linkedpicture.errors %}<small>{{ error }}</small>{% endfor %}
+            {% endif %}
+        </div>
+
+        <div class="fullsize-input">
+            {{ form.linkedpicture(default='Enter URL of a picture', placeholder="Optional linked picture") }}
         </div>
     </section>
 

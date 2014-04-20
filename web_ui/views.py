@@ -1,4 +1,3 @@
-import os
 import datetime
 
 from flask import abort, flash, redirect, render_template, request, session, url_for, jsonify as json_response
@@ -10,7 +9,7 @@ from web_ui import pagemanager
 from web_ui.forms import *
 from web_ui.helpers import get_active_persona
 from nucleus import notification_signals, PersonaNotFoundError
-from nucleus.models import Persona, Star, Planet, PicturePlanet, LinkPlanet, Group, Starmap
+from nucleus.models import Persona, Star, Planet, PicturePlanet, LinkPlanet, Group, Starmap, LinkedPicturePlanet
 
 # Create blinker signal namespace
 local_model_changed = notification_signals.signal('local-model-changed')
@@ -274,26 +273,41 @@ def create_star():
         app.logger.info('Created new {}'.format(new_star))
         model_change_messages = list()
 
-        if 'picture' in request.files and request.files['picture'].filename != "":
-            # compute hash
-            picture_hash = sha256(request.files['picture'].stream.read()).hexdigest()
-            request.files['picture'].stream.seek(0)
+        # if 'picture' in request.files and request.files['picture'].filename != "":
+        #     # compute hash
+        #     picture_hash = sha256(request.files['picture'].stream.read()).hexdigest()
+        #     request.files['picture'].stream.seek(0)
 
-            # create or get planet
-            planet = Planet.query.filter_by(id=picture_hash[:32]).first()
+        #     # create or get planet
+        #     planet = Planet.query.filter_by(id=picture_hash[:32]).first()
+        #     if not planet:
+        #         app.logger.info("Creating new planet for submitted file")
+        #         filename = attachments.save(request.files['picture'],
+        #             folder=picture_hash[:2], name=picture_hash[2:] + ".")
+        #         planet = PicturePlanet(
+        #             id=picture_hash[:32],
+        #             filename=os.path.join(attachments.name, filename))
+        #         db.session.add(planet)
+
+        #     # attach to star
+        #     new_star.planets.append(planet)
+
+        #     # commit
+        #     db.session.add(new_star)
+        #     db.session.commit()
+        #     app.logger.info("Attached {} to new {}".format(planet, new_star))
+
+        if 'linkedpicture' in request.form and request.form['linkedpicture'] != "":
+            picture_hash = sha256(request.form['linkedpicture']).hexdigest()[:32]
+            planet = Planet.query.filter_by(id=picture_hash).first()
             if not planet:
-                app.logger.info("Creating new planet for submitted file")
-                filename = attachments.save(request.files['picture'],
-                    folder=picture_hash[:2], name=picture_hash[2:] + ".")
-                planet = PicturePlanet(
-                    id=picture_hash[:32],
-                    filename=os.path.join(attachments.name, filename))
+                app.logger.info("Storing new linked Picture")
+                planet = LinkedPicturePlanet(
+                    id=picture_hash,
+                    url=request.form['linkedpicture'])
                 db.session.add(planet)
 
-            # attach to star
             new_star.planets.append(planet)
-
-            # commit
             db.session.add(new_star)
             db.session.commit()
             app.logger.info("Attached {} to new {}".format(planet, new_star))
@@ -340,7 +354,7 @@ def create_star():
         for m in model_change_messages:
             local_model_changed.send(create_star, message=m)
 
-        # if new star belongs to a group, show group page
+        # if new star belongs to a starmap, show starmap page
         if starmap is None:
             return redirect(url_for('star', id=uuid))
         else:
