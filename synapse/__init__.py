@@ -26,6 +26,13 @@ class Synapse():
     them to each Persona's peers using the Myelin API. It also keeps
     Glia up to date on all Persona's managed by this Souma.
     """
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        """Singleton pattern"""
+        if not cls._instance:
+            cls._instance = super(ElectricalSynapse, cls).__new__(cls, *args, **kwargs)
+        return cls._instance
 
     def __init__(self):
         self.logger = logging.getLogger('synapse')
@@ -36,8 +43,7 @@ class Synapse():
         self.vesicle_pool = Pool(10)
 
         # Connect to glia
-        self.electrical = ElectricalSynapse(self)
-        self.electrical.login_all()
+        self.electrical = ElectricalSynapse(parent=self)
 
         # Connect to nucleus
         self._connect_signals()
@@ -484,6 +490,11 @@ class Synapse():
                 "modified": obj.modified.isoformat()
             }
 
+        if "recipients" in message:
+            recipients = message["recipients"]
+        else:
+            recipients = author.contacts.all()
+
         vesicle = Vesicle(
             id=uuid4().hex,
             message_type="object",
@@ -502,8 +513,8 @@ class Synapse():
             session.rollback()
             raise
         else:
-            self.logger.info("Local {} changed: Distributing {}".format(obj, vesicle))
-            vesicle = self._distribute_vesicle(vesicle, recipients=author.contacts.all())
+            self.logger.info("Local {} changed: Distributing {}\n{}".format(obj, vesicle, vesicle.json()))
+            vesicle = self._distribute_vesicle(vesicle, recipients=recipients)
 
         session.add(vesicle)
         session.commit()

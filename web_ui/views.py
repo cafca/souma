@@ -450,9 +450,10 @@ def oneup(star_id):
 
         message_oneup = {
             "author_id": oneup.author.id,
-            "action": "update" if oneup.get_state() < 0 else "insert",
+            "action": "insert" if len(oneup.vesicles)==0 else "update",
             "object_id": oneup.id,
             "object_type": "Oneup",
+            "recipients": star.author.contacts.all() + [star.author, ]
         }
 
         local_model_changed.send(oneup, message=message_oneup)
@@ -493,7 +494,7 @@ def find_people():
         address = request.form['email']
 
         # Create a temporary electrical synapse to make a synchronous glia request
-        electrical = ElectricalSynapse(None)
+        electrical = ElectricalSynapse()
         resp, errors = electrical.find_persona(address)
 
         # TODO: This should flash an error message. It doesn't.

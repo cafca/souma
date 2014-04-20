@@ -308,6 +308,21 @@ class Persona(Serializable, db.Model):
         return key_public.Verify(data, signature)
 
     @staticmethod
+    def request_persona(persona_id):
+        """Return a Persona profile, loading it from Glia if neccessary
+
+        Args:
+            persona_id (String): ID of the required Persona
+
+        Returns:
+            Persona: If a record was found
+            None: If no record was found
+        """
+        from synapse import ElectricalSynapse
+        electrical = ElectricalSynapse()
+        return electrical.get_persona(persona_id)
+
+    @staticmethod
     def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
         """See Serializable.create_from_changeset"""
         request_list = list()
@@ -615,8 +630,12 @@ class Star(Serializable, db.Model):
 
         Parameters:
             new_state (int) code of the new state as defined in nucleus.STAR_STATES
+
+        Raises:
+            ValueError: If new_state is not an Int or not a valid state of this object
         """
-        if not isinstance(new_state, int) or new_state not in STAR_STATES.keys():
+        new_state = int(new_state)
+        if new_state not in STAR_STATES.keys():
             raise ValueError("{} ({}) is not a valid star state").format(
                 new_state, type(new_state))
         else:
@@ -669,8 +688,9 @@ class Star(Serializable, db.Model):
             PersonaNotFoundError: 1up author not found
             UnauthorizedError: Author is a foreign Persona
         """
+
         if author_id is None:
-            author = Persona.query.get(session['active_persona'])
+            author = Persona.query.get(session["active_persona"])
         else:
             author = Persona.query.get(author_id)
 
@@ -690,7 +710,7 @@ class Star(Serializable, db.Model):
             oneup = Oneup(id=uuid4().hex, star=self, author=author)
 
         # Commit 1up
-        db.session.add(oneup)
+        db.session.add(self)
         db.session.commit()
         app.logger.info("{verb} {obj}".format(verb="Toggled" if old_state else "Added", obj=oneup, ))
 
@@ -761,8 +781,12 @@ class Planet(Serializable, db.Model):
 
         Parameters:
             new_state (int) code of the new state as defined in nucleus.PLANET_STATES
+
+        Raises:
+            ValueError: If new_state is not an Int or not a valid state of this object
         """
-        if not isinstance(new_state, int) or new_state not in PLANET_STATES.keys():
+        new_state = int(new_state)
+        if new_state not in PLANET_STATES.keys():
             raise ValueError("{} ({}) is not a valid planet state").format(
                 new_state, type(new_state))
         else:
@@ -830,7 +854,7 @@ class LinkPlanet(Planet):
 class Oneup(Planet):
     """A 1up is a vote that signals interest in a Star"""
 
-    _insert_required = ["id", "created", "modified", "source", "author_id", "star_id"]
+    _insert_required = ["id", "created", "modified", "source", "author_id", "star_id", "state"]
     _update_required = ["id", "modified", "state"]
 
     author = db.relationship("Persona",
@@ -845,7 +869,10 @@ class Oneup(Planet):
     }
 
     def __repr__(self):
-        return "<1up <Persona {}> -> <Star {}> ({})>".format(self.author_id[:6], self.star_id[:6], self.get_state())
+        if ["author_id", "star_id"] in dir(self):
+            return "<1up <Persona {}> -> <Star {}> ({})>".format(self.author_id[:6], self.star_id[:6], self.get_state())
+        else:
+            return "<1up ({})>".format(self.get_state())
 
     def get_state(self):
         """
@@ -865,10 +892,14 @@ class Oneup(Planet):
 
         Parameters:
             new_state (int) code of the new state as defined in nucleus.ONEUP_STATES
+
+        Raises:
+            ValueError: If new_state is not an Int or not a valid state of this object
         """
-        if not isinstance(new_state, int) or new_state not in ONEUP_STATES.keys():
-            raise ValueError("{} ({}) is not a valid 1up state").format(
-                new_state, type(new_state))
+        new_state = int(new_state)
+        if new_state not in ONEUP_STATES.keys():
+            raise ValueError("{} ({}) is not a valid 1up state".format(
+                new_state, type(new_state)))
         else:
             self.state = new_state
 
@@ -885,7 +916,7 @@ class Oneup(Planet):
             oneup.modified = modified_dt
             oneup.author = None
             oneup.source = changeset["source"],
-            oneup.star_id = changeset["star_id"]
+            oneup.star_id = None
         else:
             oneup = Oneup(
                 id=changeset["id"],
@@ -894,10 +925,10 @@ class Oneup(Planet):
                 modified=modified_dt,
                 author=None,
                 source=changeset["source"],
-                star_id=changeset["star_id"],
+                star_id=None,
             )
 
-        oneup.set_state(changeset["state"])
+        oneup.set_state(int(changeset["state"]))
 
         author = Persona.query.get(changeset["author_id"])
         if author is None:
@@ -908,7 +939,12 @@ class Oneup(Planet):
         else:
             oneup.author = author
 
-        app.logger.info("Created {} from changeset".format(oneup))
+        star = Star.query.get(changeset["star_id"])
+        if star is None:
+            app.logger.warning("Parent Star for Oneup not found")
+            oneup.star_id = changeset["star_id"]
+        else:
+            star.planets.append(oneup)
 
         return oneup
 
@@ -1095,8 +1131,9 @@ class Starmap(Serializable, db.Model):
         """
         if Serializable.authorize(self, action, author_id=author_id):
             if self.kind == "persona_profile":
-                p = Persona.query.filter(Persona.profile_id == self.id)
+                p = Persona.request_persona(self.author_id)
                 return p.id == author_id
+
             elif self.kind == "group_profile":
                 # Everyone can update
                 if action == "update":
@@ -1104,6 +1141,7 @@ class Starmap(Serializable, db.Model):
                 # Only author can insert and delete
                 elif self.author_id == author_id:
                     return True
+
             elif self.kind == "index":
                 p = Persona.query.filter(Persona.index_id == self.id)
                 return p.id == author_id
@@ -1130,8 +1168,12 @@ class Starmap(Serializable, db.Model):
 
         Parameters:
             new_state (int) code of the new state as defined in nucleus.STAR_STATES
+
+        Raises:
+            ValueError: If new_state is not an Int or not a valid state of this object
         """
-        if not isinstance(new_state, int) or new_state not in STAR_STATES.keys():
+        new_state = int(new_state)
+        if new_state not in STAR_STATES.keys():
             raise ValueError("{} ({}) is not a valid star state").format(
                 new_state, type(new_state))
         else:
@@ -1139,7 +1181,6 @@ class Starmap(Serializable, db.Model):
 
     def get_absolute_url(self):
         """Return URL for this Starmap depending on kind"""
-        # import pdb; pdb.set_trace()
         if self.kind == "persona_profile":
             p = Persona.query.filter(Persona.profile_id == self.id).first()
             return url_for("persona", id=p.id)
@@ -1376,8 +1417,12 @@ class Group(Serializable, db.Model):
 
         Parameters:
             new_state (int) code of the new state as defined in nucleus.PLANET_STATES
+
+        Raises:
+            ValueError: If new_state is not an Int or not a valid state of this object
         """
-        if not isinstance(new_state, int) or new_state not in PLANET_STATES.keys():
+        new_state = int(new_state)
+        if new_state not in PLANET_STATES.keys():
             raise ValueError("{} ({}) is not a valid planet state").format(
                 new_state, type(new_state))
         else:

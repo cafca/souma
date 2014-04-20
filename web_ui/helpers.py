@@ -18,12 +18,13 @@ def get_active_persona():
     """ Return the currently active persona or 0 if there is no controlled persona. """
 
     if 'active_persona' not in session or session['active_persona'] is None:
-        controlled_personas = Persona.query.filter('sign_private != ""')
+        """Activate first Persona with a private key"""
+        controlled_persona = Persona.query.filter('sign_private != ""').first()
 
-        if controlled_personas.first() is None:
+        if controlled_persona is None:
             return ""
         else:
-            session['active_persona'] = controlled_personas.first().id
+            session['active_persona'] = controlled_persona.id
 
     return session['active_persona']
 
