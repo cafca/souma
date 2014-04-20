@@ -757,7 +757,6 @@ class Star(Serializable, db.Model):
 
     def link_url(self):
         """Return URL if this Star has a Link-Planet """
-
         for planet in self.planets:
             if planet.kind == "link":
                 return planet.url
@@ -766,7 +765,7 @@ class Star(Serializable, db.Model):
     def has_picture(self):
         """Return True if this Star has a Picture-Planet"""
         for p in self.planets:
-            if p.kind == "picture":
+            if p.kind in ["picture", "linkedpicture"]:
                 return True
         return False
 
@@ -866,6 +865,29 @@ class PicturePlanet(Planet):
 
     __mapper_args__ = {
         'polymorphic_identity': 'picture'
+    }
+
+    @staticmethod
+    def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
+        """Create a new Planet object from a changeset (See Serializable.create_from_changeset). """
+        raise NotImplementedError
+
+    def update_from_changeset(changeset, update_sender=None, update_recipient=None):
+        """Update a new Planet object from a changeset (See Serializable.update_from_changeset). """
+        raise NotImplementedError
+
+
+class LinkedPicturePlanet(Planet):
+    """A linked picture attachment"""
+
+    _insert_required = ["id", "title", "created", "modified", "source", "url"]
+    _update_required = ["id", "title", "modified", "source", "url"]
+
+    id = db.Column(db.String(32), ForeignKey('planet.id'), primary_key=True)
+    url = db.Column(db.Text)
+
+    __mapper_args__ = {
+        'polymorphic_identity': 'linkedpicture'
     }
 
     @staticmethod

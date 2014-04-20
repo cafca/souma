@@ -87,7 +87,7 @@
 
 {% if display_planets %}
     {% for planet in star.planets %}
-        {% if planet.kind == 'picture' %}
+        {% if planet.kind in ['picture', 'linkedpicture'] %}
         <span class="imagewrap-outer">
             {{ planet_macros.planet(planet, False)}}
         </span>

@@ -16,8 +16,8 @@ class Create_star_form(Form):
     # TODO: Validate author selection
     author = SelectField('Author', validators=[DataRequired(), ])
     text = TextAreaField('Content', validators=[DataRequired(), ])
-    picture = FileField('Picture')
-    #link = URLField('Link', validators=[url()])
+    # picture = FileField('Picture')
+    linkedpicture = URLField('Picture')
     link = URLField('Link')
     context = HiddenField('Context', validators=[])
 
