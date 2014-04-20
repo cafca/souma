@@ -54,10 +54,11 @@ def fit(interestmodel, topic_model):
         like = star.creator_id == interestmodel.persona_id
         if not like:
             like = Oneup.query.filter_by(star_id=star.id, creator_id=interestmodel.persona_id).all()
-            
+
 
         content = star.text
-        for planet in star.planets:
+        for planet_assoc in star.planet_assocs:
+            planet = planet_assoc.planet
             if isinstance(planet, LinkPlanet):
                 link = planet.url
                 link_content = get_site_content(link)

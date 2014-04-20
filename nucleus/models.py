@@ -516,12 +516,9 @@ class Star(Serializable, db.Model):
         primaryjoin="Persona.id==Star.author_id")
     author_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
 
-    planets = db.relationship('Planet',
-        secondary='satellites',
-        backref=db.backref('star'),
-        lazy="dynamic",
-        primaryjoin="satellites.c.star_id==star.c.id",
-        secondaryjoin="satellites.c.planet_id==planet.c.id")
+    planet_assocs = db.relationship("PlanetAssociation",
+        backref="star",
+        lazy="dynamic")
 
     vesicles = db.relationship(
         'Vesicle',
@@ -601,8 +598,8 @@ class Star(Serializable, db.Model):
         data = Serializable.export(self, exclude=["planets", ], update=update)
 
         data["planets"] = list()
-        for planet in self.planets:
-            data["planets"].append(planet.export())
+        for planet_assoc in self.planet_assocs:
+            data["planets"].append(planet_assoc.planet.export())
 
         return data
 
@@ -651,11 +648,18 @@ class Star(Serializable, db.Model):
         sign = 1 if s > 0 else -1 if s < 0 else 0
         return round(order + sign * epoch_seconds(self.created) / 45000, 7)
 
+    @property
+    def oneup_assocs(self):
+        return self.planet_assocs.filter(PlanetAssociation.planet.has(Planet.kind == "oneup"))
+
     def oneupped(self):
         """
         Return True if active Persona has 1upped this Star
         """
-        oneup = Oneup.query.filter(Oneup.author_id == session["active_persona"]).first()
+        oneup = self.planet_assocs.filter(
+            PlanetAssociation.planet.has(Planet.kind == "oneup")).filter(
+            PlanetAssociation.planet.has(Planet.author_id == session["active_persona"])).first()
+
         if oneup is None or oneup.state < 0:
             return False
         else:
@@ -668,7 +672,7 @@ class Star(Serializable, db.Model):
         Returns:
             Int: Number of upvotes
         """
-        return Oneup.query.filter(Oneup.star_id == self.id).filter(Oneup.state == 0).paginate(1).total
+        return self.oneup_assocs.filter(PlanetAssociation.planet.has(Planet.state == 0)).count()
 
     def toggle_oneup(self, author_id=None):
         """
@@ -697,14 +701,14 @@ class Star(Serializable, db.Model):
             raise UnauthorizedError("Can't toggle 1ups with foreign Persona {}".format(author))
 
         # Check whether 1up has been previously issued
-        import pdb; pdb.set_trace()
-        oneup = Oneup.query.filter(Oneup.star_id == self.id).filter(Oneup.author_id == author.id).first()
+        oneup = self.oneup_assocs.filter(PlanetAssociation.planet.has(Planet.author_id == author.id)).first()
         if oneup is not None:
             old_state = oneup.get_state()
             oneup.set_state(-1) if oneup.state == 0 else oneup.set_state(0)
         else:
             old_state = False
-            oneup = Oneup(id=uuid4().hex, star=self, author=author)
+            oneup = Oneup(id=uuid4().hex)
+
 
         # Commit 1up
         db.session.add(self)
@@ -713,12 +717,21 @@ class Star(Serializable, db.Model):
 
         return oneup
 
+    def has_picture(self):
+        """Return True if this Star has a Picture-Planet"""
+        count = self.planet_assocs.filter(
+            PlanetAssociation.planet.has(Planet.kind.in_(("picture", "linkedpicture")))).count()
+        return count > 0
 
-t_satellites = db.Table(
-    'satellites',
-    db.Column('star_id', db.String(32), db.ForeignKey('star.id')),
-    db.Column('planet_id', db.String(32), db.ForeignKey('planet.id'))
-)
+
+class PlanetAssociation(db.Model):
+    __tablename__ = 'planet_association'
+    star_id = db.Column(db.String(32), db.ForeignKey('star.id'), primary_key=True)
+    planet_id = db.Column(db.String(32), db.ForeignKey('planet.id'), primary_key=True)
+    author_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
+    author = db.relationship("Persona", backref="planet_assocs")
+    planet = db.relationship("Planet", backref="star_assocs")
+
 
 t_planet_vesicles = db.Table(
     'planet_vesicles',
@@ -942,8 +955,6 @@ class Oneup(Planet):
             oneup.star_id = changeset["star_id"]
         else:
             star.planets.append(oneup)
-
-        import pdb; pdb.set_trace()
 
         return oneup
 

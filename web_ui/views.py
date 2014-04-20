@@ -290,7 +290,8 @@ def create_star():
                 db.session.add(planet)
 
             # attach to star
-            new_star.planets.append(planet)
+            assoc = PlanetAssociation(star=new_star, planet=planet)
+            new_star.planet_assocs.append(assoc)
 
             # commit
             db.session.add(new_star)
@@ -307,7 +308,8 @@ def create_star():
                     url=request.form['link'])
                 db.session.add(planet)
 
-            new_star.planets.append(planet)
+            assoc = PlanetAssociation(star=new_star, planet=planet)
+            new_star.planet_assocs.append(assoc)
             db.session.add(new_star)
             db.session.commit()
             app.logger.info("Attached {} to new {}".format(planet, new_star))

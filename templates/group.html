@@ -20,13 +20,13 @@
 
 
 {% for star in page.stars %}
-    {% for planet in star.planets %}
+    {% for planet_assoc in star.planet_assocs %}
     <section class='{{ star.css_class }}'>
-        {{ planet_macros.planet(planet, False)}}
+        {{ planet_macros.planet(planet_assoc.planet, False)}}
     </section>
     {% endfor %}
 
-    <section class="{%if star.planets.count() >= 1 %}image-overlay{% endif %} {{star.css_class}}">
+    <section class="{%if star.has_picture() %}image-overlay{% endif %} {{star.css_class}}">
         {{ star_macros.star(star.content) }}
     </section>
 {% endfor %}

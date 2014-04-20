@@ -3,10 +3,10 @@
 {% import "macros/planet.html" as planet_macros %}
 
 {% block content %}
-{% if star.planets.count() > 0 %}
-    {% for planet in star.planets %}
+{% if star.planet_assocs.count() > 0 %}
+    {% for planet_assoc in star.planet_assocs %}
     <section class="col2 row1 w5 h7">
-        {{ planet_macros.planet(planet, True) }}
+        {{ planet_macros.planet(planet_assoc.planet, True) }}
     </section>
     {% endfor %}
 
