@@ -10,9 +10,14 @@
     </section>
     {% endfor %}
 
-    <section class="col7 row1 w5 h2">
+    <section class="col7 row1 w5 h4">
 
-        {{ star_macros.star(star, author=active_persona, controlled_personas=controlled_personas, controls="extended") }}
+        {{ star_macros.star(star,
+            author=active_persona,
+            controlled_personas=controlled_personas,
+            controls="extended",
+            display_planets=False)
+        }}
     </section>
 {% else %}
     <section class="col1 row1 w6 h2">

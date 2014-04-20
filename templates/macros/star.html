@@ -1,6 +1,6 @@
 {% import "macros/planet.html" as planet_macros %}
 
-{% macro star(star, author, controlled_personas, csrf_token='', controls="default") %}
+{% macro star(star, author, controlled_personas, csrf_token='', controls="default", display_planets=True) %}
 
 <!-- STAR: {{star.id}} -->
 <span class="content">
@@ -85,13 +85,15 @@
 </div>
 {% endif %}
 
-{% for planet in star.planets %}
-    {% if planet.kind == 'picture' %}
-    <span class="imagewrap-outer">
-        {{ planet_macros.planet(planet, False)}}
-    </span>
-    {% endif %}
-{% endfor %}
+{% if display_planets %}
+    {% for planet in star.planets %}
+        {% if planet.kind == 'picture' %}
+        <span class="imagewrap-outer">
+            {{ planet_macros.planet(planet, False)}}
+        </span>
+        {% endif %}
+    {% endfor %}
+{% endif %}
 
 
 <!-- Modal -->
