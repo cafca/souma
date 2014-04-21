@@ -666,6 +666,7 @@ class Star(Serializable, db.Model):
 
     @property
     def oneups(self):
+        """Returns a query for all oneups, including disabled ones"""
         return self.children.filter_by(kind="oneup")
 
     def oneupped(self):
@@ -687,7 +688,7 @@ class Star(Serializable, db.Model):
         Returns:
             Int: Number of upvotes
         """
-        return self.oneups.count()
+        return self.oneups.filter(Oneup.state >= 0).count()
 
     def comment_count(self):
         """
