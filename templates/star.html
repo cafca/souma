@@ -4,7 +4,7 @@
 
 {% block content %}
 {% if star.has_picture() %}
-    {% for planet in star.planets %}
+    {% for planet_assoc in star.planet_assocs %}
     <section class="col2 row1 w5 h7">
         {{ planet_macros.planet(planet_assoc.planet, True) }}
     </section>

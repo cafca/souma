@@ -529,7 +529,7 @@ class Star(Serializable, db.Model):
 
     parent = db.relationship('Star',
         primaryjoin='and_(Star.id==Star.parent_id, Star.state>=0)',
-        backref=db.backref('comments', lazy="dynamic"),
+        backref=db.backref('children', lazy="dynamic"),
         remote_side='Star.id')
     parent_id = db.Column(db.String(32), db.ForeignKey('star.id'))
 
@@ -560,6 +560,10 @@ class Star(Serializable, db.Model):
         if Serializable.authorize(self, action, author_id=author_id):
             return author_id == self.author.id
         return False
+
+    @property
+    def comments(self):
+        return self.children.filter_by(kind="star")
 
     @staticmethod
     def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
@@ -662,7 +666,7 @@ class Star(Serializable, db.Model):
 
     @property
     def oneups(self):
-        return self.comments.filter_by(kind="oneup")
+        return self.children.filter_by(kind="oneup")
 
     def oneupped(self):
         """
@@ -692,7 +696,7 @@ class Star(Serializable, db.Model):
         Returns:
             Int: Number of comments
         """
-        return self.comments.filter_by(state=0).paginate(1).total
+        return self.comments.filter_by(state=0).count()
 
     def toggle_oneup(self, author_id=None):
         """
@@ -728,7 +732,7 @@ class Star(Serializable, db.Model):
         else:
             old_state = False
             oneup = Oneup(id=uuid4().hex, author=author, parent=self)
-            self.comments.append(oneup)
+            self.children.append(oneup)
 
         # Commit 1up
         db.session.add(self)
@@ -738,16 +742,21 @@ class Star(Serializable, db.Model):
         return oneup
 
     def link_url(self):
-        """Return URL if this Star has a Link-Planet """
-        for planet in self.planets:
-            if planet.kind == "link":
-                return planet.url
-        return None
+        """Return URL if this Star has a Link-Planet
+
+        Returns:
+            String: URL of the first associated Link
+            Bool: False if no link was found
+        """
+        planet_assoc = self.planet_assocs.join(PlanetAssociation.planet.of_type(LinkPlanet)).first()
+        if planet_assoc:
+            return planet_assoc.planet.url
+        else:
+            return None
 
     def has_picture(self):
         """Return True if this Star has a Picture-Planet"""
-        count = self.planet_assocs.filter(
-            PlanetAssociation.planet.has(Planet.kind.in_(("picture", "linkedpicture")))).count()
+        count = self.planet_assocs.join(PlanetAssociation.planet.of_type(LinkedPicturePlanet)).count()
         return count > 0
 
 
@@ -997,7 +1006,7 @@ class Oneup(Star):
             app.logger.warning("Parent Star for Oneup not found")
             oneup.parent_id = changeset["parent_id"]
         else:
-            star.comments.append(oneup)
+            star.children.append(oneup)
 
         return oneup
 
