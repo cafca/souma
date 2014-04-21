@@ -123,13 +123,7 @@ def persona(id, current_page=1):
 
     persona = Persona.query.filter_by(id=id).first_or_404()
 
-    if hasattr(persona, "profile") and hasattr(persona.profile, "index"):
-        stars = persona.profile.index.filter(Star.state >= 0).filter(Star.parent_id == None)
-    else:
-        app.logger.error("{} has no profile".format(persona))
-        stars = []
-
-    page = pagemanager.persona_layout(persona, stars=stars, current_page=current_page)
+    page = pagemanager.persona_layout(persona, current_page=current_page)
 
     return render_template(
         'persona.html',

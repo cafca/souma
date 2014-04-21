@@ -1,6 +1,8 @@
 from operator import itemgetter
 from web_ui import app
 
+from flask.ext.sqlalchemy import Pagination
+
 
 class PageManager(object):
     """ Holds all factory methods for Page creation.
@@ -45,16 +47,11 @@ class PageManager(object):
         context = 'group_page'
         layouts = self._get_layouts_for(context)
 
-        pagination = stars.paginate(current_page, self.page_size)
-        stars = pagination.items
-
         # currently no logic to choose among different layouts
         assert(len(layouts) == 1)
         best_layout = layouts[0]
 
         page = Page()
-
-        setattr(page, "pagination", pagination)
 
         # Add header to group page
         section = 'header'
@@ -66,18 +63,21 @@ class PageManager(object):
         for cell in layouts[0][section]:
             page.add_to_section(section, cell, None)
 
-        # Add the stars of the group to page
-        section = 'stars'
+        stars = page.paginate(stars, current_page, self.page_size)
 
-        # Rank stars by score
-        stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
+        if stars is not None:
+            # Add the stars of the group to page
+            section = 'stars'
 
-        for i, star_cell in enumerate(best_layout[section]):
-            if i >= len(stars_ranked):
-                break
+            # Rank stars by score
+            stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
 
-            star = stars_ranked[i]
-            page.add_to_section(section, star_cell, star)
+            for i, star_cell in enumerate(best_layout[section]):
+                if i >= len(stars_ranked):
+                    break
+
+                star = stars_ranked[i]
+                page.add_to_section(section, star_cell, star)
 
         return page
 
@@ -121,15 +121,13 @@ class PageManager(object):
 
     def persona_layout(self, persona, stars=None, current_page=1):
         """Return page for a Persona's profile page"""
+        from nucleus.models import Star
 
         if stars is None and hasattr(persona, "profile") and hasattr(persona.profile, "index"):
-            stars = persona.profile.index
+            stars = persona.profile.index.filter(Star.state >= 0).filter(Star.parent_id == None)
 
         context = 'persona_page'
         layouts = self._get_layouts_for(context)
-
-        pagination = stars.paginate(current_page, self.page_size)
-        stars = pagination.items
 
         # currently no logic to choose among different layouts
         assert(len(layouts) == 1)
@@ -137,12 +135,11 @@ class PageManager(object):
 
         page = Page()
 
-        # Add pagination information
-        setattr(page, "pagination", pagination)
-
         # Add vcard to group page
         section = 'vcard'
         page.add_to_section(section, best_layout[section], None)
+
+        stars = page.paginate(stars, current_page, self.page_size)
 
         if stars is not None:
             # Add the stars of the profile to page
@@ -288,3 +285,9 @@ class Page(object):
             cell[3])
 
         return {'css_class': css_class, 'content': content}
+
+    def paginate(self, stars, current_page, per_page):
+        """Paginate given stars"""
+        count = 0 if stars is None else stars.count()
+        self.pagination = Pagination(stars, current_page, per_page, count, None)
+        return self.pagination.items
