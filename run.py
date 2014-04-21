@@ -134,10 +134,16 @@ else:
 
     # Synapse
     app.logger.info("Starting Synapses")
-    try:
+
+    if app.config["DEBUG"]:
         synapse = Synapse()
-    except Exception, e:
-        app.logger(e)
+        synapse.electrical.login_all()
+    else:
+        try:
+            synapse = Synapse()
+            synapse.electrical.login_all()
+        except Exception, e:
+            app.logger.error(e)
 
     # Web UI
     if not app.config['NO_UI']:

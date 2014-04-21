@@ -86,10 +86,10 @@
 {% endif %}
 
 {% if display_planets %}
-    {% for planet in star.planets %}
-        {% if planet.kind in ['picture', 'linkedpicture'] %}
+    {% for planet_assoc in star.planet_assocs %}
+        {% if planet_assoc.planet.kind in ['picture', 'linkedpicture'] %}
         <span class="imagewrap-outer">
-            {{ planet_macros.planet(planet, False)}}
+            {{ planet_macros.planet(planet_assoc.planet, False)}}
         </span>
         {% endif %}
     {% endfor %}

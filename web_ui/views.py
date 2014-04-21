@@ -9,7 +9,7 @@ from web_ui import pagemanager
 from web_ui.forms import *
 from web_ui.helpers import get_active_persona
 from nucleus import notification_signals, PersonaNotFoundError
-from nucleus.models import Persona, Star, Planet, PicturePlanet, LinkPlanet, Group, Starmap, LinkedPicturePlanet
+from nucleus.models import Persona, Star, Planet, PlanetAssociation, PicturePlanet, LinkPlanet, Group, Starmap, LinkedPicturePlanet
 
 # Create blinker signal namespace
 local_model_changed = notification_signals.signal('local-model-changed')
@@ -123,12 +123,7 @@ def persona(id, current_page=1):
 
     persona = Persona.query.filter_by(id=id).first_or_404()
 
-    if hasattr(persona, "profile") and hasattr(persona.profile, "index"):
-        stars = persona.profile.index.filter(Star.state >= 0).filter(Star.parent_id == None)
-    else:
-        stars = []
-
-    page = pagemanager.persona_layout(persona, stars=stars, current_page=current_page)
+    page = pagemanager.persona_layout(persona, current_page=current_page)
 
     return render_template(
         'persona.html',
@@ -298,8 +293,12 @@ def create_star():
         #     app.logger.info("Attached {} to new {}".format(planet, new_star))
 
         if 'linkedpicture' in request.form and request.form['linkedpicture'] != "":
-            picture_hash = sha256(request.form['linkedpicture']).hexdigest()[:32]
-            planet = Planet.query.filter_by(id=picture_hash).first()
+            # "linkedpicture" is added to the hash so that two people can
+            # attach the same link as a linked picture and as a regular link
+            # without causing a clash because of their ids.
+            # https://github.com/ciex/souma/issues/155
+            picture_hash = sha256("linkedpicture" + request.form['linkedpicture']).hexdigest()[:32]
+            planet = LinkedPicturePlanet.query.filter_by(id=picture_hash).first()
             if not planet:
                 app.logger.info("Storing new linked Picture")
                 planet = LinkedPicturePlanet(
@@ -307,14 +306,18 @@ def create_star():
                     url=request.form['linkedpicture'])
                 db.session.add(planet)
 
-            new_star.planets.append(planet)
+            # attach to star
+            assoc = PlanetAssociation(star=new_star, planet=planet)
+            new_star.planet_assocs.append(assoc)
+
+            # commit
             db.session.add(new_star)
             db.session.commit()
             app.logger.info("Attached {} to new {}".format(planet, new_star))
 
         if 'link' in request.form and request.form['link'] != "":
             link_hash = sha256(request.form['link']).hexdigest()[:32]
-            planet = Planet.query.filter_by(id=link_hash).first()
+            planet = LinkPlanet.query.filter_by(id=link_hash).first()
             if not planet:
                 app.logger.info("Storing new Link")
                 planet = LinkPlanet(
@@ -322,7 +325,8 @@ def create_star():
                     url=request.form['link'])
                 db.session.add(planet)
 
-            new_star.planets.append(planet)
+            assoc = PlanetAssociation(star=new_star, planet=planet)
+            new_star.planet_assocs.append(assoc)
             db.session.add(new_star)
             db.session.commit()
             app.logger.info("Attached {} to new {}".format(planet, new_star))
@@ -407,7 +411,7 @@ def delete_star(id):
 def universe(current_page=1):
     """ Render the landing page """
 
-    stars = Star.query.filter(Star.parent_id == None)
+    stars = Star.query.filter(Star.parent_id == None, Star.state >= 0)
     page = pagemanager.star_layout(stars, current_page=current_page)
 
     if len(persona_context()['controlled_personas'].all()) == 0:
@@ -463,6 +467,16 @@ def oneup(star_id):
                 "state_name": oneup.get_state()
             }]
         }
+
+        message_oneup = {
+            "author_id": oneup.author.id,
+            "action": "insert" if len(oneup.vesicles)==0 else "update",
+            "object_id": oneup.id,
+            "object_type": "Oneup",
+            "recipients": star.author.contacts.all() + [star.author, ]
+        }
+
+        local_model_changed.send(oneup, message=message_oneup)
     return json_response(resp)
 
 
@@ -500,7 +514,7 @@ def find_people():
         address = request.form['email']
 
         # Create a temporary electrical synapse to make a synchronous glia request
-        electrical = ElectricalSynapse(None)
+        electrical = ElectricalSynapse()
         resp, errors = electrical.find_persona(address)
 
         # TODO: This should flash an error message. It doesn't.

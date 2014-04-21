@@ -56,11 +56,13 @@ def fit(interestmodel, topic_model):
     for star in Star.query.filter_by(state=0):
         like = star.author_id == interestmodel.persona_id
         if not like:
-            like = Oneup.query.filter_by(star_id=star.id, author_id=interestmodel.persona_id).all()
+            like = Oneup.query.filter(
+                Oneup.state >= 0).filter_by(parent_id=star.id, author_id=interestmodel.persona_id).all()
 
 
         content = star.text
-        for planet in star.planets:
+        for planet_assoc in star.planet_assocs:
+            planet = planet_assoc.planet
             if isinstance(planet, LinkPlanet):
                 link = planet.url
                 link_content = get_site_content(link)

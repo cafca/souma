@@ -8,6 +8,7 @@ from flask import Flask, json
 from flask.ext.sqlalchemy import SQLAlchemy
 from flaskext import uploads
 from humanize import naturaltime
+from logging.handlers import RotatingFileHandler
 from werkzeug.contrib.cache import SimpleCache
 
 
@@ -131,13 +132,19 @@ uploads.configure_uploads(app, (attachments))
 # mode. This overrides this setting and enables a new logging handler which prints
 # to the shell.
 loggers = [app.logger, logging.getLogger('synapse'), logging.getLogger('e-synapse')]
+
 console_handler = logging.StreamHandler(stream=sys.stdout)
 console_handler.setFormatter(logging.Formatter(app.config['LOG_FORMAT']))
+
+file_handler = RotatingFileHandler(app.config["LOG_FILENAME"],
+    maxBytes=app.config["LOG_MAXBYTES"], backupCount=5, delay=True)
+file_handler.setFormatter(logging.Formatter(app.config['LOG_FORMAT']))
 
 for l in loggers:
     del l.handlers[:]  # remove old handlers
     l.setLevel(logging.DEBUG)
     l.addHandler(console_handler)
+    l.addHandler(file_handler)
     l.propagate = False  # setting this to true triggers the root logger
 
 
