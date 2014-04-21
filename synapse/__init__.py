@@ -381,8 +381,8 @@ class Synapse():
                     o.update_from_changeset(obj, update_sender=author, update_recipient=recipient)
                     if isinstance(o, Persona):
                         o.stub = False
-                    else:
-                        o.set_state(0)
+                    # else:
+                    #     o.set_state(0)
                     session.add(o)
                     self.logger.info("Applied update for {}".format(o))
                 else:
