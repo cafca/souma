@@ -655,16 +655,15 @@ class Star(Serializable, db.Model):
         return round(order + sign * epoch_seconds(self.created) / 45000, 7)
 
     @property
-    def oneup_assocs(self):
-        return self.planet_assocs.filter(PlanetAssociation.planet.has(Planet.kind == "oneup"))
+    def oneups(self):
+        return self.comments.filter_by(kind="oneup")
 
     def oneupped(self):
         """
         Return True if active Persona has 1upped this Star
         """
-        oneup = self.planet_assocs.filter(
-            PlanetAssociation.planet.has(Planet.kind == "oneup")).filter(
-            PlanetAssociation.planet.has(Planet.author_id == session["active_persona"])).first()
+
+        oneup = self.oneups.filter_by(author_id=session["active_persona"]).first()
 
         if oneup is None or oneup.state < 0:
             return False
@@ -678,7 +677,7 @@ class Star(Serializable, db.Model):
         Returns:
             Int: Number of upvotes
         """
-        return self.oneup_assocs.filter(PlanetAssociation.planet.has(Planet.state == 0)).count()
+        return self.oneups.count()
 
     def toggle_oneup(self, author_id=None):
         """
@@ -707,14 +706,14 @@ class Star(Serializable, db.Model):
             raise UnauthorizedError("Can't toggle 1ups with foreign Persona {}".format(author))
 
         # Check whether 1up has been previously issued
-        oneup = self.oneup_assocs.filter(PlanetAssociation.planet.has(Planet.author_id == author.id)).first()
+        oneup = self.oneups.filter_by(author=author).first()
         if oneup is not None:
             old_state = oneup.get_state()
             oneup.set_state(-1) if oneup.state == 0 else oneup.set_state(0)
         else:
             old_state = False
-            oneup = Oneup(id=uuid4().hex)
-
+            oneup = Oneup(id=uuid4().hex, author=author, parent=self)
+            self.comments.append(oneup)
 
         # Commit 1up
         db.session.add(self)
@@ -875,15 +874,14 @@ class Oneup(Star):
     _insert_required = ["id", "created", "modified", "author_id", "parent_id", "state"]
     _update_required = ["id", "modified", "state"]
 
-    state = db.Column(db.Integer, default=0)
-
     __mapper_args__ = {
         'polymorphic_identity': 'oneup'
     }
 
     def __repr__(self):
         if ["author_id", "parent_id"] in dir(self):
-            return "<1up <Persona {}> -> <Star {}> ({})>".format(self.author_id[:6], self.parent_id[:6], self.get_state())
+            return "<1up <Persona {}> -> <Star {}> ({})>".format(
+                self.author_id[:6], self.parent_id[:6], self.get_state())
         else:
             return "<1up ({})>".format(self.get_state())
 
