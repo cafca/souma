@@ -33,8 +33,11 @@ class InterestModel(db.Model):
 
 
 def update():
-    app.logger.info("Update interest model")
-    topic_model = TopicModel('../enwiki_lda.model', '../enwiki__wordids.txt')
+    app.logger.info("Updating interest model")
+
+    topic_model = TopicModel(
+        app.config["TOPIC_MODEL"], app.config["TOPIC_MODEL_IDS"])
+
     for persona in Persona.query.all():
         interestmodel = InterestModel.query.filter_by(persona_id=persona.id).first()
 
@@ -51,7 +54,7 @@ def fit(interestmodel, topic_model):
     train_set_pos = []
     train_set_neg = []
     for star in Star.query.filter_by(state=0):
-        like = star.creator_id == interestmodel.persona_id
+        like = star.author_id == interestmodel.persona_id
         if not like:
             like = Oneup.query.filter(
                 Oneup.state >= 0).filter_by(parent_id=star.id, author_id=interestmodel.persona_id).all()
@@ -77,14 +80,13 @@ def fit(interestmodel, topic_model):
     app.logger.info("Fitting persona %s"%interestmodel.persona_id)
     app.logger.info("Positive: %d    Negative: %d"%(len(train_set_pos),len(train_set_neg)))
     if len(train_set_pos) > 0:
-        train_labels = [[1] * len(train_set_pos)]
+        train_labels = [1 for x in range(len(train_set_pos))]
         train_set = train_set_pos
 
         if len(train_set_neg) > 0:
             train_set.extend(train_set_neg)
-            train_labels.extend([[0] * len(train_set_neg)])
+            train_labels.extend([0 for x in range(len(train_set_neg))])
 
-        pdb.set_trace()
         interestmodel.classifier.fit(train_set, train_labels)
 
     interestmodel.last_fit = datetime.now()

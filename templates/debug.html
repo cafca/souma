@@ -11,6 +11,7 @@
             <th>Modified</th>
             <th>Created</th>
             <th>State</th>
+            <th>Parent</th>
             <th>Vesicles</th>
             <th></th>
         </tr>
@@ -24,6 +25,7 @@
         <td>{{ star.modified | naturaltime }}</td>
         <td>{{ star.created | naturaltime}} </td>
         <td>{{ star.get_state()}}</td>
+        <td>{{ star.parent_id }}</td>
         <td>{{ star.vesicles | length }}</td>
         {% if star.get_state() >= 0 and star.author.controlled() %}
             <td><form action="{{url_for('delete_star', id=star.id)}}" method="POST">

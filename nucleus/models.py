@@ -337,6 +337,7 @@ class Persona(Serializable, db.Model):
             p.crypt_public = changeset["crypt_public"]
             p.sign_public = changeset["sign_public"]
             p.modified = modified_dt
+            p._stub = False
         else:
             p = Persona(
                 id=changeset["id"],
@@ -521,11 +522,16 @@ class Star(Serializable, db.Model):
         backref="star",
         lazy="dynamic")
 
-    vesicles = db.relationship(
-        'Vesicle',
+    vesicles = db.relationship('Vesicle',
         secondary='star_vesicles',
         primaryjoin='star_vesicles.c.star_id==star.c.id',
         secondaryjoin='star_vesicles.c.vesicle_id==vesicle.c.id')
+
+    parent = db.relationship('Star',
+        primaryjoin='and_(Star.id==Star.parent_id, Star.state>=0)',
+        backref=db.backref('comments', lazy="dynamic"),
+        remote_side='Star.id')
+    parent_id = db.Column(db.String(32), db.ForeignKey('star.id'))
 
     __mapper_args__ = {
         'polymorphic_identity': 'star',
@@ -679,6 +685,15 @@ class Star(Serializable, db.Model):
         """
         return self.oneups.count()
 
+    def comment_count(self):
+        """
+        Return the number of comemnts this Star has receieved
+
+        Returns:
+            Int: Number of comments
+        """
+        return self.comments.filter_by(state=0).paginate(1).total
+
     def toggle_oneup(self, author_id=None):
         """
         Toggle 1up for this Star on/off
@@ -721,6 +736,13 @@ class Star(Serializable, db.Model):
         app.logger.info("{verb} {obj}".format(verb="Toggled" if old_state else "Added", obj=oneup, ))
 
         return oneup
+
+    def link_url(self):
+        """Return URL if this Star has a Link-Planet """
+        for planet in self.planets:
+            if planet.kind == "link":
+                return planet.url
+        return None
 
     def has_picture(self):
         """Return True if this Star has a Picture-Planet"""
@@ -833,6 +855,29 @@ class PicturePlanet(Planet):
 
     __mapper_args__ = {
         'polymorphic_identity': 'picture'
+    }
+
+    @staticmethod
+    def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
+        """Create a new Planet object from a changeset (See Serializable.create_from_changeset). """
+        raise NotImplementedError
+
+    def update_from_changeset(changeset, update_sender=None, update_recipient=None):
+        """Update a new Planet object from a changeset (See Serializable.update_from_changeset). """
+        raise NotImplementedError
+
+
+class LinkedPicturePlanet(Planet):
+    """A linked picture attachment"""
+
+    _insert_required = ["id", "title", "created", "modified", "source", "url"]
+    _update_required = ["id", "title", "modified", "source", "url"]
+
+    id = db.Column(db.String(32), ForeignKey('planet.id'), primary_key=True)
+    url = db.Column(db.Text)
+
+    __mapper_args__ = {
+        'polymorphic_identity': 'linkedpicture'
     }
 
     @staticmethod
@@ -1141,7 +1186,6 @@ class Starmap(Serializable, db.Model):
             if self.kind == "persona_profile":
                 p = Persona.request_persona(self.author_id)
                 return p.id == author_id
-
             elif self.kind == "group_profile":
                 # Everyone can update
                 if action == "update":

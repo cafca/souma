@@ -125,6 +125,10 @@ article {
             }
 
             .content img {display: none;}
+
+            .comment {
+                display: none;
+            }
         }
 
         &.w5, &.w6, &.w7, &.w8 {
@@ -136,6 +140,10 @@ article {
 
         &.framed {
             border: 1px solid darken(white, 20%);
+        }
+
+        .comment {
+            margin-top: .5em;
         }
 
         .content {
@@ -203,17 +211,31 @@ article {
     }
 }
 
+.comment-modal {
+    ul > li {
+        list-style: none;
+    }
+
+    .caption, a {
+        color: lighten(black, 50%);
+    }
+}
+
 .w3, .w4, .w5, .w6, .w7, .w8, .w9, .w10, .w11, .w12, .w13, .w14, .w15, .w16 {
 &.image-overlay {
     background-color: none);
     color: white;
-    transition: 1s;
+    transition: .25s;
 
     &:hover {
         background-color: rgba(0,0,0,0.15);
 
         .meta a {
             color: white;
+        }
+
+        input {
+            opacity: 1;
         }
     }
 
@@ -222,18 +244,36 @@ article {
         color: #333;
     }
 
+    .meta > span {
+        margin-top: 3px;
+    }
+
     // i + span:after { content:"\A"; white-space:pre; }
 
-    .attribute {
-        display: block;
-        margin: 0 0 5px 6px;
+    &.h3, &.h4, &.h5, &.h6, &.h7, &.h8 {
+        .attribute {
+            display: block;
+            margin: 0 0 5px 6px;
+        }
+    }
+
+    .comment {
+        margin: -1em 6px;
     }
 
     .content {
         padding: 6px 6px 0;
     }
+
     .meta {
         padding: 0 6px;
+    }
+
+    input {
+        opacity: 0;
+        transition: opacity .25s ease-in-out;
+        -moz-transition: opacity .25s ease-in-out;
+        -webkit-transition: opacity .25s ease-in-out;
     }
 
     .inline-semantic {
@@ -247,12 +287,32 @@ article {
     overflow: hidden;
     width: 100%;
     height: 100%;
+    padding: 0;
 
     img {
         position: absolute;
     }
 }
 
+.imagewrap-outer {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: -10;
+}
+
 .link {
     margin-top: 3em;
+}
+
+#souma-pagination {
+    position: absolute;
+    bottom: 0;
+    margin-left: 50%;
+
+    ul {
+        margin-left: -66%;
+    }
 }

@@ -2,6 +2,16 @@ import appdirs
 import logging
 import os
 
+# ANY CHANGES MADE TO OPTIONS DEPENDING ON LOCAL_PORT NEED TO BE UPDATED IN
+# web_ui/__init__.py
+
+
+def packaged_app():
+    """Return True if currently running in a packaged context"""
+    import sys
+    if getattr(sys, 'frozen', None) == 'macosx_app':
+        return True
+
 USER_DATA = appdirs.user_data_dir("souma", "souma", roaming=True)
 
 #
@@ -12,17 +22,22 @@ LOCAL_PORT = 5000
 LOCAL_HOSTNAME = 'app.souma'
 LOCAL_ADDRESS = "{}:{}".format(LOCAL_HOSTNAME, LOCAL_PORT)
 
-DEBUG = True
+DEBUG = False
 USE_DEBUG_SERVER = False
 
-SECRET_KEY_FILE = os.path.join(USER_DATA, "secret_key.dat")
-PASSWORD_HASH_FILE = os.path.join(USER_DATA, "pw_hash.dat")
+SECRET_KEY_FILE = os.path.join(USER_DATA, "secret_key_{}.dat".format(LOCAL_PORT))
+PASSWORD_HASH_FILE = os.path.join(USER_DATA, "pw_hash_{}.dat".format(LOCAL_PORT))
 
 # Uncomment to log DB statements
 # SQLALCHEMY_ECHO = True
 
 DATABASE = os.path.join(USER_DATA, 'souma_{}.db'.format(LOCAL_PORT))
 SQLALCHEMY_DATABASE_URI = "sqlite:///" + DATABASE
+
+TOPIC_MODEL = os.path.join(USER_DATA, 'enwiki_lda.model')
+TOPIC_MODEL_IDS = os.path.join(USER_DATA, 'enwiki__wordids.txt')
+TOPIC_MODEL_UPDATE = "http://dl.dropboxusercontent.com/u/46877/topic_model/enwiki_lda.model"
+TOPIC_MODEL_IDS_UPDATE = "http://dl.dropboxusercontent.com/u/46877/topic_model/enwiki__wordids.txt"
 
 # uploads are placed in the UPLOADS_DEFAULT_DEST/'attachments' subfolder by flask-uploads
 # this is configured in web_ui/__init__.py
@@ -41,11 +56,11 @@ LOG_FORMAT = (
 # --------------------- SYNAPSE OPTIONS -------------------
 #
 
-SYNAPSE_PORT = LOCAL_PORT + 50
+SYNAPSE_PORT = LOCAL_PORT + 2000
 
 LOGIN_SERVER = "app.souma:24500"
 # Uncomment this to use Heroku server
-# LOGIN_SERVER = "glia.herokuapp.com"
+LOGIN_SERVER = "glia.herokuapp.com"
 
 # Setting this to True will automatically upload all vesicles to Myelin, and
 # enable periodic polling of the Myelin for new Vesicles sent to one of the

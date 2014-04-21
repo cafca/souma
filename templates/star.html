@@ -3,19 +3,25 @@
 {% import "macros/planet.html" as planet_macros %}
 
 {% block content %}
-{% if star.planet_assocs.count() > 0 %}
-    {% for planet_assoc in star.planet_assocs %}
+{% if star.has_picture() %}
+    {% for planet in star.planets %}
     <section class="col2 row1 w5 h7">
         {{ planet_macros.planet(planet_assoc.planet, True) }}
     </section>
     {% endfor %}
 
-    <section class="col7 row1 w5 h2">
-        {{ star_macros.star(star, controls="extended") }}
+    <section class="col7 row1 w5 h4">
+
+        {{ star_macros.star(star,
+            author=active_persona,
+            controlled_personas=controlled_personas,
+            controls="extended",
+            display_planets=False)
+        }}
     </section>
 {% else %}
-    <section class="col1 row1 w8 h3">
-        {{ star_macros.star(star, controls="extended") }}
+    <section class="col1 row1 w6 h2">
+        {{ star_macros.star(star, author=active_persona, controlled_personas=controlled_personas, controls="extended") }}
     </section>
 {% endif %}
 {% endblock %}

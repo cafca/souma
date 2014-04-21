@@ -1,14 +1,15 @@
-{% macro star(star, controls="default") %}
+{% import "macros/planet.html" as planet_macros %}
+
+{% macro star(star, author, controlled_personas, csrf_token='', controls="default", display_planets=True) %}
+
 <!-- STAR: {{star.id}} -->
 <span class="content">
-    {% if star.title %}
-        <a href="{{ url_for('star', id=star.id) }}">
-            <h1>{{ star.title }}</h1>
-        </a>
-    {% endif %}
-
     {% if star.text %}
-        <p>{{ star.text }}</p>
+        {% if star.link_url() %}
+            <p>{{ star.text }} <a href="{{ star.link_url() }}"><i class="fa fa-external-link"></i></a></p>
+        {% else %}
+            <p>{{ star.text }}</p>
+        {% endif %}
     {% endif %}
 </span>
 
@@ -19,6 +20,12 @@
                 <span class="oneup-count" id="oneup-count-{{star.id}}">{{star.oneup_count()}}</span> <i class="fa fa-white fa-arrow-up"></i>
             </button>
         </form>
+    </span>
+
+    <span class="attribute">
+        <button data-target="#comment-modal-{{star.id}}" role="button" class="btn btn-mini" id="comments-{{star.id}}" type="button" data-toggle="modal">
+            <span class="oneup-count" id="comment-count-{{star.id}}">{{star.comment_count()}}</span> <i class="fa fa-white fa-comment"></i>
+        </button>
     </span>
 
     <span class="attribute">
@@ -66,4 +73,78 @@
     </div>
     {% endif %}
 </span>
+
+{% if controls == "extended" %}
+<div class="comment">
+    <form action="{{ url_for('create_star', parent_id=star.id) }}" method="POST">
+            <input type="text" name="text" placeholder="write a comment as {{author.username}}...">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="author" value="{{ author.id }}">
+            <input type="hidden" name="context" value="">
+    </form>
+</div>
+{% endif %}
+
+{% if display_planets %}
+    {% for planet in star.planets %}
+        {% if planet.kind in ['picture', 'linkedpicture'] %}
+        <span class="imagewrap-outer">
+            {{ planet_macros.planet(planet, False)}}
+        </span>
+        {% endif %}
+    {% endfor %}
+{% endif %}
+
+
+<!-- Modal -->
+<div id="comment-modal-{{star.id}}" class="modal hide fade comment-modal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+  <div class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+    <h3 id="myModalLabel">{{star.text}}</h3>
+  </div>
+  <div class="modal-body">
+    <ul>
+    {% for comment in star.comments%}
+        <li>
+        <span class="caption">
+            <i class="fa fa-circle"></i> <a href="{{ url_for('persona', id=comment.author.id) }}" >{{comment.author.username}}</a>:
+        </span>
+
+        <span>{{ comment.text }}</span>
+
+
+        <span class="caption" style="float: right">
+            <i class="fa fa-asterisk"></i> <a href="{{ url_for('star', id=comment.id) }}" title="{{comment.created}}">{{comment.created|naturaltime}}</a>
+        </span>
+        </li>
+    {% endfor %}
+    </ul>
+  </div>
+  <div class="modal-footer">
+    <form action="{{ url_for('create_star', parent_id=star.id) }}" method="POST">
+        <input type="text" name="text" placeholder="write a comment...">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="author" value="{{ author.id }}">
+        <input type="hidden" name="context" value="">
+
+        <span class="pull-right">
+            <div class="btn-group">
+                <button type="submit" class="btn btn-default">
+                    <i class="fa fa-star"></i>
+                    Comment
+                </button>
+
+                <button type="button" class="btn dropdown-toggle" data-toggle="dropdown">
+                     as {{author.username}} <span class="caret"></span>
+                </button>
+                <ul class="dropdown-menu" role="menu">
+                    {% for p in controlled_personas %}
+                    <li><a href="#"><i class="fa fa-user"></i> {{p.username}} [{{p.id[:6]}}]</a></li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </span>
+    </form>
+  </div>
+</div>
 {% endmacro %}

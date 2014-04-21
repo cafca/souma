@@ -2,6 +2,7 @@
 {% import "macros/star.html" as star_macros %}
 {% import "macros/planet.html" as planet_macros %}
 {% import "macros/create_star.html" as create_macro %}
+{% import "macros/pagination.html" as pagination %}
 
 
 {% block content %}
@@ -27,8 +28,10 @@
     {% endfor %}
 
     <section class="{%if star.has_picture() %}image-overlay{% endif %} {{star.css_class}}">
-        {{ star_macros.star(star.content) }}
+        {{ star_macros.star(star.content, author=active_persona, controlled_personas=controlled_personas) }}
     </section>
 {% endfor %}
+
+{{ pagination.render_pagination(page.pagination, "persona") }}
 
 {% endblock %}
