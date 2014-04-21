@@ -505,6 +505,7 @@ class Star(Serializable, db.Model):
 
     id = db.Column(db.String(32), primary_key=True)
     text = db.Column(db.Text)
+    kind = db.Column(db.String(32))
 
     created = db.Column(db.DateTime, default=datetime.datetime.utcnow())
     modified = db.Column(db.DateTime, default=datetime.datetime.utcnow())
@@ -525,6 +526,11 @@ class Star(Serializable, db.Model):
         secondary='star_vesicles',
         primaryjoin='star_vesicles.c.star_id==star.c.id',
         secondaryjoin='star_vesicles.c.vesicle_id==vesicle.c.id')
+
+    __mapper_args__ = {
+        'polymorphic_identity': 'star',
+        'polymorphic_on': kind
+    }
 
     def __repr__(self):
         try:
@@ -725,6 +731,8 @@ class Star(Serializable, db.Model):
 
 
 class PlanetAssociation(db.Model):
+    """Associates Planets with Stars, defining an author for the connection"""
+
     __tablename__ = 'planet_association'
     star_id = db.Column(db.String(32), db.ForeignKey('star.id'), primary_key=True)
     planet_id = db.Column(db.String(32), db.ForeignKey('planet.id'), primary_key=True)
@@ -861,26 +869,21 @@ class LinkPlanet(Planet):
         raise NotImplementedError
 
 
-class Oneup(Planet):
-    """A 1up is a vote that signals interest in a Star"""
+class Oneup(Star):
+    """A 1up is a vote that signals interest in its parent Star"""
 
-    _insert_required = ["id", "created", "modified", "source", "author_id", "star_id", "state"]
+    _insert_required = ["id", "created", "modified", "author_id", "parent_id", "state"]
     _update_required = ["id", "modified", "state"]
 
-    author = db.relationship("Persona",
-        backref=db.backref('oneups'),
-        primaryjoin="Persona.id==Oneup.author_id")
-    author_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
-
-    star_id = db.Column(db.String(32), db.ForeignKey('star.id'))
+    state = db.Column(db.Integer, default=0)
 
     __mapper_args__ = {
         'polymorphic_identity': 'oneup'
     }
 
     def __repr__(self):
-        if ["author_id", "star_id"] in dir(self):
-            return "<1up <Persona {}> -> <Star {}> ({})>".format(self.author_id[:6], self.star_id[:6], self.get_state())
+        if ["author_id", "parent_id"] in dir(self):
+            return "<1up <Persona {}> -> <Star {}> ({})>".format(self.author_id[:6], self.parent_id[:6], self.get_state())
         else:
             return "<1up ({})>".format(self.get_state())
 
@@ -921,21 +924,18 @@ class Oneup(Planet):
 
         if stub is not None:
             oneup = stub
-            oneup.title = None
             oneup.created = created_dt
             oneup.modified = modified_dt
             oneup.author = None
             oneup.source = changeset["source"],
-            oneup.star_id = None
+            oneup.parent_id = None
         else:
             oneup = Oneup(
                 id=changeset["id"],
-                title=None,
                 created=created_dt,
                 modified=modified_dt,
                 author=None,
-                source=changeset["source"],
-                star_id=None,
+                parent=None,
             )
 
         oneup.set_state(int(changeset["state"]))
@@ -949,12 +949,12 @@ class Oneup(Planet):
         else:
             oneup.author = author
 
-        star = Star.query.get(changeset["star_id"])
+        star = Star.query.get(changeset["parent_id"])
         if star is None:
             app.logger.warning("Parent Star for Oneup not found")
-            oneup.star_id = changeset["star_id"]
+            oneup.parent_id = changeset["parent_id"]
         else:
-            star.planets.append(oneup)
+            star.comments.append(oneup)
 
         return oneup
 
