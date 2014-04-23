@@ -598,14 +598,20 @@ class Star(Serializable, db.Model):
         # Append planets to new Star
         for planet_assoc in changeset["planet_assocs"]:
             if not PlanetAssociation.validate_changeset(planet_assoc):
-                app.logger.warning("Invalid changeset for planet associated with {}\n{}".format(star, changeset))
+                app.logger.warning("Invalid changeset for planet associated with {}\n\n{}".format(star, changeset))
             else:
                 author = Persona.request_persona(planet_assoc["author_id"])
                 pid = planet_assoc["planet"]["id"]
 
-                planet = Planet.query.get(pid)
+                # TODO: Better lookup method for planet classes
+                if planet_assoc["planet"]["kind"] == "link":
+                    planet_cls = LinkPlanet
+                elif planet_assoc["planet"]["kind"] == "linkedpicture":
+                    planet_cls = LinkedPicturePlanet
+
+                planet = planet_cls.query.get(pid)
                 if planet is None:
-                    planet = Planet.create_from_changeset(planet_assoc["planet"])
+                    planet = planet_cls.create_from_changeset(planet_assoc["planet"])
                 else:
                     planet.update_from_changeset(planet_assoc["planet"])
 
@@ -789,11 +795,12 @@ class Star(Serializable, db.Model):
             String: URL of the first associated Link
             Bool: False if no link was found
         """
-        planet_assoc = self.planet_assocs.join(PlanetAssociation.planet.of_type(LinkPlanet)).first()
-        if planet_assoc:
-            return planet_assoc.planet.url
-        else:
-            return None
+        # planet_assoc = self.planet_assocs.join(PlanetAssociation.planet.of_type(LinkPlanet)).first()
+
+        for planet_assoc in self.planet_assocs:
+            if planet_assoc.planet.kind == "link":
+                return planet_assoc.planet.url
+        return None
 
     def has_picture(self):
         """Return True if this Star has a Picture-Planet"""
@@ -815,9 +822,16 @@ class PlanetAssociation(db.Model):
     def validate_changeset(cls, changeset):
         """Return True if `changeset` is a valid PlanetAssociation changeset"""
 
-        planet_valid = Planet.validate_changeset(changeset)
-        aid_valid = "author_id" in changeset and changeset["author_id"] is not None
-        return planet_valid and aid_valid
+        if "author_id" not in changeset or changeset["author_id"] is None:
+            app.logger.warning("Missing `author_id` in changeset")
+            return False
+
+        if "planet" not in changeset or changeset["planet"] is None or "kind" not in changeset["planet"]:
+            app.logger.warning("Missing `planet` or `planet.kind` in changeset")
+            return False
+
+        p_cls = LinkPlanet if changeset["planet"]["kind"] == "link" else LinkedPicturePlanet
+        return p_cls.validate_changeset(changeset)
 
 
 t_planet_vesicles = db.Table(
@@ -832,7 +846,7 @@ class Planet(Serializable, db.Model):
 
     __tablename__ = 'planet'
 
-    _insert_required = ["id", "title", "created", "modified", "source"]
+    _insert_required = ["id", "title", "created", "modified", "source", "kind"]
     _update_required = ["id", "title", "modified", "source"]
 
     id = db.Column(db.String(32), primary_key=True)
@@ -899,6 +913,9 @@ class Planet(Serializable, db.Model):
         modified_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
 
         if stub is not None:
+            if not isinstance(stub, Planet):
+                raise ValueError("Invalid stub of type {}".format(type(stub)))
+
             new_planet = stub
             new_planet.id = changeset["id"]
             new_planet.title = changeset["title"]
@@ -931,7 +948,7 @@ class Planet(Serializable, db.Model):
 class PicturePlanet(Planet):
     """A Picture attachment"""
 
-    _insert_required = ["id", "title", "created", "modified", "source", "filename"]
+    _insert_required = ["id", "title", "created", "modified", "source", "filename", "kind"]
     _update_required = ["id", "title", "modified", "source", "filename"]
 
     id = db.Column(db.String(32), ForeignKey('planet.id'), primary_key=True)
@@ -944,6 +961,8 @@ class PicturePlanet(Planet):
     @staticmethod
     def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
         """Create a new Planet object from a changeset (See Serializable.create_from_changeset). """
+        stub = PicturePlanet()
+
         new_planet = Planet.create_from_changeset(changeset,
             stub=stub, update_sender=update_sender, update_recipient=update_recipient)
 
@@ -959,7 +978,7 @@ class PicturePlanet(Planet):
 class LinkedPicturePlanet(Planet):
     """A linked picture attachment"""
 
-    _insert_required = ["id", "title", "created", "modified", "source", "url"]
+    _insert_required = ["id", "title", "created", "modified", "source", "url", "kind"]
     _update_required = ["id", "title", "modified", "source", "url"]
 
     id = db.Column(db.String(32), ForeignKey('planet.id'), primary_key=True)
@@ -972,6 +991,9 @@ class LinkedPicturePlanet(Planet):
     @staticmethod
     def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
         """Create a new Planet object from a changeset (See Serializable.create_from_changeset). """
+        if stub is None:
+            stub = LinkedPicturePlanet()
+
         new_planet = Planet.create_from_changeset(changeset,
             stub=stub, update_sender=update_sender, update_recipient=update_recipient)
 
@@ -987,7 +1009,7 @@ class LinkedPicturePlanet(Planet):
 class LinkPlanet(Planet):
     """A URL attachment"""
 
-    _insert_required = ["id", "title", "kind", "created", "modified", "source", "url"]
+    _insert_required = ["id", "title", "kind", "created", "modified", "source", "url", "kind"]
     _update_required = ["id", "title", "modified", "source", "url"]
 
     id = db.Column(db.String(32), ForeignKey('planet.id'), primary_key=True)
@@ -1000,6 +1022,9 @@ class LinkPlanet(Planet):
     @staticmethod
     def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
         """Create a new Planet object from a changeset (See Serializable.create_from_changeset). """
+        if stub is None:
+            stub = LinkPlanet()
+
         new_planet = Planet.create_from_changeset(changeset,
             stub=stub, update_sender=update_sender, update_recipient=update_recipient)
 
