@@ -46,3 +46,5 @@ secret_key
 
 operator_config.py
 distribute-*.tar.gz
+
+static/css/main.css
