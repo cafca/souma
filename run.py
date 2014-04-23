@@ -107,6 +107,8 @@ if local_souma is None:
     db.session.add(local_souma)
     db.session.commit()
 
+app.config["RUNTIME_DIR"] = os.path.abspath(os.path.dirname(__file__))
+
 """ Start app """
 if app.config['USE_DEBUG_SERVER']:
     # flask development server
@@ -116,10 +118,16 @@ else:
 
     # Synapse
     app.logger.info("Starting Synapses")
-    try:
+
+    if app.config["DEBUG"]:
         synapse = Synapse()
-    except Exception, e:
-        app.logger(e)
+        synapse.electrical.login_all()
+    else:
+        try:
+            synapse = Synapse()
+            synapse.electrical.login_all()
+        except Exception, e:
+            app.logger.error(e)
 
     # Web UI
     if not app.config['NO_UI']:

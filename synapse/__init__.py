@@ -5,7 +5,7 @@ from dateutil.parser import parse as dateutil_parse
 from uuid import uuid4
 
 from nucleus import create_session, notification_signals, PersonaNotFoundError, UnauthorizedError, VesicleStateError, CHANGE_TYPES
-from nucleus.models import Persona, Star, Planet, Starmap, Group
+from nucleus.models import Persona, Star, Planet, Starmap, Group, Oneup
 from nucleus.vesicle import Vesicle
 from synapse.electrical import ElectricalSynapse
 from web_ui import app
@@ -16,7 +16,7 @@ ALLOWED_MESSAGE_TYPES = [
     "object_request",
 ]
 
-OBJECT_TYPES = ("Star", "Planet", "Persona", "Starmap", "Group")
+OBJECT_TYPES = ("Star", "Planet", "Persona", "Starmap", "Group", "Oneup")
 
 
 class Synapse():
@@ -25,6 +25,13 @@ class Synapse():
     them to each Persona's peers using the Myelin API. It also keeps
     Glia up to date on all Persona's managed by this Souma.
     """
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        """Singleton pattern"""
+        if not cls._instance:
+            cls._instance = super(ElectricalSynapse, cls).__new__(cls, *args, **kwargs)
+        return cls._instance
 
     def __init__(self):
         self.logger = logging.getLogger('synapse')
@@ -34,8 +41,7 @@ class Synapse():
         self.starmap = Starmap.query.get(app.config['SOUMA_ID'])
 
         # Connect to glia
-        self.electrical = ElectricalSynapse(self)
-        self.electrical.login_all()
+        self.electrical = ElectricalSynapse(parent=self)
 
         # Connect to nucleus
         self._connect_signals()
@@ -375,8 +381,8 @@ class Synapse():
                     o.update_from_changeset(obj, update_sender=author, update_recipient=recipient)
                     if isinstance(o, Persona):
                         o.stub = False
-                    else:
-                        o.set_state(0)
+                    # else:
+                    #     o.set_state(0)
                     session.add(o)
                     self.logger.info("Applied update for {}".format(o))
                 else:
@@ -482,6 +488,11 @@ class Synapse():
                 "modified": obj.modified.isoformat()
             }
 
+        if "recipients" in message:
+            recipients = message["recipients"]
+        else:
+            recipients = author.contacts.all()
+
         vesicle = Vesicle(
             id=uuid4().hex,
             message_type="object",
@@ -500,8 +511,8 @@ class Synapse():
             session.rollback()
             raise
         else:
-            self.logger.info("Local {} changed: Distributing {}".format(obj, vesicle))
-            vesicle = self._distribute_vesicle(vesicle, recipients=author.contacts.all())
+            self.logger.info("Local {} changed: Distributing {}\n{}".format(obj, vesicle, vesicle.json()))
+            vesicle = self._distribute_vesicle(vesicle, recipients=recipients)
 
         session.add(vesicle)
         session.commit()

@@ -5,6 +5,8 @@ from web_ui.helpers import watch_layouts
 
 from gevent import Greenlet
 
+from flask.ext.sqlalchemy import Pagination
+
 
 class PageManager(object):
     """ Holds all factory methods for Page creation.
@@ -19,10 +21,17 @@ class PageManager(object):
         the concrete subclass.
         """
 
+        # Dimension of layout in cells
         self.screen_size = (12.0, 8.0)
 
         # Load layouts once and then continuously update them
         Greenlet.spawn(watch_layouts)
+
+        # Number of items on one page
+        # Flask-SQLAlchemy pagination requires this to be static, i.e.
+        # it is not possible to have different number of items on consecutive
+        # pages. If we need that, we will have to implement our own pagination.
+        self.page_size = 7
 
     def _add_static_section(self, page, section, layout):
         # if section contains only one cell it's not a list
@@ -44,7 +53,7 @@ class PageManager(object):
         return [layout for layout in layouts if
                 context in layout['context']]
 
-    def group_layout(self, stars):
+    def group_layout(self, stars, current_page=1):
         context = 'group_page'
         layouts = self._get_layouts_for(context)
 
@@ -64,18 +73,21 @@ class PageManager(object):
         for cell in layouts[0][section]:
             page.add_to_section(section, cell, None)
 
-        # Add the stars of the group to page
-        section = 'stars'
+        stars = page.paginate(stars, current_page, self.page_size)
 
-        # Rank stars by score
-        stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
+        if stars is not None:
+            # Add the stars of the group to page
+            section = 'stars'
 
-        for i, star_cell in enumerate(best_layout[section]):
-            if i >= len(stars_ranked):
-                break
+            # Rank stars by score
+            stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
 
-            star = stars_ranked[i]
-            page.add_to_section(section, star_cell, star)
+            for i, star_cell in enumerate(best_layout[section]):
+                if i >= len(stars_ranked):
+                    break
+
+                star = stars_ranked[i]
+                page.add_to_section(section, star_cell, star)
 
         return page
 
@@ -117,11 +129,12 @@ class PageManager(object):
 
         return page
 
-    def persona_layout(self, persona, stars=None):
+    def persona_layout(self, persona, stars=None, current_page=1):
         """Return page for a Persona's profile page"""
+        from nucleus.models import Star
 
         if stars is None and hasattr(persona, "profile") and hasattr(persona.profile, "index"):
-            stars = persona.profile.index
+            stars = persona.profile.index.filter(Star.state >= 0).filter(Star.parent_id == None)
 
         context = 'persona_page'
         layouts = self._get_layouts_for(context)
@@ -135,6 +148,8 @@ class PageManager(object):
         # Add vcard to group page
         section = 'vcard'
         page.add_to_section(section, best_layout[section], None)
+
+        stars = page.paginate(stars, current_page, self.page_size)
 
         if stars is not None:
             # Add the stars of the profile to page
@@ -152,13 +167,16 @@ class PageManager(object):
 
         return page
 
-    def star_layout(self, stars):
+    def star_layout(self, stars, current_page=1):
         """Return the optimal layouted page for the given stars."""
 
         context = 'star_page'
         layouts = self._get_layouts_for(context)
 
         section = 'stars'
+
+        pagination = stars.paginate(current_page, self.page_size)
+        stars = pagination.items
 
         # Rank stars by score
         stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
@@ -198,6 +216,10 @@ class PageManager(object):
         # print("Chosen {}".format(layout))
 
         page = Page()
+
+        # Add pagination information
+        setattr(page, "pagination", pagination)
+
         for i, star_cell in enumerate(layout[section]):
             if i >= len(stars_ranked):
                 break
@@ -273,3 +295,9 @@ class Page(object):
             cell[3])
 
         return {'css_class': css_class, 'content': content}
+
+    def paginate(self, stars, current_page, per_page):
+        """Paginate given stars"""
+        count = 0 if stars is None else stars.count()
+        self.pagination = Pagination(stars, current_page, per_page, count, None)
+        return self.pagination.items
