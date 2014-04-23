@@ -13,6 +13,7 @@ def packaged_app():
         return True
 
 USER_DATA = appdirs.user_data_dir("souma", "souma", roaming=True)
+RUNTIME_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), os.pardir)
 
 #
 # --------------------- FLASK OPTIONS ---------------------
@@ -49,6 +50,8 @@ LOG_LEVEL = logging.INFO
 LOG_FORMAT = (
     '%(name)s :: %(module)s [%(pathname)s:%(lineno)d]\n' +
     '%(message)s\n')
+
+LAYOUT_DEFINITIONS = dict()
 
 #
 # --------------------- SYNAPSE OPTIONS -------------------

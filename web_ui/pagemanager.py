@@ -1,5 +1,9 @@
 from operator import itemgetter
+
 from web_ui import app
+from web_ui.helpers import watch_layouts
+
+from gevent import Greenlet
 
 
 class PageManager(object):
@@ -16,7 +20,9 @@ class PageManager(object):
         """
 
         self.screen_size = (12.0, 8.0)
-        self.all_layouts = app.config['LAYOUT_DEFINITIONS']
+
+        # Load layouts once and then continuously update them
+        Greenlet.spawn(watch_layouts)
 
     def _add_static_section(self, page, section, layout):
         # if section contains only one cell it's not a list
@@ -30,7 +36,12 @@ class PageManager(object):
     def _get_layouts_for(self, context):
         """ Returns all layouts appropriate for context """
 
-        return [layout for layout in self.all_layouts if
+        layouts = app.config["LAYOUT_DEFINITIONS"]
+        if len(layouts) == 0:
+            # Asynchronous loading has not completed, load synchronously
+            layouts = watch_layouts(continuous=False)
+
+        return [layout for layout in layouts if
                 context in layout['context']]
 
     def group_layout(self, stars):

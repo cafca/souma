@@ -99,15 +99,6 @@ else:
     app.config['PASSWORD_HASH'] = None
 
 
-# Load layout definitions
-try:
-    with open(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'layouts.json')) as f:
-        app.config['LAYOUT_DEFINITIONS'] = json.load(f)
-except IOError, e:
-    logging.error("Failed loading layout definitions")
-    app.config['LAYOUT_DEFINITIONS'] = dict()
-
-
 # Setup SQLAlchemy database
 db = SQLAlchemy(app)
 

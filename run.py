@@ -63,6 +63,7 @@ def setup_astrolab():
 
     repeated_func_schedule(60 * 60, update)
 
+
 """ patch gevent for py2app """
 if getattr(sys, 'frozen', None) == 'macosx_app':
         import imp
