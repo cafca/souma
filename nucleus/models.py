@@ -501,7 +501,7 @@ class Star(Serializable, db.Model):
 
     __tablename__ = "star"
 
-    _insert_required = ["id", "text", "created", "modified", "author_id", "planets"]
+    _insert_required = ["id", "text", "created", "modified", "author_id", "planet_assocs"]
     _update_required = ["id", "text", "modified"]
 
     id = db.Column(db.String(32), primary_key=True)
@@ -595,6 +595,24 @@ class Star(Serializable, db.Model):
 
         app.logger.info("Created new Star from changeset")
 
+        # Append planets to new Star
+        for planet_assoc in changeset["planet_assocs"]:
+            if not PlanetAssociation.validate_changeset(planet_assoc):
+                app.logger.warning("Invalid changeset for planet associated with {}\n{}".format(star, changeset))
+            else:
+                author = Persona.request_persona(planet_assoc["author_id"])
+                pid = planet_assoc["planet"]["id"]
+
+                planet = Planet.query.get(pid)
+                if planet is None:
+                    planet = Planet.create_from_changeset(planet_assoc["planet"])
+                else:
+                    planet.update_from_changeset(planet_assoc["planet"])
+
+                assoc = PlanetAssociation(author=author, planet=planet)
+                star.planet_assocs.append(assoc)
+                app.logger.info("Added {} to new {}".format(planet, star))
+
         return star
 
     def update_from_changeset(self, changeset, update_sender=None, update_recipient=None):
@@ -606,6 +624,25 @@ class Star(Serializable, db.Model):
         # Update text
         self.text = changeset["text"]
 
+        for planet_assoc in changeset["planet_assocs"]:
+            if not PlanetAssociation.validate_changeset(planet_assoc):
+                app.logger.warning("Invalid changeset for planet associated with {}\n{}".format(self, changeset))
+            else:
+                author = Persona.request_persona(planet_assoc["author_id"])
+                pid = planet_assoc["planet"]["id"]
+
+                assoc = PlanetAssociation.filter_by(star_id=self.id).filter_by(planet_id=pid).first()
+                if assoc is None:
+                    planet = Planet.query.get(pid)
+                    if planet is None:
+                        planet = Planet.create_from_changeset(planet_assoc["planet"])
+                    else:
+                        planet.update_from_changeset(planet_assoc["planet"])
+
+                    assoc = PlanetAssociation(author=author, planet=planet)
+                    self.planet_assocs.append(assoc)
+                    app.logger.info("Added {} to {}".format(planet, self))
+
         app.logger.info("Updated {} from changeset".format(self))
 
     def export(self, update=False):
@@ -613,9 +650,12 @@ class Star(Serializable, db.Model):
 
         data = Serializable.export(self, exclude=["planets", ], update=update)
 
-        data["planets"] = list()
+        data["planet_assocs"] = list()
         for planet_assoc in self.planet_assocs:
-            data["planets"].append(planet_assoc.planet.export())
+            data["planet_assocs"].append({
+                "planet": planet_assoc.planet.export(),
+                "author_id": planet_assoc.author_id
+            })
 
         return data
 
@@ -767,9 +807,17 @@ class PlanetAssociation(db.Model):
     __tablename__ = 'planet_association'
     star_id = db.Column(db.String(32), db.ForeignKey('star.id'), primary_key=True)
     planet_id = db.Column(db.String(32), db.ForeignKey('planet.id'), primary_key=True)
+    planet = db.relationship("Planet", backref="star_assocs")
     author_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
     author = db.relationship("Persona", backref="planet_assocs")
-    planet = db.relationship("Planet", backref="star_assocs")
+
+    @classmethod
+    def validate_changeset(cls, changeset):
+        """Return True if `changeset` is a valid PlanetAssociation changeset"""
+
+        planet_valid = Planet.validate_changeset(changeset)
+        aid_valid = "author_id" in changeset and changeset["author_id"] is not None
+        return planet_valid and aid_valid
 
 
 t_planet_vesicles = db.Table(
@@ -847,11 +895,37 @@ class Planet(Serializable, db.Model):
     @staticmethod
     def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
         """Create a new Planet object from a changeset (See Serializable.create_from_changeset). """
-        raise NotImplementedError
+        created_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
+        modified_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
 
-    def update_from_changeset(changeset, update_sender=None, update_recipient=None):
+        if stub is not None:
+            new_planet = stub
+            new_planet.id = changeset["id"]
+            new_planet.title = changeset["title"]
+            new_planet.source = changeset["source"]
+            new_planet.created = created_dt
+            new_planet.modified = modified_dt
+        else:
+            new_planet = Planet(
+                id=changeset["id"],
+                title=changeset["title"],
+                created=created_dt,
+                modified=modified_dt,
+                source=changeset["source"]
+            )
+
+        app.logger.info("Created new {} from changeset".format(new_planet))
+        return new_planet
+
+    def update_from_changeset(self, changeset, update_sender=None, update_recipient=None):
         """Update a new Planet object from a changeset (See Serializable.update_from_changeset). """
-        raise NotImplementedError
+        modified_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
+
+        self.title = changeset["title"]
+        self.source = changeset["source"]
+        self.modifed = modified_dt
+
+        return self
 
 
 class PicturePlanet(Planet):
@@ -870,9 +944,14 @@ class PicturePlanet(Planet):
     @staticmethod
     def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
         """Create a new Planet object from a changeset (See Serializable.create_from_changeset). """
-        raise NotImplementedError
+        new_planet = Planet.create_from_changeset(changeset,
+            stub=stub, update_sender=update_sender, update_recipient=update_recipient)
 
-    def update_from_changeset(changeset, update_sender=None, update_recipient=None):
+        new_planet.filename = changeset["filename"]
+
+        return new_planet
+
+    def update_from_changeset(self, changeset, update_sender=None, update_recipient=None):
         """Update a new Planet object from a changeset (See Serializable.update_from_changeset). """
         raise NotImplementedError
 
@@ -893,9 +972,14 @@ class LinkedPicturePlanet(Planet):
     @staticmethod
     def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
         """Create a new Planet object from a changeset (See Serializable.create_from_changeset). """
-        raise NotImplementedError
+        new_planet = Planet.create_from_changeset(changeset,
+            stub=stub, update_sender=update_sender, update_recipient=update_recipient)
 
-    def update_from_changeset(changeset, update_sender=None, update_recipient=None):
+        new_planet.url = changeset["url"]
+
+        return new_planet
+
+    def update_from_changeset(self, changeset, update_sender=None, update_recipient=None):
         """Update a new Planet object from a changeset (See Serializable.update_from_changeset). """
         raise NotImplementedError
 
@@ -916,9 +1000,14 @@ class LinkPlanet(Planet):
     @staticmethod
     def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
         """Create a new Planet object from a changeset (See Serializable.create_from_changeset). """
-        raise NotImplementedError
+        new_planet = Planet.create_from_changeset(changeset,
+            stub=stub, update_sender=update_sender, update_recipient=update_recipient)
 
-    def update_from_changeset(changeset, update_sender=None, update_recipient=None):
+        new_planet.url = changeset["url"]
+
+        return new_planet
+
+    def update_from_changeset(self, changeset, update_sender=None, update_recipient=None):
         """Update a new Planet object from a changeset (See Serializable.update_from_changeset). """
         raise NotImplementedError
 
