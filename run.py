@@ -107,7 +107,9 @@ if local_souma is None:
     db.session.add(local_souma)
     db.session.commit()
 
-app.config["RUNTIME_DIR"] = os.path.abspath(os.path.dirname(__file__))
+#app.config["RUNTIME_DIR"] = os.path.abspath(os.path.dirname(__file__))
+#__file__ doesn't work with freezing
+app.config["RUNTIME_DIR"] = os.path.abspath('.')
 
 """ Start app """
 if app.config['USE_DEBUG_SERVER']:
