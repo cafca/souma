@@ -44,7 +44,6 @@ setup(
     author_email="cognitive-networks@googlegroups.com",
     url="https://github.com/ciex/souma/",
     scripts=["run.py", "set_hosts.py", "ez_setup.py"],
-    data_files=["web_ui/layouts.json"],
     packages=["nucleus", "web_ui", "synapse", "astrolab"],
     license="Apache License 2.0",
     description="A Cognitive Network for Groups",

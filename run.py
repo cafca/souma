@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import os
 import requests
 import sys
 import webbrowser
@@ -10,8 +11,10 @@ from gevent import Greenlet, sleep
 from gevent.wsgi import WSGIServer
 from gevent.event import Event
 from sqlalchemy.exc import OperationalError
+from sys import platform
 from uuid import uuid4
 
+from nucleus.set_hosts import test_host_entry, create_new_hosts_file, HOSTSFILE
 from nucleus.models import Souma, Starmap
 from synapse import Synapse
 
@@ -60,6 +63,7 @@ def setup_astrolab():
 
     repeated_func_schedule(60 * 60, update)
 
+
 """ patch gevent for py2app """
 if getattr(sys, 'frozen', None) == 'macosx_app':
         import imp
@@ -103,6 +107,8 @@ if local_souma is None:
     db.session.add(local_souma)
     db.session.commit()
 
+app.config["RUNTIME_DIR"] = os.path.abspath(os.path.dirname(__file__))
+
 """ Start app """
 if app.config['USE_DEBUG_SERVER']:
     # flask development server
@@ -112,18 +118,34 @@ else:
 
     # Synapse
     app.logger.info("Starting Synapses")
-    try:
+
+    if app.config["DEBUG"]:
         synapse = Synapse()
-    except Exception, e:
-        pass
-        #app.logger(e)
+        synapse.electrical.login_all()
+    else:
+        try:
+            synapse = Synapse()
+            synapse.electrical.login_all()
+        except Exception, e:
+            app.logger.error(e)
 
     # Web UI
     if not app.config['NO_UI']:
+        if not test_host_entry():
+            app.logger.info("No hosts entry found. Will now enable access to local Souma service in your browser.")
+            app.logger.info("Please enter your Administrator password if prompted")
+            tempfile_path = os.path.join(app.config["USER_DATA"], "hosts.tmp")
+            create_new_hosts_file(tempfile_path)
+            # move temporary new hosts file to final location using administrator privileges
+            if platform == 'win32':
+                os.system("runas /noprofile /user:Administrator move '{}' '{}'".format(tempfile_path, HOSTSFILE))
+            else:
+                os.system("""osascript -e 'do shell script "mv \\"{}\\" \\"{}\\"" with administrator privileges'""".format(tempfile_path, HOSTSFILE))
+
         app.logger.info("Starting Web-UI")
         local_server = WSGIServer(('', app.config['LOCAL_PORT']), app)
         local_server.start()
-        webbrowser.open("http://{}".format(app.config["LOCAL_ADDRESS"]))
+        webbrowser.open("http://{}/".format(app.config["LOCAL_ADDRESS"]))
 
     # Setup Astrolab
     Greenlet.spawn(setup_astrolab)

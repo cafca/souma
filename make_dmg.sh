@@ -7,7 +7,7 @@ rm ../Souma.dmg
 
 # Create app bundle
 echo "Creating app bundle"
-python setup_osx.py py2app
+python package.py py2app
 
 # Create disk image
 echo "Creating disk image"

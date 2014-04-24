@@ -308,6 +308,21 @@ class Persona(Serializable, db.Model):
         return key_public.Verify(data, signature)
 
     @staticmethod
+    def request_persona(persona_id):
+        """Return a Persona profile, loading it from Glia if neccessary
+
+        Args:
+            persona_id (String): ID of the required Persona
+
+        Returns:
+            Persona: If a record was found
+            None: If no record was found
+        """
+        from synapse import ElectricalSynapse
+        electrical = ElectricalSynapse()
+        return electrical.get_persona(persona_id)
+
+    @staticmethod
     def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
         """See Serializable.create_from_changeset"""
         request_list = list()
@@ -474,50 +489,6 @@ class Persona(Serializable, db.Model):
             request_objects.send(Persona.create_from_changeset, message=req)
 
 
-class Oneup(Serializable, db.Model):
-    """A 1up is a vote that signals interest in a Star"""
-
-    __tablename__ = "oneup"
-    id = db.Column(db.String(32), primary_key=True)
-    created = db.Column(db.DateTime, default=datetime.datetime.utcnow())
-    modified = db.Column(db.DateTime, default=datetime.datetime.utcnow())
-    state = db.Column(db.Integer, default=0)
-
-    author = db.relationship("Persona",
-        backref=db.backref('oneups'),
-        primaryjoin="Persona.id==Oneup.author_id")
-    author_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
-
-    star_id = db.Column(db.String(32), db.ForeignKey('star.id'))
-
-    def __repr__(self):
-        return "<1up <Persona {}> -> <Star {}> ({})>".format(self.author_id[:6], self.star_id[:6], self.get_state())
-
-    def get_state(self):
-        """
-        Return publishing state of this 1up.
-
-        Returns:
-            Integer:
-                -1 -- (disabled)
-                 0 -- (active)
-                 1 -- (unknown author)
-        """
-        return ONEUP_STATES[self.state][0]
-
-    def set_state(self, new_state):
-        """
-        Set the publishing state of this 1up
-
-        Parameters:
-            new_state (int) code of the new state as defined in nucleus.ONEUP_STATES
-        """
-        if not isinstance(new_state, int) or new_state not in ONEUP_STATES.keys():
-            raise ValueError("{} ({}) is not a valid 1up state").format(
-                new_state, type(new_state))
-        else:
-            self.state = new_state
-
 t_star_vesicles = db.Table(
     'star_vesicles',
     db.Column('star_id', db.String(32), db.ForeignKey('star.id')),
@@ -530,11 +501,12 @@ class Star(Serializable, db.Model):
 
     __tablename__ = "star"
 
-    _insert_required = ["id", "text", "created", "modified", "author_id", "planets"]
+    _insert_required = ["id", "text", "created", "modified", "author_id", "planet_assocs"]
     _update_required = ["id", "text", "modified"]
 
     id = db.Column(db.String(32), primary_key=True)
     text = db.Column(db.Text)
+    kind = db.Column(db.String(32))
 
     created = db.Column(db.DateTime, default=datetime.datetime.utcnow())
     modified = db.Column(db.DateTime, default=datetime.datetime.utcnow())
@@ -546,21 +518,25 @@ class Star(Serializable, db.Model):
         primaryjoin="Persona.id==Star.author_id")
     author_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
 
-    oneups = db.relationship('Oneup',
-        backref='star',
-        lazy='dynamic')
+    planet_assocs = db.relationship("PlanetAssociation",
+        backref="star",
+        lazy="dynamic")
 
-    planets = db.relationship('Planet',
-        secondary='satellites',
-        backref=db.backref('stars'),
-        primaryjoin="satellites.c.star_id==star.c.id",
-        secondaryjoin="satellites.c.planet_id==planet.c.id")
-
-    vesicles = db.relationship(
-        'Vesicle',
+    vesicles = db.relationship('Vesicle',
         secondary='star_vesicles',
         primaryjoin='star_vesicles.c.star_id==star.c.id',
         secondaryjoin='star_vesicles.c.vesicle_id==vesicle.c.id')
+
+    parent = db.relationship('Star',
+        primaryjoin='and_(Star.id==Star.parent_id, Star.state>=0)',
+        backref=db.backref('children', lazy="dynamic"),
+        remote_side='Star.id')
+    parent_id = db.Column(db.String(32), db.ForeignKey('star.id'))
+
+    __mapper_args__ = {
+        'polymorphic_identity': 'star',
+        'polymorphic_on': kind
+    }
 
     def __repr__(self):
         try:
@@ -584,6 +560,10 @@ class Star(Serializable, db.Model):
         if Serializable.authorize(self, action, author_id=author_id):
             return author_id == self.author.id
         return False
+
+    @property
+    def comments(self):
+        return self.children.filter_by(kind="star")
 
     @staticmethod
     def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
@@ -615,6 +595,30 @@ class Star(Serializable, db.Model):
 
         app.logger.info("Created new Star from changeset")
 
+        # Append planets to new Star
+        for planet_assoc in changeset["planet_assocs"]:
+            if not PlanetAssociation.validate_changeset(planet_assoc):
+                app.logger.warning("Invalid changeset for planet associated with {}\n\n{}".format(star, changeset))
+            else:
+                author = Persona.request_persona(planet_assoc["author_id"])
+                pid = planet_assoc["planet"]["id"]
+
+                # TODO: Better lookup method for planet classes
+                if planet_assoc["planet"]["kind"] == "link":
+                    planet_cls = LinkPlanet
+                elif planet_assoc["planet"]["kind"] == "linkedpicture":
+                    planet_cls = LinkedPicturePlanet
+
+                planet = planet_cls.query.get(pid)
+                if planet is None:
+                    planet = planet_cls.create_from_changeset(planet_assoc["planet"])
+                else:
+                    planet.update_from_changeset(planet_assoc["planet"])
+
+                assoc = PlanetAssociation(author=author, planet=planet)
+                star.planet_assocs.append(assoc)
+                app.logger.info("Added {} to new {}".format(planet, star))
+
         return star
 
     def update_from_changeset(self, changeset, update_sender=None, update_recipient=None):
@@ -626,6 +630,25 @@ class Star(Serializable, db.Model):
         # Update text
         self.text = changeset["text"]
 
+        for planet_assoc in changeset["planet_assocs"]:
+            if not PlanetAssociation.validate_changeset(planet_assoc):
+                app.logger.warning("Invalid changeset for planet associated with {}\n{}".format(self, changeset))
+            else:
+                author = Persona.request_persona(planet_assoc["author_id"])
+                pid = planet_assoc["planet"]["id"]
+
+                assoc = PlanetAssociation.filter_by(star_id=self.id).filter_by(planet_id=pid).first()
+                if assoc is None:
+                    planet = Planet.query.get(pid)
+                    if planet is None:
+                        planet = Planet.create_from_changeset(planet_assoc["planet"])
+                    else:
+                        planet.update_from_changeset(planet_assoc["planet"])
+
+                    assoc = PlanetAssociation(author=author, planet=planet)
+                    self.planet_assocs.append(assoc)
+                    app.logger.info("Added {} to {}".format(planet, self))
+
         app.logger.info("Updated {} from changeset".format(self))
 
     def export(self, update=False):
@@ -633,9 +656,12 @@ class Star(Serializable, db.Model):
 
         data = Serializable.export(self, exclude=["planets", ], update=update)
 
-        data["planets"] = list()
-        for planet in self.planets:
-            data["planets"].append(planet.export())
+        data["planet_assocs"] = list()
+        for planet_assoc in self.planet_assocs:
+            data["planet_assocs"].append({
+                "planet": planet_assoc.planet.export(),
+                "author_id": planet_assoc.author_id
+            })
 
         return data
 
@@ -660,8 +686,12 @@ class Star(Serializable, db.Model):
 
         Parameters:
             new_state (int) code of the new state as defined in nucleus.STAR_STATES
+
+        Raises:
+            ValueError: If new_state is not an Int or not a valid state of this object
         """
-        if not isinstance(new_state, int) or new_state not in STAR_STATES.keys():
+        new_state = int(new_state)
+        if new_state not in STAR_STATES.keys():
             raise ValueError("{} ({}) is not a valid star state").format(
                 new_state, type(new_state))
         else:
@@ -680,12 +710,18 @@ class Star(Serializable, db.Model):
         sign = 1 if s > 0 else -1 if s < 0 else 0
         return round(order + sign * epoch_seconds(self.created) / 45000, 7)
 
+    @property
+    def oneups(self):
+        """Returns a query for all oneups, including disabled ones"""
+        return self.children.filter_by(kind="oneup")
+
     def oneupped(self):
         """
         Return True if active Persona has 1upped this Star
         """
-        active_persona = Persona.query.get(session["active_persona"])
-        oneup = self.oneups.filter_by(author=active_persona).first()
+
+        oneup = self.oneups.filter_by(author_id=session["active_persona"]).first()
+
         if oneup is None or oneup.state < 0:
             return False
         else:
@@ -698,7 +734,16 @@ class Star(Serializable, db.Model):
         Returns:
             Int: Number of upvotes
         """
-        return self.oneups.filter_by(state=0).paginate(1).total
+        return self.oneups.filter(Oneup.state >= 0).count()
+
+    def comment_count(self):
+        """
+        Return the number of comemnts this Star has receieved
+
+        Returns:
+            Int: Number of comments
+        """
+        return self.comments.filter_by(state=0).count()
 
     def toggle_oneup(self, author_id=None):
         """
@@ -714,8 +759,9 @@ class Star(Serializable, db.Model):
             PersonaNotFoundError: 1up author not found
             UnauthorizedError: Author is a foreign Persona
         """
+
         if author_id is None:
-            author = Persona.query.get(session['active_persona'])
+            author = Persona.query.get(session["active_persona"])
         else:
             author = Persona.query.get(author_id)
 
@@ -732,21 +778,61 @@ class Star(Serializable, db.Model):
             oneup.set_state(-1) if oneup.state == 0 else oneup.set_state(0)
         else:
             old_state = False
-            oneup = Oneup(id=uuid4().hex, star=self, author=author)
+            oneup = Oneup(id=uuid4().hex, author=author, parent=self)
+            self.children.append(oneup)
 
         # Commit 1up
-        db.session.add(oneup)
+        db.session.add(self)
         db.session.commit()
         app.logger.info("{verb} {obj}".format(verb="Toggled" if old_state else "Added", obj=oneup, ))
 
         return oneup
 
+    def link_url(self):
+        """Return URL if this Star has a Link-Planet
 
-t_satellites = db.Table(
-    'satellites',
-    db.Column('star_id', db.String(32), db.ForeignKey('star.id')),
-    db.Column('planet_id', db.String(32), db.ForeignKey('planet.id'))
-)
+        Returns:
+            String: URL of the first associated Link
+            Bool: False if no link was found
+        """
+        # planet_assoc = self.planet_assocs.join(PlanetAssociation.planet.of_type(LinkPlanet)).first()
+
+        for planet_assoc in self.planet_assocs:
+            if planet_assoc.planet.kind == "link":
+                return planet_assoc.planet.url
+        return None
+
+    def has_picture(self):
+        """Return True if this Star has a Picture-Planet"""
+        count = self.planet_assocs.join(PlanetAssociation.planet.of_type(LinkedPicturePlanet)).count()
+        return count > 0
+
+
+class PlanetAssociation(db.Model):
+    """Associates Planets with Stars, defining an author for the connection"""
+
+    __tablename__ = 'planet_association'
+    star_id = db.Column(db.String(32), db.ForeignKey('star.id'), primary_key=True)
+    planet_id = db.Column(db.String(32), db.ForeignKey('planet.id'), primary_key=True)
+    planet = db.relationship("Planet", backref="star_assocs")
+    author_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
+    author = db.relationship("Persona", backref="planet_assocs")
+
+    @classmethod
+    def validate_changeset(cls, changeset):
+        """Return True if `changeset` is a valid PlanetAssociation changeset"""
+
+        if "author_id" not in changeset or changeset["author_id"] is None:
+            app.logger.warning("Missing `author_id` in changeset")
+            return False
+
+        if "planet" not in changeset or changeset["planet"] is None or "kind" not in changeset["planet"]:
+            app.logger.warning("Missing `planet` or `planet.kind` in changeset")
+            return False
+
+        p_cls = LinkPlanet if changeset["planet"]["kind"] == "link" else LinkedPicturePlanet
+        return p_cls.validate_changeset(changeset)
+
 
 t_planet_vesicles = db.Table(
     'planet_vesicles',
@@ -760,7 +846,7 @@ class Planet(Serializable, db.Model):
 
     __tablename__ = 'planet'
 
-    _insert_required = ["id", "title", "created", "modified", "source"]
+    _insert_required = ["id", "title", "created", "modified", "source", "kind"]
     _update_required = ["id", "title", "modified", "source"]
 
     id = db.Column(db.String(32), primary_key=True)
@@ -806,8 +892,12 @@ class Planet(Serializable, db.Model):
 
         Parameters:
             new_state (int) code of the new state as defined in nucleus.PLANET_STATES
+
+        Raises:
+            ValueError: If new_state is not an Int or not a valid state of this object
         """
-        if not isinstance(new_state, int) or new_state not in PLANET_STATES.keys():
+        new_state = int(new_state)
+        if new_state not in PLANET_STATES.keys():
             raise ValueError("{} ({}) is not a valid planet state").format(
                 new_state, type(new_state))
         else:
@@ -819,17 +909,46 @@ class Planet(Serializable, db.Model):
     @staticmethod
     def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
         """Create a new Planet object from a changeset (See Serializable.create_from_changeset). """
-        raise NotImplementedError
+        created_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
+        modified_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
 
-    def update_from_changeset(changeset, update_sender=None, update_recipient=None):
+        if stub is not None:
+            if not isinstance(stub, Planet):
+                raise ValueError("Invalid stub of type {}".format(type(stub)))
+
+            new_planet = stub
+            new_planet.id = changeset["id"]
+            new_planet.title = changeset["title"]
+            new_planet.source = changeset["source"]
+            new_planet.created = created_dt
+            new_planet.modified = modified_dt
+        else:
+            new_planet = Planet(
+                id=changeset["id"],
+                title=changeset["title"],
+                created=created_dt,
+                modified=modified_dt,
+                source=changeset["source"]
+            )
+
+        app.logger.info("Created new {} from changeset".format(new_planet))
+        return new_planet
+
+    def update_from_changeset(self, changeset, update_sender=None, update_recipient=None):
         """Update a new Planet object from a changeset (See Serializable.update_from_changeset). """
-        raise NotImplementedError
+        modified_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
+
+        self.title = changeset["title"]
+        self.source = changeset["source"]
+        self.modifed = modified_dt
+
+        return self
 
 
 class PicturePlanet(Planet):
     """A Picture attachment"""
 
-    _insert_required = ["id", "title", "created", "modified", "source", "filename"]
+    _insert_required = ["id", "title", "created", "modified", "source", "filename", "kind"]
     _update_required = ["id", "title", "modified", "source", "filename"]
 
     id = db.Column(db.String(32), ForeignKey('planet.id'), primary_key=True)
@@ -842,9 +961,47 @@ class PicturePlanet(Planet):
     @staticmethod
     def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
         """Create a new Planet object from a changeset (See Serializable.create_from_changeset). """
+        stub = PicturePlanet()
+
+        new_planet = Planet.create_from_changeset(changeset,
+            stub=stub, update_sender=update_sender, update_recipient=update_recipient)
+
+        new_planet.filename = changeset["filename"]
+
+        return new_planet
+
+    def update_from_changeset(self, changeset, update_sender=None, update_recipient=None):
+        """Update a new Planet object from a changeset (See Serializable.update_from_changeset). """
         raise NotImplementedError
 
-    def update_from_changeset(changeset, update_sender=None, update_recipient=None):
+
+class LinkedPicturePlanet(Planet):
+    """A linked picture attachment"""
+
+    _insert_required = ["id", "title", "created", "modified", "source", "url", "kind"]
+    _update_required = ["id", "title", "modified", "source", "url"]
+
+    id = db.Column(db.String(32), ForeignKey('planet.id'), primary_key=True)
+    url = db.Column(db.Text)
+
+    __mapper_args__ = {
+        'polymorphic_identity': 'linkedpicture'
+    }
+
+    @staticmethod
+    def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
+        """Create a new Planet object from a changeset (See Serializable.create_from_changeset). """
+        if stub is None:
+            stub = LinkedPicturePlanet()
+
+        new_planet = Planet.create_from_changeset(changeset,
+            stub=stub, update_sender=update_sender, update_recipient=update_recipient)
+
+        new_planet.url = changeset["url"]
+
+        return new_planet
+
+    def update_from_changeset(self, changeset, update_sender=None, update_recipient=None):
         """Update a new Planet object from a changeset (See Serializable.update_from_changeset). """
         raise NotImplementedError
 
@@ -852,7 +1009,7 @@ class PicturePlanet(Planet):
 class LinkPlanet(Planet):
     """A URL attachment"""
 
-    _insert_required = ["id", "title", "kind", "created", "modified", "source", "url"]
+    _insert_required = ["id", "title", "kind", "created", "modified", "source", "url", "kind"]
     _update_required = ["id", "title", "modified", "source", "url"]
 
     id = db.Column(db.String(32), ForeignKey('planet.id'), primary_key=True)
@@ -865,11 +1022,117 @@ class LinkPlanet(Planet):
     @staticmethod
     def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
         """Create a new Planet object from a changeset (See Serializable.create_from_changeset). """
-        raise NotImplementedError
+        if stub is None:
+            stub = LinkPlanet()
 
-    def update_from_changeset(changeset, update_sender=None, update_recipient=None):
+        new_planet = Planet.create_from_changeset(changeset,
+            stub=stub, update_sender=update_sender, update_recipient=update_recipient)
+
+        new_planet.url = changeset["url"]
+
+        return new_planet
+
+    def update_from_changeset(self, changeset, update_sender=None, update_recipient=None):
         """Update a new Planet object from a changeset (See Serializable.update_from_changeset). """
         raise NotImplementedError
+
+
+class Oneup(Star):
+    """A 1up is a vote that signals interest in its parent Star"""
+
+    _insert_required = ["id", "created", "modified", "author_id", "parent_id", "state"]
+    _update_required = ["id", "modified", "state"]
+
+    __mapper_args__ = {
+        'polymorphic_identity': 'oneup'
+    }
+
+    def __repr__(self):
+        if ["author_id", "parent_id"] in dir(self):
+            return "<1up <Persona {}> -> <Star {}> ({})>".format(
+                self.author_id[:6], self.parent_id[:6], self.get_state())
+        else:
+            return "<1up ({})>".format(self.get_state())
+
+    def get_state(self):
+        """
+        Return publishing state of this 1up.
+
+        Returns:
+            Integer:
+                -1 -- (disabled)
+                 0 -- (active)
+                 1 -- (unknown author)
+        """
+        return ONEUP_STATES[self.state][0]
+
+    def set_state(self, new_state):
+        """
+        Set the publishing state of this 1up
+
+        Parameters:
+            new_state (int) code of the new state as defined in nucleus.ONEUP_STATES
+
+        Raises:
+            ValueError: If new_state is not an Int or not a valid state of this object
+        """
+        new_state = int(new_state)
+        if new_state not in ONEUP_STATES.keys():
+            raise ValueError("{} ({}) is not a valid 1up state".format(
+                new_state, type(new_state)))
+        else:
+            self.state = new_state
+
+    @staticmethod
+    def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
+        """Create a new Oneup object from a changeset (See Serializable.create_from_changeset). """
+        created_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
+        modified_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
+
+        if stub is not None:
+            oneup = stub
+            oneup.created = created_dt
+            oneup.modified = modified_dt
+            oneup.author = None
+            oneup.source = changeset["source"],
+            oneup.parent_id = None
+        else:
+            oneup = Oneup(
+                id=changeset["id"],
+                created=created_dt,
+                modified=modified_dt,
+                author=None,
+                parent=None,
+            )
+
+        oneup.set_state(int(changeset["state"]))
+
+        author = Persona.query.get(changeset["author_id"])
+        if author is None:
+            # TODO: Send request for author
+            oneup.author_id = changeset["author_id"]
+            if oneup.get_state() >= 0:
+                oneup.set_state(1)
+        else:
+            oneup.author = author
+
+        star = Star.query.get(changeset["parent_id"])
+        if star is None:
+            app.logger.warning("Parent Star for Oneup not found")
+            oneup.parent_id = changeset["parent_id"]
+        else:
+            star.children.append(oneup)
+
+        return oneup
+
+    def update_from_changeset(self, changeset, update_sender=None, update_recipient=None):
+        """Update a new Oneup object from a changeset (See Serializable.update_from_changeset). """
+        modified_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
+        self.modified = modified_dt
+
+        self.set_state(changeset["state"])
+
+        app.logger.info("Updated {} from changeset".format(self))
 
 
 class Souma(Serializable, db.Model):
@@ -1045,9 +1308,8 @@ class Starmap(Serializable, db.Model):
         """
         if Serializable.authorize(self, action, author_id=author_id):
             if self.kind == "persona_profile":
-                # p = Persona.query.filter(Persona.profile_id == self.id).first()
-                # return p.id == author_id
-                return self.author.id == author_id
+                p = Persona.request_persona(self.author_id)
+                return p.id == author_id
             elif self.kind == "group_profile":
                 # Everyone can update
                 if action == "update":
@@ -1055,6 +1317,7 @@ class Starmap(Serializable, db.Model):
                 # Only author can insert and delete
                 elif self.author_id == author_id:
                     return True
+
             elif self.kind == "index":
                 p = Persona.query.filter(Persona.index_id == self.id)
                 return p.id == author_id
@@ -1081,8 +1344,12 @@ class Starmap(Serializable, db.Model):
 
         Parameters:
             new_state (int) code of the new state as defined in nucleus.STAR_STATES
+
+        Raises:
+            ValueError: If new_state is not an Int or not a valid state of this object
         """
-        if not isinstance(new_state, int) or new_state not in STAR_STATES.keys():
+        new_state = int(new_state)
+        if new_state not in STAR_STATES.keys():
             raise ValueError("{} ({}) is not a valid star state").format(
                 new_state, type(new_state))
         else:
@@ -1090,7 +1357,6 @@ class Starmap(Serializable, db.Model):
 
     def get_absolute_url(self):
         """Return URL for this Starmap depending on kind"""
-        # import pdb; pdb.set_trace()
         if self.kind == "persona_profile":
             p = Persona.query.filter(Persona.profile_id == self.id).first()
             return url_for("persona", id=p.id)
@@ -1327,8 +1593,12 @@ class Group(Serializable, db.Model):
 
         Parameters:
             new_state (int) code of the new state as defined in nucleus.PLANET_STATES
+
+        Raises:
+            ValueError: If new_state is not an Int or not a valid state of this object
         """
-        if not isinstance(new_state, int) or new_state not in PLANET_STATES.keys():
+        new_state = int(new_state)
+        if new_state not in PLANET_STATES.keys():
             raise ValueError("{} ({}) is not a valid planet state").format(
                 new_state, type(new_state))
         else:

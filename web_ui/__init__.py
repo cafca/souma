@@ -8,6 +8,7 @@ from flask import Flask, json
 from flask.ext.sqlalchemy import SQLAlchemy
 from flask.ext import uploads
 from humanize import naturaltime
+from logging.handlers import RotatingFileHandler
 from werkzeug.contrib.cache import SimpleCache
 
 
@@ -59,6 +60,15 @@ if args.verbose is True:
     app.config["LOG_LEVEL"] = logging.DEBUG
     app.logger.debug("Verbose logs active")
 
+if args.reset is True:
+    for fileid in ["DATABASE", "SECRET_KEY_FILE", "PASSWORD_HASH_FILE"]:
+        try:
+            os.remove(app.config[fileid])
+        except OSError:
+            app.logger.warning("RESET: {} not found".format(fileid))
+        else:
+            app.logger.warning("RESET: {} deleted")
+
 if args.port is not None:
     app.config['LOCAL_PORT'] = args.port
     app.config['LOCAL_ADDRESS'] = "{}:{}".format(app.config['LOCAL_HOSTNAME'], args.port)
@@ -99,21 +109,13 @@ else:
     app.config['PASSWORD_HASH'] = None
 
 
-# Load layout definitions
-try:
-    with open(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'layouts.json')) as f:
-        app.config['LAYOUT_DEFINITIONS'] = json.load(f)
-except IOError, e:
-    logging.error("Failed loading layout definitions")
-    app.config['LAYOUT_DEFINITIONS'] = dict()
-
-
 # Setup SQLAlchemy database
 db = SQLAlchemy(app)
 
 
 # Setup attachment access
-attachments = uploads.UploadSet('attachments', uploads.IMAGES)
+attachments = uploads.UploadSet('attachments', uploads.IMAGES,
+    default_dest=lambda app_x: app_x.config["UPLOADS_DEFAULT_DEST"])
 uploads.configure_uploads(app, (attachments))
 
 
@@ -122,13 +124,19 @@ uploads.configure_uploads(app, (attachments))
 # mode. This overrides this setting and enables a new logging handler which prints
 # to the shell.
 loggers = [app.logger, logging.getLogger('synapse'), logging.getLogger('e-synapse')]
+
 console_handler = logging.StreamHandler(stream=sys.stdout)
 console_handler.setFormatter(logging.Formatter(app.config['LOG_FORMAT']))
+
+file_handler = RotatingFileHandler(app.config["LOG_FILENAME"],
+    maxBytes=app.config["LOG_MAXBYTES"], backupCount=5, delay=True)
+file_handler.setFormatter(logging.Formatter(app.config['LOG_FORMAT']))
 
 for l in loggers:
     del l.handlers[:]  # remove old handlers
     l.setLevel(logging.DEBUG)
     l.addHandler(console_handler)
+    l.addHandler(file_handler)
     l.propagate = False  # setting this to true triggers the root logger
 
 

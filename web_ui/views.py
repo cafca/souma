@@ -1,7 +1,7 @@
-import os
 import datetime
 
 from flask import abort, flash, redirect, render_template, request, session, url_for, jsonify as json_response
+from flask.helpers import send_from_directory
 from hashlib import sha256
 
 from web_ui import app, cache, db, logged_in, attachments
@@ -9,7 +9,7 @@ from web_ui import pagemanager
 from web_ui.forms import *
 from web_ui.helpers import get_active_persona
 from nucleus import notification_signals, PersonaNotFoundError
-from nucleus.models import Persona, Star, Planet, PicturePlanet, LinkPlanet, Group, Starmap
+from nucleus.models import Persona, Star, Planet, PlanetAssociation, PicturePlanet, LinkPlanet, Group, Starmap, LinkedPicturePlanet
 
 # Create blinker signal namespace
 local_model_changed = notification_signals.signal('local-model-changed')
@@ -18,6 +18,7 @@ new_contact = notification_signals.signal('new-contact')
 group_created = notification_signals.signal('group-created')
 
 pagemanager = pagemanager.PageManager()
+
 
 @app.context_processor
 def persona_context():
@@ -110,17 +111,20 @@ def setup():
     return render_template('setup.html', error=error)
 
 
-@app.route('/p/<id>/')
-def persona(id):
+@app.route('/attachments/<path:filename>')
+def attachment(filename):
+    return send_from_directory(app.config["USER_DATA"], filename)
+
+
+@app.route('/p/<id>/', defaults={'current_page': 1})
+@app.route('/p/<id>/page/<int:current_page>')
+def persona(id, current_page=1):
     """ Render home view of a persona """
 
     persona = Persona.query.filter_by(id=id).first_or_404()
-    if hasattr(persona, "profile") and hasattr(persona.profile, "index"):
-        stars = persona.profile.index
-    else:
-        stars = []
 
-    page = pagemanager.persona_layout(persona, stars=stars)
+    page = pagemanager.persona_layout(persona, current_page=current_page)
+
 
     return render_template(
         'persona.html',
@@ -234,6 +238,9 @@ def create_star():
     if form.context.data is None:
         form.context.data = Persona.query.get(form.author.data).profile.id
 
+    # TODO: Find way to get CSRF into star-macro, so we can enable it
+    # here
+    form.csrf_enabled = False
     if form.validate_on_submit():
         uuid = uuid4().hex
 
@@ -251,6 +258,10 @@ def create_star():
             created=new_star_created,
             modified=new_star_created
         )
+
+        if 'parent_id' in request.values:
+            new_star.parent_id = request.values.get('parent_id')
+
         db.session.add(new_star)
         db.session.commit()
 
@@ -258,24 +269,47 @@ def create_star():
         app.logger.info('Created new {}'.format(new_star))
         model_change_messages = list()
 
-        if 'picture' in request.files and request.files['picture'].filename != "":
-            # compute hash
-            picture_hash = sha256(request.files['picture'].stream.read()).hexdigest()
-            request.files['picture'].stream.seek(0)
+        # if 'picture' in request.files and request.files['picture'].filename != "":
+        #     # compute hash
+        #     picture_hash = sha256(request.files['picture'].stream.read()).hexdigest()
+        #     request.files['picture'].stream.seek(0)
 
-            # create or get planet
-            planet = Planet.query.filter_by(id=picture_hash[:32]).first()
+        #     # create or get planet
+        #     planet = Planet.query.filter_by(id=picture_hash[:32]).first()
+        #     if not planet:
+        #         app.logger.info("Creating new planet for submitted file")
+        #         filename = attachments.save(request.files['picture'],
+        #             folder=picture_hash[:2], name=picture_hash[2:] + ".")
+        #         planet = PicturePlanet(
+        #             id=picture_hash[:32],
+        #             filename=os.path.join(attachments.name, filename))
+        #         db.session.add(planet)
+
+        #     # attach to star
+        #     new_star.planets.append(planet)
+
+        #     # commit
+        #     db.session.add(new_star)
+        #     db.session.commit()
+        #     app.logger.info("Attached {} to new {}".format(planet, new_star))
+
+        if 'linkedpicture' in request.form and request.form['linkedpicture'] != "":
+            # "linkedpicture" is added to the hash so that two people can
+            # attach the same link as a linked picture and as a regular link
+            # without causing a clash because of their ids.
+            # https://github.com/ciex/souma/issues/155
+            picture_hash = sha256("linkedpicture" + request.form['linkedpicture']).hexdigest()[:32]
+            planet = LinkedPicturePlanet.query.filter_by(id=picture_hash).first()
             if not planet:
-                app.logger.info("Creating new planet for submitted file")
-                filename = attachments.save(request.files['picture'],
-                    folder=picture_hash[:2], name=picture_hash[2:] + ".")
-                planet = PicturePlanet(
-                    id=picture_hash[:32],
-                    filename=os.path.join(attachments.name, filename))
+                app.logger.info("Storing new linked Picture")
+                planet = LinkedPicturePlanet(
+                    id=picture_hash,
+                    url=request.form['linkedpicture'])
                 db.session.add(planet)
 
             # attach to star
-            new_star.planets.append(planet)
+            assoc = PlanetAssociation(star=new_star, planet=planet, author=author)
+            new_star.planet_assocs.append(assoc)
 
             # commit
             db.session.add(new_star)
@@ -284,7 +318,7 @@ def create_star():
 
         if 'link' in request.form and request.form['link'] != "":
             link_hash = sha256(request.form['link']).hexdigest()[:32]
-            planet = Planet.query.filter_by(id=link_hash).first()
+            planet = LinkPlanet.query.filter_by(id=link_hash).first()
             if not planet:
                 app.logger.info("Storing new Link")
                 planet = LinkPlanet(
@@ -292,7 +326,8 @@ def create_star():
                     url=request.form['link'])
                 db.session.add(planet)
 
-            new_star.planets.append(planet)
+            assoc = PlanetAssociation(star=new_star, planet=planet, author=author)
+            new_star.planet_assocs.append(assoc)
             db.session.add(new_star)
             db.session.commit()
             app.logger.info("Attached {} to new {}".format(planet, new_star))
@@ -324,7 +359,7 @@ def create_star():
         for m in model_change_messages:
             local_model_changed.send(create_star, message=m)
 
-        # if new star belongs to a group, show group page
+        # if new star belongs to a starmap, show starmap page
         if starmap is None:
             return redirect(url_for('star', id=uuid))
         else:
@@ -337,11 +372,9 @@ def create_star():
                            page=page)
 
 
-@app.route('/s/<id>/delete', methods=["GET"])
+@app.route('/s/<id>/delete', methods=["POST"])
 def delete_star(id):
     """ Delete a star """
-    # TODO: Should only accept POST instead of GET
-
     # Load instance and author persona
     s = Star.query.get(id)
     if s is None:
@@ -368,22 +401,24 @@ def delete_star(id):
             }
 
             local_model_changed.send(delete_star, message=message_delete)
+            flash("Unpublished and requested deletion of {}".format(s))
 
             app.logger.info("Deleted star {}".format(id))
-        return redirect(url_for('debug'))
+        return redirect(url_for('universe'))
 
 
-@app.route('/')
-def universe():
+@app.route('/', defaults={'current_page': 1})
+@app.route('/page/<int:current_page>')
+def universe(current_page=1):
     """ Render the landing page """
-    # return only stars that are not in a group context
-    stars = Star.query.filter(Star.state >= 0).all()
-    page = pagemanager.star_layout(stars)
+
+    stars = Star.query.filter(Star.parent_id == None, Star.state >= 0)
+    page = pagemanager.star_layout(stars, current_page=current_page)
 
     if len(persona_context()['controlled_personas'].all()) == 0:
         return redirect(url_for('create_persona'))
 
-    if len(stars) == 0:
+    if page.pagination.total == 0:
         return redirect(url_for('create_star'))
 
     return render_template('universe.html', page=page)
@@ -433,6 +468,16 @@ def oneup(star_id):
                 "state_name": oneup.get_state()
             }]
         }
+
+        message_oneup = {
+            "author_id": oneup.author.id,
+            "action": "insert" if len(oneup.vesicles)==0 else "update",
+            "object_id": oneup.id,
+            "object_type": "Oneup",
+            "recipients": star.author.contacts.all() + [star.author, ]
+        }
+
+        local_model_changed.send(oneup, message=message_oneup)
     return json_response(resp)
 
 
@@ -470,7 +515,7 @@ def find_people():
         address = request.form['email']
 
         # Create a temporary electrical synapse to make a synchronous glia request
-        electrical = ElectricalSynapse(None)
+        electrical = ElectricalSynapse()
         resp, errors = electrical.find_persona(address)
 
         # TODO: This should flash an error message. It doesn't.
@@ -557,11 +602,13 @@ def add_contact(persona_id):
     return render_template('add_contact.html', form=form, persona=persona)
 
 
-@app.route('/g/<id>/', methods=['GET'])
+@app.route('/g/<id>/', defaults={'current_page': 1}, methods=['GET'])
+@app.route('/g/<id>/page/<int:current_page>', methods=['GET'])
 def group(id):
     """ Render home view of a group """
 
     group = Group.query.filter_by(id=id).first_or_404()
+    stars = group.profile.index.filter(Star.state >= 0)
 
     form = Create_star_form(default_author=get_active_persona())
     form.author.choices = [(p.id, p.username) for p in Persona.list_controlled()]
@@ -570,7 +617,7 @@ def group(id):
     form.context.data = group.profile.id
 
     # create layouted page for group
-    page = pagemanager.group_layout(group.profile.index.filter(Star.state >= 0))
+    page = pagemanager.group_layout(stars, current_page=current_page)
 
     return render_template(
         'group.html',
