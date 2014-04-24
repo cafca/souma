@@ -6,7 +6,7 @@ import argparse
 from Crypto.Hash import SHA256
 from flask import Flask, json
 from flask.ext.sqlalchemy import SQLAlchemy
-from flaskext import uploads
+from flask.ext import uploads
 from humanize import naturaltime
 from werkzeug.contrib.cache import SimpleCache
 

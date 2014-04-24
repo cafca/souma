@@ -115,7 +115,8 @@ else:
     try:
         synapse = Synapse()
     except Exception, e:
-        app.logger(e)
+        pass
+        #app.logger(e)
 
     # Web UI
     if not app.config['NO_UI']:

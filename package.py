@@ -6,15 +6,151 @@ Usage:
     python package.py py2exe
 """
 import ez_setup
+import numpy
 ez_setup.use_setuptools()
 
 from setuptools import setup
 import sys
-import shutil
-import py2exe
+
+if sys.platform == 'win32':
+    import py2exe
 
 APP = ['run.py']
 DATA_FILES = ['templates', 'static']
+
+INCLUDES = [
+    "web_ui",
+    "jinja2.ext",
+    "sklearn",
+    "sklearn.utils",
+    "sqlalchemy.dialects.sqlite",
+    "sqlalchemy.ext.declarative",
+    "wtforms.ext",
+    "wtforms.ext.csrf",
+    "flask",
+    # "flask_restful",
+    "flask_sqlalchemy",
+    "flask.views",
+    "flask.signals",
+    # "flask_restful.utils",
+    "flask.helpers",
+    # "flask_restful.representations",
+    # "flask_restful.representations.json",
+    #"flaskext",
+    #"flaskext.wtf",
+    "flask.ext",
+    "flask.ext.uploads",
+    "flask.ext.wtf",
+    "sqlalchemy.orm",
+    "sqlalchemy.event",
+    "sqlalchemy.ext.declarative",
+    "sqlalchemy.engine.url",
+    "sqlalchemy.connectors.mxodbc",
+    "sqlalchemy.connectors.mysqldb",
+    "sqlalchemy.connectors.zxJDBC",
+    # "sqlalchemy.connectorsodbc.py",
+    "sqlalchemy.dialects.sqlite.base",
+    # "sqlalchemy.dialects.sqlitesqlite.py",
+    "sqlalchemy.dialects.sybase.base",
+    "sqlalchemy.dialects.sybase.mxodbc",
+    # "sqlalchemy.dialects.sybaseodbc.py",
+    # "sqlalchemy.dialects.sybasesybase.py",
+    "sqlalchemy.engine.base",
+    "sqlalchemy.engine.default",
+    "sqlalchemy.engine.interfaces",
+    "sqlalchemy.engine.reflection",
+    "sqlalchemy.engine.result",
+    "sqlalchemy.engine.strategies",
+    "sqlalchemy.engine.threadlocal",
+    "sqlalchemy.engine.url",
+    "sqlalchemy.engine.util",
+    "sqlalchemy.event.api",
+    "sqlalchemy.event.attr",
+    "sqlalchemy.event.base",
+    "sqlalchemy.event.legacy",
+    "sqlalchemy.event.registry",
+    "sqlalchemy.events",
+    "sqlalchemy.exc",
+    "sqlalchemy.ext.associationproxy",
+    "sqlalchemy.ext.automap",
+    "sqlalchemy.ext.compiler",
+    "sqlalchemy.ext.declarative.api",
+    "sqlalchemy.ext.declarative.base",
+    "sqlalchemy.ext.declarative.clsregistry",
+    "sqlalchemy.ext.horizontal_shard",
+    "sqlalchemy.ext.hybrid",
+    "sqlalchemy.ext.instrumentation",
+    "sqlalchemy.ext.mutable",
+    "sqlalchemy.ext.orderinglist",
+    "sqlalchemy.ext.serializer",
+    "sqlalchemy.inspection",
+    "sqlalchemy.interfaces",
+    "sqlalchemy.log",
+    "sqlalchemy.orm.attributes",
+    "sqlalchemy.orm.base",
+    "sqlalchemy.orm.collections",
+    "sqlalchemy.orm.dependency",
+    "sqlalchemy.orm.deprecated_interfaces",
+    "sqlalchemy.orm.descriptor_props",
+    "sqlalchemy.orm.dynamic",
+    "sqlalchemy.orm.evaluator",
+    "sqlalchemy.orm.events",
+    "sqlalchemy.orm.exc",
+    "sqlalchemy.orm.identity",
+    "sqlalchemy.orm.instrumentation",
+    "sqlalchemy.orm.interfaces",
+    "sqlalchemy.orm.loading",
+    "sqlalchemy.orm.mapper",
+    "sqlalchemy.orm.path_registry",
+    "sqlalchemy.orm.persistence",
+    "sqlalchemy.orm.properties",
+    "sqlalchemy.orm.query",
+    "sqlalchemy.orm.relationships",
+    "sqlalchemy.orm.scoping",
+    "sqlalchemy.orm.session",
+    "sqlalchemy.orm.state",
+    "sqlalchemy.orm.strategies",
+    "sqlalchemy.orm.strategy_options",
+    "sqlalchemy.orm.sync",
+    "sqlalchemy.orm.unitofwork",
+    "sqlalchemy.orm.util",
+    "sqlalchemy.pool",
+    "sqlalchemy.processors",
+    "sqlalchemy.schema",
+    "sqlalchemy.sql.annotation",
+    "sqlalchemy.sql.base",
+    "sqlalchemy.sql.compiler",
+    "sqlalchemy.sql.ddl",
+    "sqlalchemy.sql.default_comparator",
+    "sqlalchemy.sql.dml",
+    "sqlalchemy.sql.elements",
+    "sqlalchemy.sql.expression",
+    "sqlalchemy.sql.functions",
+    "sqlalchemy.sql.naming",
+    "sqlalchemy.sql.operators",
+    "sqlalchemy.sql.schema",
+    "sqlalchemy.sql.selectable",
+    "sqlalchemy.sql.sqltypes",
+    "sqlalchemy.sql.type_api",
+    "sqlalchemy.sql.util",
+    "sqlalchemy.sql.visitors",
+    "sqlalchemy.types",
+    "sqlalchemy.util._collections",
+    "sqlalchemy.util.compat",
+    "sqlalchemy.util.deprecations",
+    "sqlalchemy.util.langhelpers",
+    "sqlalchemy.util.queue",
+    "sqlalchemy.util.topological",
+    "flask_sqlalchemy._compat",
+    "lxml._elementpath",
+    "lxml.etree",
+    "scipy.sparse.csgraph._validation",
+    "gzip",
+    "scipy.special._ufuncs_cxx",
+    "sklearn.utils.sparsetools._graph_validation",
+    "gevent",
+    "gevent.core",
+    "logging"]
 
 # might need to explicitly include dll:
 # data_files=[('.', 'libmmd.dll')
@@ -22,9 +158,10 @@ DATA_FILES = ['templates', 'static']
 # http://stackoverflow.com/questions/10060765/create-python-exe-without-msvcp90-dll
 WIN_OPTIONS = {
     "dist_dir": "../dist",
-    "includes": ["sqlalchemy.dialects.sqlite", "sqlalchemy.ext.declarative", "wtforms.ext", "jinja2.ext", "wtforms.ext.csrf", "sklearn", "sklearn.utils"],
+    "includes": INCLUDES,
     "packages": ["nucleus", "web_ui", "synapse", "astrolab"],
-    "dll_excludes": ["libmmd.dll", "libifcoremd.dll", "libiomp5md.dll", "MSVCP90.dll"],
+    "dll_excludes": [],#["libmmd.dll", "libifcoremd.dll", "libiomp5md.dll", "MSVCP90.dll"],
+    'bundle_files': 1
 }
 
 DARWIN_OPTIONS = {
@@ -32,7 +169,7 @@ DARWIN_OPTIONS = {
     "bdist_base": "../build",
     "dist_dir": "../dist",
     "iconfile": "static/images/icon_osx.icns",
-    "includes": ["sqlalchemy.dialects.sqlite", "sqlalchemy.ext.declarative", "wtforms.ext", "jinja2.ext", "wtforms.ext.csrf", "sklearn", "sklearn.utils"],
+    "includes": INCLUDES,
     "packages": ["nucleus", "web_ui", "synapse", "astrolab"],
     "site_packages": True,
     "plist": {
@@ -42,7 +179,35 @@ DARWIN_OPTIONS = {
     },
 }
 
+def find_data_files(source,target,patterns):
+    """Locates the specified data-files and returns the matches
+    in a data_files compatible format.
 
+    source is the root of the source data tree.
+    Use '' or '.' for current directory.
+    target is the root of the target data tree.
+        Use '' or '.' for the distribution directory.
+        patterns is a sequence of glob-patterns for the
+        files you want to copy.
+    """
+    import os, glob
+
+    if glob.has_magic(source) or glob.has_magic(target):
+        raise ValueError("Magic not allowed in src, target")
+    ret = {}
+    more = []
+    for pattern in patterns:
+        pattern = os.path.join(source,pattern)
+        for filename in glob.glob(pattern):
+            if os.path.isfile(filename):
+                targetpath = os.path.join(target,os.path.relpath(filename,source))
+                path = os.path.dirname(targetpath)
+                ret.setdefault(path,[]).append(filename)
+            elif os.path.isdir(filename):
+                more.extend(find_data_files(filename, filename, '*'))
+    ret = sorted(ret.items())
+    ret.extend(more)
+    return ret
 
 """ Platform specific options """
 if sys.platform == 'darwin':
@@ -77,9 +242,15 @@ if sys.platform == 'darwin':
 elif sys.platform == 'win32':
     extra_options = dict(
         setup_requires=['py2exe'],
-        app=APP,
-        options=dict(py2exe=WIN_OPTIONS)
+        console = [{'script': "run.py"}],
+        options=dict(py2exe=WIN_OPTIONS),
+        zipfile = None
     )
+
+    data_files_tmp = DATA_FILES
+    DATA_FILES = []
+    for data_file in data_files_tmp:
+        DATA_FILES.extend(find_data_files(data_file,data_file,'*'))
 else:
     extra_options = dict(
         scripts=APP)
@@ -90,7 +261,6 @@ setup(
     author="Cognitive Networks Group",
     author_email="cognitive-networks@googlegroups.com",
     url="https://github.com/ciex/souma/",
-    scripts=["run.py", "set_hosts.py"],
     packages=["nucleus", "web_ui", "synapse", "astrolab"],
     data_files=DATA_FILES,
     license="Apache License 2.0",

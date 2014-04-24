@@ -58,7 +58,7 @@ SYNAPSE_PORT = LOCAL_PORT + 2000
 
 LOGIN_SERVER = "app.souma:24500"
 # Uncomment this to use Heroku server
-LOGIN_SERVER = "glia.herokuapp.com"
+#LOGIN_SERVER = "glia.herokuapp.com"
 
 # Setting this to True will automatically upload all vesicles to Myelin, and
 # enable periodic polling of the Myelin for new Vesicles sent to one of the
