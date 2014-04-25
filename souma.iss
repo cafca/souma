@@ -2,9 +2,9 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Souma"
-#define MyAppVersion "0.0.1"
+#define MyAppVersion "1.0-alpha"
 #define MyAppPublisher "Souma"
-#define MyAppURL "souma.herokuapp.com"
+#define MyAppURL "http://souma.io/"
 #define MyAppExeName "run.exe"
 
 [Setup]
@@ -78,13 +78,13 @@ procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   data: string;
   file: string;
-begin           
+begin
   file := ExpandConstant('{sys}\drivers\etc\hosts');
   if CurUninstallStep = usPostUninstall then
   begin
     if LoadStringFromFile(file, data) then
     begin
-      StringChangeEx(data, #13#10 + #13#10 + '# Access Soma at app.soma', '', True);  
+      StringChangeEx(data, #13#10 + #13#10 + '# Access Soma at app.soma', '', True);
       StringChangeEx(data, #13#10 '127.0.0.1 app.souma', '', True);
       SaveStringToFile(file, data, False);
     end

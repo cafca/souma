@@ -6,7 +6,6 @@ Usage:
     python package.py py2exe
 """
 import ez_setup
-import numpy
 ez_setup.use_setuptools()
 
 from setuptools import setup
@@ -157,11 +156,12 @@ INCLUDES = [
 # data_files=[('.', 'libmmd.dll')
 # also:
 # http://stackoverflow.com/questions/10060765/create-python-exe-without-msvcp90-dll
+
 WIN_OPTIONS = {
     "dist_dir": "../dist",
     "includes": INCLUDES,
     "packages": ["nucleus", "web_ui", "synapse", "astrolab"],
-    "dll_excludes": [],#["libmmd.dll", "libifcoremd.dll", "libiomp5md.dll", "MSVCP90.dll"],
+    "dll_excludes": [],
     'bundle_files': 1
 }
 
@@ -180,30 +180,36 @@ DARWIN_OPTIONS = {
     },
 }
 
-def find_data_files(source,target,patterns):
+
+def find_data_files(source, target, patterns):
     """Locates the specified data-files and returns the matches
     in a data_files compatible format.
 
-    source is the root of the source data tree.
-    Use '' or '.' for current directory.
-    target is the root of the target data tree.
-        Use '' or '.' for the distribution directory.
-        patterns is a sequence of glob-patterns for the
-        files you want to copy.
+    Parameters:
+        source(String): Root of the source data tree.
+            Use '' or '.' for current directory.
+        target(String): Root of the target data tree.
+            Use '' or '.' for the distribution directory.
+        patterns(Iterable):  Sequence of glob-patterns for the
+            files you want to copy.
+
+    Returns:
+        dict:
     """
-    import os, glob
+    import os
+    import glob
 
     if glob.has_magic(source) or glob.has_magic(target):
         raise ValueError("Magic not allowed in src, target")
     ret = {}
     more = []
     for pattern in patterns:
-        pattern = os.path.join(source,pattern)
+        pattern = os.path.join(source, pattern)
         for filename in glob.glob(pattern):
             if os.path.isfile(filename):
-                targetpath = os.path.join(target,os.path.relpath(filename,source))
+                targetpath = os.path.join(target, os.path.relpath(filename, source))
                 path = os.path.dirname(targetpath)
-                ret.setdefault(path,[]).append(filename)
+                ret.setdefault(path, []).append(filename)
             elif os.path.isdir(filename):
                 more.extend(find_data_files(filename, filename, '*'))
     ret = sorted(ret.items())
@@ -243,15 +249,15 @@ if sys.platform == 'darwin':
 elif sys.platform == 'win32':
     extra_options = dict(
         setup_requires=['py2exe'],
-        console = [{'script': "run.py"}],
+        console=[{'script': "run.py"}],
         options=dict(py2exe=WIN_OPTIONS),
-        zipfile = None
+        zipfile=None
     )
 
     data_files_tmp = DATA_FILES
     DATA_FILES = []
     for data_file in data_files_tmp:
-        DATA_FILES.extend(find_data_files(data_file,data_file,'*'))
+        DATA_FILES.extend(find_data_files(data_file, data_file, '*'))
 else:
     extra_options = dict(
         scripts=APP)

@@ -15,8 +15,10 @@ from werkzeug.contrib.cache import SimpleCache
 # Initialize Flask app
 app = Flask('souma')
 
-# Load config from default_config.py
+# Load configuration
 app.config.from_object("web_ui.default_config")
+app.config.from_object('astrolab.config')
+
 app.jinja_env.filters['naturaltime'] = naturaltime
 
 # Create application data folder
