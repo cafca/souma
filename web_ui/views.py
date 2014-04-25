@@ -116,8 +116,8 @@ def attachment(filename):
     return send_from_directory(app.config["USER_DATA"], filename)
 
 
-@app.route('/p/<id>/', defaults={'current_page': 1})
-@app.route('/p/<id>/page/<int:current_page>')
+@app.route('/p/<id>/', defaults={'current_page': 1}, methods=["GET"])
+@app.route('/p/<id>/page/<int:current_page>', methods=["GET"])
 def persona(id, current_page=1):
     """ Render home view of a persona """
 
@@ -603,7 +603,7 @@ def add_contact(persona_id):
 
 @app.route('/g/<id>/', defaults={'current_page': 1}, methods=['GET'])
 @app.route('/g/<id>/page/<int:current_page>', methods=['GET'])
-def group(id):
+def group(id, current_page=1):
     """ Render home view of a group """
 
     group = Group.query.filter_by(id=id).first_or_404()

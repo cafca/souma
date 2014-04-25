@@ -32,6 +32,6 @@
     </section>
 {% endfor %}
 
-{{ pagination.render_pagination(page.pagination, "persona") }}
+{{ pagination.render_pagination(page.pagination, "group", id=group.id) }}
 
 {% endblock %}
