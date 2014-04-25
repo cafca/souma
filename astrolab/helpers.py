@@ -1,8 +1,12 @@
 import lxml.html
+import requests
+
 from gensim import utils
 from gevent import spawn_later
-import urllib
 from readability import Document
+from lxml.etree import XMLSyntaxError
+
+from web_ui import app
 
 
 def _clean_attrib(node):
@@ -12,13 +16,21 @@ def _clean_attrib(node):
 
 
 def remove_html(text):
-    tree = lxml.html.fromstring(text)
-    cleaner = lxml.html.clean.Cleaner(style=True)
-    cleaner.clean_html(tree)
-    _clean_attrib(tree)
+    rv = ""
 
-    return lxml.html.tostring(tree, encoding='unicode', pretty_print=True,
+    try:
+        tree = lxml.html.fromstring(text)
+    except XMLSyntaxError:
+        app.logger.error("Error getting XML tree")
+        import pdb; pdb.set_trace()
+    else:
+        cleaner = lxml.html.clean.Cleaner(style=True)
+        cleaner.clean_html(tree)
+        _clean_attrib(tree)
+
+        rv = lxml.html.tostring(tree, encoding='unicode', pretty_print=True,
                               method='text')
+    return rv
 
 
 def tokenize(text):
@@ -29,16 +41,41 @@ def tokenize(text):
             if 2 <= len(token) <= 15 and not token.startswith('_')]
 
 
+def valid_request(request):
+    """Return True if request was successfull and contains text content"""
+    if request is None:
+        return False
+
+    if request.status_code >= 400:
+        return False
+
+    if not request.headers["content-type"]:
+        return False
+
+    if not request.headers["content-type"][:9] in ["text/html", "text/plain"]:
+        return False
+
+    return True
+
+
 def get_site_content(link):
-    # request link content
-    req = urllib.urlopen(link)
-    page = req.read()
+    """Try and extract site content from url"""
+    rv = ""
 
-    # extract the  (most likely) main content
-    doc = Document(page, url=link)
-    content = doc.summary(html_partial=True)
+    try:
+        r = requests.get(link, timeout=15.0)
+    except requests.exceptions.RequestException, e:
+        app.logger.warning("Failed loading URL '{}': {}".format(link, e))
+    else:
+        if valid_request(r):
+            # extract the  (most likely) main content
+            doc = Document(r.text, url=link)
+            content = doc.summary(html_partial=True)
+            rv = remove_html(content)
+        else:
+            app.logger.info("Invalid request {} for url '{}'".format(r, link))
 
-    return remove_html(content)
+    return rv
 
 
 def repeated_func_schedule(time, func):
