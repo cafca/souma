@@ -25,11 +25,11 @@ from astrolab.interestmodel import update
 def setup_astrolab():
     """Download topic model and schedule model updates"""
     sleep(0)
-    model_filename = app.config["TOPIC_MODEL"]
-    word_ids_filename = app.config["TOPIC_MODEL_IDS"]
+    model_filename = app.config["ASTROLAB_MODEL"]
+    word_ids_filename = app.config["ASTROLAB_MODEL_IDS"]
 
-    model_url = app.config["TOPIC_MODEL_UPDATE"]
-    word_ids_url = app.config["TOPIC_MODEL_IDS_UPDATE"]
+    model_url = app.config["ASTROLAB_UPDATE"]
+    word_ids_url = app.config["ASTROLAB_IDS_UPDATE"]
 
     try:
         with open(word_ids_filename):
@@ -63,24 +63,6 @@ def setup_astrolab():
 
     repeated_func_schedule(60 * 60, update)
 
-
-def watch_layouts():
-    import json
-
-    mtime_last = 0
-    layout_filename = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'web_ui', 'layouts.json')
-    while True:
-        sleep(1)
-        mtime_cur = os.path.getmtime(layout_filename)
-        if mtime_cur != mtime_last:
-            app.logger.info("Loading new layout definitions")
-            try:
-                with open(layout_filename) as f:
-                    app.config['LAYOUT_DEFINITIONS'] = json.load(f)
-            except IOError:
-                app.logger.error("Failed loading layout definitions")
-                app.config['LAYOUT_DEFINITIONS'] = dict()
-        mtime_last = mtime_cur
 
 """ patch gevent for py2app """
 if getattr(sys, 'frozen', None) == 'macosx_app':
@@ -125,6 +107,9 @@ if local_souma is None:
     db.session.add(local_souma)
     db.session.commit()
 
+#__file__ doesn't work with freezing
+app.config["RUNTIME_DIR"] = os.path.abspath('.')
+
 """ Start app """
 if app.config['USE_DEBUG_SERVER']:
     # flask development server
@@ -165,6 +150,5 @@ else:
 
     # Setup Astrolab
     Greenlet.spawn(setup_astrolab)
-    Greenlet.spawn(watch_layouts)
 
     shutdown.wait()

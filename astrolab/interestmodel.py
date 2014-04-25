@@ -7,6 +7,8 @@ from datetime import datetime
 import pdb
 
 
+
+
 class InterestModel(db.Model):
 
     __tablename__ = "interestmodel"
@@ -33,11 +35,8 @@ class InterestModel(db.Model):
 
 
 def update():
-    app.logger.info("Updating interest model")
-
-    topic_model = TopicModel(
-        app.config["TOPIC_MODEL"], app.config["TOPIC_MODEL_IDS"])
-
+    app.logger.info("Update interest model")
+    topic_model = TopicModel(app.config["ASTROLAB_MODEL"], app.config["ASTROLAB_MODEL_IDS"])
     for persona in Persona.query.all():
         interestmodel = InterestModel.query.filter_by(persona_id=persona.id).first()
 
@@ -59,7 +58,6 @@ def fit(interestmodel, topic_model):
             like = Oneup.query.filter(
                 Oneup.state >= 0).filter_by(parent_id=star.id, author_id=interestmodel.persona_id).all()
 
-
         content = star.text
         for planet_assoc in star.planet_assocs:
             planet = planet_assoc.planet
@@ -68,14 +66,12 @@ def fit(interestmodel, topic_model):
                 link_content = get_site_content(link)
                 content += ' ' + link_content
 
-
         topics = topic_model.get_topics_text(content)
 
         if like:
             train_set_pos.append(topics)
         else:
             train_set_neg.append(topics)
-
 
     app.logger.info("Fitting persona %s"%interestmodel.persona_id)
     app.logger.info("Positive: %d    Negative: %d"%(len(train_set_pos),len(train_set_neg)))

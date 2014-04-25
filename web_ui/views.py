@@ -125,6 +125,7 @@ def persona(id, current_page=1):
 
     page = pagemanager.persona_layout(persona, current_page=current_page)
 
+
     return render_template(
         'persona.html',
         layout="persona",
