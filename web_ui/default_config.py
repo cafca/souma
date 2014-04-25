@@ -5,13 +5,6 @@ import os
 # ANY CHANGES MADE TO OPTIONS DEPENDING ON LOCAL_PORT NEED TO BE UPDATED IN
 # web_ui/__init__.py
 
-
-def packaged_app():
-    """Return True if currently running in a packaged context"""
-    import sys
-    if getattr(sys, 'frozen', None) == 'macosx_app':
-        return True
-
 USER_DATA = appdirs.user_data_dir("souma", "souma", roaming=True)
 RUNTIME_DIR = ""
 
@@ -42,6 +35,8 @@ ALLOWED_EXTENSIONS = set(['txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'])
 SEND_FILE_MAX_AGE_DEFAULT = 1
 
 LOG_LEVEL = logging.DEBUG
+FILE_LOGGING = True
+CONSOLE_LOGGING = True
 LOG_FILENAME = os.path.join(USER_DATA, "app.log")
 LOG_MAXBYTES = 10 * 1024 * 1024
 LOG_FORMAT = (

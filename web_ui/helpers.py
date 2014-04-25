@@ -11,9 +11,9 @@ epoch = datetime.utcfromtimestamp(0)
 epoch_seconds = lambda dt: (dt - epoch).total_seconds() - 1356048000
 
 
-def score(star_object):
-    import random
-    return random.random() * 100 - random.random() * 10
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1] in app.config['ALLOWED_EXTENSIONS']
 
 
 def get_active_persona():
@@ -32,9 +32,30 @@ def get_active_persona():
     return session['active_persona']
 
 
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1] in app.config['ALLOWED_EXTENSIONS']
+def host_kind():
+    """Determine whether the App runs pacaged or from the command line
+
+    Returns:
+        String: Host system kind
+            ``    -- Runs from the command line
+            `win` -- Packaged Windows app
+            `osx` -- Packaded OSX app
+
+    """
+    import sys
+    frozen = getattr(sys, 'frozen', None)
+
+    if not frozen:
+        return ''
+    elif frozen in ('dll', 'console_exe', 'windows_exe'):
+        return 'win'
+    elif frozen in ('macosx_app',):
+        return 'osx'
+
+
+def score(star_object):
+    import random
+    return random.random() * 100 - random.random() * 10
 
 
 def watch_layouts(continuous=True):

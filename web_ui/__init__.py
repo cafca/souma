@@ -126,19 +126,29 @@ uploads.configure_uploads(app, (attachments))
 # mode. This overrides this setting and enables a new logging handler which prints
 # to the shell.
 loggers = [app.logger, logging.getLogger('synapse'), logging.getLogger('e-synapse')]
+handlers = []
 
-console_handler = logging.StreamHandler(stream=sys.stdout)
-console_handler.setFormatter(logging.Formatter(app.config['LOG_FORMAT']))
+# Disable console logging for frozen Windows app
+from web_ui.helpers import host_kind
+if host_kind() == 'win':
+    app.config["CONSOLE_LOGGING"] = False
 
-file_handler = RotatingFileHandler(app.config["LOG_FILENAME"],
-    maxBytes=app.config["LOG_MAXBYTES"], backupCount=5, delay=True)
-file_handler.setFormatter(logging.Formatter(app.config['LOG_FORMAT']))
+if app.config["CONSOLE_LOGGING"] is True:
+    console_handler = logging.StreamHandler(stream=sys.stdout)
+    console_handler.setFormatter(logging.Formatter(app.config['LOG_FORMAT']))
+    handlers.append(console_handler)
+
+if app.config["FILE_LOGGIN"] is True:
+    file_handler = RotatingFileHandler(app.config["LOG_FILENAME"],
+        maxBytes=app.config["LOG_MAXBYTES"], backupCount=5, delay=True)
+    file_handler.setFormatter(logging.Formatter(app.config['LOG_FORMAT']))
+    handlers.append(file_handler)
 
 for l in loggers:
     del l.handlers[:]  # remove old handlers
     l.setLevel(logging.DEBUG)
-    l.addHandler(console_handler)
-    l.addHandler(file_handler)
+    for h in handlers:
+        l.addHandler(h)
     l.propagate = False  # setting this to true triggers the root logger
 
 
