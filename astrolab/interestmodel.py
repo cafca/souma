@@ -4,7 +4,6 @@ from nucleus.models import Persona, Oneup, Star, LinkPlanet
 from sklearn.naive_bayes import GaussianNB
 from helpers import get_site_content
 from datetime import datetime
-import pdb
 
 
 class InterestModel(db.Model):
@@ -27,7 +26,7 @@ class InterestModel(db.Model):
         self.last_prediction = 0
 
     def is_interesting(self, text):
-        topics = topic_model.get_topics_text(text)
+        topics = TopicModel.get_topics_text(text)
         interesting = self.classifier.predict(topics)
         return interesting
 
@@ -38,7 +37,7 @@ def update():
     topic_model = TopicModel(
         app.config["TOPIC_MODEL"], app.config["TOPIC_MODEL_IDS"])
 
-    for persona in Persona.query.all():
+    for persona in Persona.query.filter_by(_stub=False).all():
         interestmodel = InterestModel.query.filter_by(persona_id=persona.id).first()
 
         if interestmodel is None:
@@ -53,21 +52,22 @@ def update():
 def fit(interestmodel, topic_model):
     train_set_pos = []
     train_set_neg = []
-    for star in Star.query.filter_by(state=0):
+    for star in Star.query.filter_by(state=0, kind='star'):
         like = star.author_id == interestmodel.persona_id
         if not like:
             like = Oneup.query.filter(
                 Oneup.state >= 0).filter_by(parent_id=star.id, author_id=interestmodel.persona_id).all()
 
+        content = ""
+        if star.text:
+            content = " ".join([content, star.text])
 
-        content = star.text
         for planet_assoc in star.planet_assocs:
             planet = planet_assoc.planet
             if isinstance(planet, LinkPlanet):
                 link = planet.url
                 link_content = get_site_content(link)
-                content += ' ' + link_content
-
+                content = " ".join([content, link_content])
 
         topics = topic_model.get_topics_text(content)
 
@@ -76,9 +76,8 @@ def fit(interestmodel, topic_model):
         else:
             train_set_neg.append(topics)
 
-
-    app.logger.info("Fitting persona %s"%interestmodel.persona_id)
-    app.logger.info("Positive: %d    Negative: %d"%(len(train_set_pos),len(train_set_neg)))
+    app.logger.info("Fitting persona %s" % interestmodel.persona_id)
+    app.logger.info("Positive: %d    Negative: %d" % (len(train_set_pos), len(train_set_neg)))
     if len(train_set_pos) > 0:
         train_labels = [1 for x in range(len(train_set_pos))]
         train_set = train_set_pos
