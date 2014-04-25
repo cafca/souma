@@ -48,6 +48,6 @@ setup(
     license="Apache License 2.0",
     description="A Cognitive Network for Groups",
     long_description=open("README").read(),
-    install_requires=open("requirements.txt").read(),
+    install_requires=open("requirements_osx.txt").read(),
     **extra_options
 )

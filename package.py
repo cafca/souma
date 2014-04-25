@@ -246,6 +246,8 @@ if sys.platform == 'darwin':
         app=['run.py'],
         options=dict(py2app=DARWIN_OPTIONS))
 
+    install_requires = open('requirements_osx.txt').read()
+
 elif sys.platform == 'win32':
     extra_options = dict(
         setup_requires=['py2exe'],
@@ -254,6 +256,8 @@ elif sys.platform == 'win32':
         zipfile=None
     )
 
+    install_requires = open('requirements_win.txt').read()
+
     data_files_tmp = DATA_FILES
     DATA_FILES = []
     for data_file in data_files_tmp:
@@ -261,6 +265,8 @@ elif sys.platform == 'win32':
 else:
     extra_options = dict(
         scripts=APP)
+
+    install_requires = open('requirements_osx.txt').read()
 
 setup(
     name="Souma",
@@ -273,6 +279,6 @@ setup(
     license="Apache License 2.0",
     description="A Cognitive Network for Groups",
     long_description=open("README.md").read(),
-    install_requires=open("requirements.txt").read(),
+    install_requires=install_requires,
     **extra_options
 )
