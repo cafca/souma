@@ -35,11 +35,6 @@ PASSWORD_HASH_FILE = os.path.join(USER_DATA, "pw_hash_{}.dat".format(LOCAL_PORT)
 DATABASE = os.path.join(USER_DATA, 'souma_{}.db'.format(LOCAL_PORT))
 SQLALCHEMY_DATABASE_URI = "sqlite:///" + DATABASE
 
-TOPIC_MODEL = os.path.join(USER_DATA, 'enwiki_lda.model')
-TOPIC_MODEL_IDS = os.path.join(USER_DATA, 'enwiki__wordids.txt')
-TOPIC_MODEL_UPDATE = "http://dl.dropboxusercontent.com/u/46877/topic_model/enwiki_lda.model"
-TOPIC_MODEL_IDS_UPDATE = "http://dl.dropboxusercontent.com/u/46877/topic_model/enwiki__wordids.txt"
-
 # uploads are placed in the UPLOADS_DEFAULT_DEST/'attachments' subfolder by flask-uploads
 # this is configured in web_ui/__init__.py
 UPLOADS_DEFAULT_DEST = os.path.join(USER_DATA, "attachments")

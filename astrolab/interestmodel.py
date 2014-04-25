@@ -36,7 +36,7 @@ class InterestModel(db.Model):
 
 def update():
     app.logger.info("Update interest model")
-    topic_model = TopicModel('static/data/enwiki_lda.model', 'static/data/enwiki__wordids.txt')
+    topic_model = TopicModel(app.config["ASTROLAB_MODEL"], app.config["ASTROLAB_MODEL_IDS"])
     for persona in Persona.query.all():
         interestmodel = InterestModel.query.filter_by(persona_id=persona.id).first()
 
