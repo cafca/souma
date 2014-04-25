@@ -128,11 +128,6 @@ uploads.configure_uploads(app, (attachments))
 loggers = [app.logger, logging.getLogger('synapse'), logging.getLogger('e-synapse')]
 handlers = []
 
-# Disable console logging for frozen Windows app
-from web_ui.helpers import host_kind
-if host_kind() == 'win':
-    app.config["CONSOLE_LOGGING"] = False
-
 if app.config["CONSOLE_LOGGING"] is True:
     console_handler = logging.StreamHandler(stream=sys.stdout)
     console_handler.setFormatter(logging.Formatter(app.config['LOG_FORMAT']))
