@@ -7,7 +7,7 @@ import webbrowser
 
 from web_ui import app, db
 
-from gevent import Greenlet, sleep
+from gevent import Greenlet, sleep, monkey
 from gevent.wsgi import WSGIServer
 from gevent.event import Event
 from sqlalchemy.exc import OperationalError
@@ -20,6 +20,8 @@ from synapse import Synapse
 
 from astrolab.helpers import repeated_func_schedule
 from astrolab.interestmodel import update
+
+monkey.patch_all()
 
 
 def setup_astrolab():
