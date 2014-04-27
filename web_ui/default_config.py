@@ -1,6 +1,7 @@
-import appdirs
 import logging
 import os
+
+import appdirs
 
 # ANY CHANGES MADE TO OPTIONS DEPENDING ON LOCAL_PORT NEED TO BE UPDATED IN
 # web_ui/__init__.py
@@ -13,6 +14,8 @@ def packaged_app():
         return True
 
 USER_DATA = appdirs.user_data_dir("souma", "souma", roaming=True)
+
+VERSION = "1.0.0-alpha.2"
 
 #
 # --------------------- FLASK OPTIONS ---------------------
