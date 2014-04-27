@@ -1584,6 +1584,16 @@ class Starmap(Serializable, db.Model):
         for req in request_list:
             request_objects.send(Starmap.create_from_changeset, message=req)
 
+#
+# Table of group members
+#
+
+t_members = db.Table(
+    'members',
+    db.Column('group_id', db.String(32), db.ForeignKey('group.id')),
+    db.Column('persona_id', db.String(32), db.ForeignKey('persona.id'))
+)
+
 t_group_vesicles = db.Table(
     'group_vesicles',
     db.Column('group_id', db.String(32), db.ForeignKey('group.id')),
@@ -1618,12 +1628,29 @@ class Group(Identity):
     profile_id = db.Column(db.String(32), db.ForeignKey('starmap.id'))
     profile = db.relationship('Starmap', primaryjoin='starmap.c.id==group.c.profile_id')
 
+    members = db.relationship(
+        'Persona',
+        secondary='members',
+        lazy="dynamic",
+        backref="groups",
+        primaryjoin='members.c.group_id==group.c.id',
+        secondaryjoin='members.c.persona_id==persona.c.id')
+
     def __repr__(self):
         try:
             name = " {} ".format(self.username.encode('utf-8'))
         except AttributeError:
             name = ""
         return "<Group @{} [{}]>".format(name, self.id[:6])
+
+    def add_member(self, persona):
+        """Add a Persona as member to this group
+
+        Args:
+            persona (Persona): Persona object to be added
+        """
+        if persona not in self.members:
+            self.members.append(persona)
 
     def authorize(self, action, author_id=None):
         """Return True if this Group authorizes `action` for `author_id`
@@ -1653,6 +1680,15 @@ class Group(Identity):
                 3 -- updating
         """
         return PLANET_STATES[self.state][0]
+
+    def remove_member(self, persona):
+        """Remove a Persona from this group
+
+        Args:
+            persona (Persona): Persona object to be removed
+        """
+        if persona in self.members:
+            self.members.remove(persona)
 
     def set_state(self, new_state):
         """
