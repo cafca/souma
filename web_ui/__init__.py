@@ -133,6 +133,9 @@ uploads.configure_uploads(app, (attachments))
 # to the shell.
 loggers = [app.logger, logging.getLogger('synapse'), logging.getLogger('e-synapse')]
 
+if app.config["LOG_SQL_STATEMENTS"]:
+    loggers.append(logging.getLogger('sqlalchemy.engine'))
+
 console_handler = logging.StreamHandler(stream=sys.stdout)
 console_handler.setFormatter(logging.Formatter(app.config['LOG_FORMAT']))
 

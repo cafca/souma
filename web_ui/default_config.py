@@ -47,6 +47,7 @@ SEND_FILE_MAX_AGE_DEFAULT = 1
 
 LOG_LEVEL = logging.DEBUG
 LOG_FILENAME = os.path.join(USER_DATA, "app.log")
+LOG_SQL_STATEMENTS = False
 LOG_MAXBYTES = 10 * 1024 * 1024
 LOG_FORMAT = (
     '%(name)s :: %(module)s [%(pathname)s:%(lineno)d]\n' +
