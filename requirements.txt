@@ -36,4 +36,3 @@ scikit-learn==0.14.1
 scipy==0.13.3
 six==1.5.2
 wsgiref==0.1.2
-ez-setup==0.9
