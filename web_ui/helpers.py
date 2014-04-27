@@ -44,4 +44,4 @@ def reset_userdata():
         except OSError:
             app.logger.warning("RESET: {} not found".format(fileid))
         else:
-            app.logger.warning("RESET: {} deleted")
+            app.logger.warning("RESET: {} deleted".format(fileid))

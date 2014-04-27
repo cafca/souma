@@ -632,27 +632,28 @@ def create_group():
     from uuid import uuid4
 
     form = Create_group_form()
-    form.author.choices = [(p.id, p.username) for p in Persona.list_controlled()]
-    form.author.data = get_active_persona()
+    form.admin.choices = [(p.id, p.username) for p in Persona.list_controlled()]
+    form.admin.data = get_active_persona()
 
     if form.validate_on_submit():
         # create ID to identify the group across all contexts
         uuid = uuid4().hex
         created_dt = datetime.datetime.utcnow()
 
-        author = Persona.query.get(request.form["author"])
-        if not author.controlled():
-            app.logger.error("Can't create Group with foreign Persona {}".format(author))
-            flash("Can't create Group with foreign Persona {}".format(author))
+        admin = Persona.query.get(request.form["admin"])
+        if not admin.controlled():
+            app.logger.error("Can't create Group with foreign Persona {} as admin".format(admin))
+            flash("Can't create Group with foreign Persona {} as admin".format(admin))
             return redirect(url_for('create_group')), 401
 
         # Create group and add to DB
         g = Group(
             id=uuid,
-            author=author,
+            admin=admin,
             modified=created_dt,
-            groupname=request.form['groupname'],
-            description=request.form['description']
+            username=request.form['username'],
+            description=request.form['description'],
+            members=[admin, ]
         )
 
         db.session.add(g)
@@ -660,7 +661,7 @@ def create_group():
 
         index = Starmap(
             id=uuid4().hex,
-            author=author,
+            author=admin,
             kind="group_profile",
             modified=created_dt
         )
@@ -668,21 +669,28 @@ def create_group():
         db.session.add(index)
         db.session.commit()
 
-        flash("New group {} created!".format(g.groupname))
+        flash("New group {} created!".format(g.username))
         app.logger.info("Created {} with {}".format(g, g.profile))
 
         local_model_changed.send(create_group, message={
-            "author_id": author.id,
+            "author_id": admin.id,
             "action": "insert",
             "object_id": g.id,
             "object_type": "Group",
         })
 
         local_model_changed.send(create_group, message={
-            "author_id": author.id,
+            "author_id": admin.id,
             "action": "insert",
             "object_id": g.profile.id,
             "object_type": "Starmap",
+        })
+
+        local_model_changed.send(create_group, message={
+            "author_id": admin.id,
+            "action": "update",
+            "object_id": admin.id,
+            "object_type": "Persona",
         })
 
         return redirect(url_for('group', id=g.id))

@@ -126,7 +126,7 @@
     <thead>
         <tr>
             <th>ID</id>
-            <th>Groupname</th>
+            <th>Name</th>
             <th>Description</th>
             <th>Profile</th>
             <th>Vesicles</th>
@@ -136,7 +136,7 @@
       {% for group in groups %}
       <tr>
         <td>{{ group.id }}</td>
-        <td>{{ group.groupname }}</td>
+        <td>{{ group.username }}</td>
         <td>{{ group.description }}</td>
         <td>{{ group.profile }}</td>
         <td>{{ group.vesicles | length }}</td>
