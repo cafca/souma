@@ -29,6 +29,7 @@ python-dateutil==2.2
 python-keyczar==0.71c
 readability-lxml==0.3.0.2
 requests==2.2.1
+semantic-version==2.3.0
 scikit-learn==0.14.1
 scipy==0.13.3
 six==1.5.2
