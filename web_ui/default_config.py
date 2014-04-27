@@ -56,6 +56,8 @@ LOG_FORMAT = (
     '%(name)s :: %(module)s [%(pathname)s:%(lineno)d]\n' +
     '%(message)s\n')
 
+LESS_FILENAMES = ["main"]
+
 #
 # --------------------- SYNAPSE OPTIONS -------------------
 #
