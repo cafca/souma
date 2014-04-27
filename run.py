@@ -4,6 +4,7 @@ import os
 import requests
 import sys
 import webbrowser
+import semantic_version
 
 from web_ui import app, db
 
@@ -112,20 +113,29 @@ if getattr(sys, 'frozen', None) == 'macosx_app':
 """ Initialize database """
 try:
     local_souma = Souma.query.get(app.config["SOUMA_ID"])
-except OperationalError:
-    local_souma = None
+except OperationalError, e:
+    app.logger.error("An operational error occured while testing the local database. " +
+        "You should reset all user data with `-r` or delete it from `{}`\n\nError: {}".format(
+            app.config["USER_DATA"], e))
+    quit()
 
 if local_souma is None:
     app.logger.info("Setting up database")
     db.create_all()
 
     app.logger.info("Setting up Nucleus for <Souma [{}]>".format(app.config['SOUMA_ID'][:6]))
-    local_souma = Souma(id=app.config['SOUMA_ID'])
+    local_souma = Souma(id=app.config['SOUMA_ID'], version=app.config["VERSION"])
     local_souma.generate_keys()
     local_souma.starmap = Starmap(id=uuid4().hex, kind="index")
 
     db.session.add(local_souma)
     db.session.commit()
+
+elif local_souma.version < semantic_version.Version(app.config["VERSION"]):
+    app.logger.error("""Local Souma data is outdated (local Souma {} < codebase {}
+        You should reset all user data with `-r` or delete it from `{}`""".format(
+        local_souma.version, app.config["VERSION"], app.config["USER_DATA"]))
+    quit()
 
 """ Start app """
 if app.config['USE_DEBUG_SERVER']:
@@ -158,7 +168,8 @@ else:
             if platform == 'win32':
                 os.system("runas /noprofile /user:Administrator move '{}' '{}'".format(tempfile_path, HOSTSFILE))
             else:
-                os.system("""osascript -e 'do shell script "mv \\"{}\\" \\"{}\\"" with administrator privileges'""".format(tempfile_path, HOSTSFILE))
+                cmd = """osascript -e 'do shell script "mv \\"{}\\" \\"{}\\"" with administrator privileges'"""
+                os.system(cmd.format(tempfile_path, HOSTSFILE))
 
         app.logger.info("Starting Web-UI")
         local_server = WSGIServer(('', app.config['LOCAL_PORT']), app)

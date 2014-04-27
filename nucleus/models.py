@@ -1,6 +1,7 @@
 import datetime
 import json
 import iso8601
+import semantic_version
 
 from base64 import b64encode, b64decode
 from flask import url_for, session
@@ -1164,6 +1165,8 @@ class Souma(Serializable, db.Model):
     starmap_id = db.Column(db.String(32), db.ForeignKey('starmap.id'))
     starmap = db.relationship('Starmap')
 
+    _version_string = db.Column(db.String(32), default="")
+
     def __str__(self):
         return "<Souma [{}]>".format(self.id[:6])
 
@@ -1208,6 +1211,17 @@ class Souma(Serializable, db.Model):
 
         key_private = RsaPrivateKey.Read(self.crypt_private)
         return key_private.Decrypt(cypher)
+
+    @property
+    def version(self):
+        """Return semantic version object for this Souma"""
+        if not hasattr(self, "_version_string"):
+            return None
+        return semantic_version.Version(self._version_string)
+
+    @version.setter
+    def version(self, value):
+        self._version_string = str(semantic_version.Version(value))
 
     def sign(self, data):
         """ Sign data using RSA """
