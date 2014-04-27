@@ -25,8 +25,8 @@ class Create_star_form(Form):
 class Create_group_form(Form):
     """ Generate form for creating a group """
 
-    author = HiddenField('Author', validators=[DataRequired(), ])
-    groupname = TextField('Group name', validators=[DataRequired(), ])
+    admin = HiddenField('Admin', validators=[DataRequired(), ])
+    username = TextField('Group name', validators=[DataRequired(), ])
     description = TextAreaField('Description', validators=[DataRequired(), ])
 
 

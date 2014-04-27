@@ -6,7 +6,7 @@
 <table class="table">
     <thead>
         <tr>
-            <th>Groupname</th>
+            <th>Name</th>
             <th>Description</th>
         </tr>
     </thead>
@@ -14,7 +14,7 @@
       {% for group in groups %}
       <tr>
         <td>
-            <a href="{{ url_for('group', id=group.id) }}"> {{ group.groupname }} </a>
+            <a href="{{ url_for('group', id=group.id) }}"> {{ group.username }} </a>
         </td>
         <td>{{ group.description }}</td>
       </tr>

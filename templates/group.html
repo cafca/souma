@@ -9,7 +9,7 @@
 <!-- <section class="col0 row1 w3 h1">-->
 <section class='{{ page.header[0].css_class }}'>
     <span class="content">
-        <h1>{{group.groupname}}</h1>
+        <h1>{{group.username}}</h1>
         <p>Description: {{group.description}}</p>
     </span>
 </section>
@@ -32,6 +32,6 @@
     </section>
 {% endfor %}
 
-{{ pagination.render_pagination(page.pagination, "persona") }}
+{{ pagination.render_pagination(page.pagination, "group", id=group.id) }}
 
 {% endblock %}

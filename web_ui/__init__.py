@@ -66,7 +66,7 @@ if args.reset is True:
         except OSError:
             app.logger.warning("RESET: {} not found".format(fileid))
         else:
-            app.logger.warning("RESET: {} deleted")
+            app.logger.warning("RESET: {} deleted".format(fileid))
 
 if args.port is not None:
     app.config['LOCAL_PORT'] = args.port

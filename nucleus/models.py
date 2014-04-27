@@ -522,7 +522,7 @@ class Persona(Identity):
         app.logger.info("Updated {} from changeset. Requesting {} objects.".format(self, len(request_list)))
 
         for req in request_list:
-            request_objects.send(Persona.create_from_changeset, message=req)
+            request_objects.send(Persona.update_from_changeset, message=req)
 
     def update_contacts(self, contact_list):
         """Update Persona's contacts from a list of the new contacts
@@ -1591,49 +1591,39 @@ t_group_vesicles = db.Table(
 )
 
 
-class Group(Serializable, db.Model):
-    """
-        Represents an entity that is comprised of users collaborating on
-        stars
+class Group(Identity):
+    """Represents an entity that is comprised of users collaborating on stars
+
+    Attributes:
+        id (String): 32 byte ID of this group
+        description (String): Text decription of what this group is about
+        admin (Persona): Person that is allowed to make structural changes to the group_id
+
     """
 
     __tablename__ = "group"
-    _insert_required = ["id", "modified", "author_id", "groupname", "description", "profile_id", "state"]
-    _update_required = ["id", "modified", "state"]
+    __mapper_args__ = {'polymorphic_identity': 'group'}
 
-    id = db.Column(db.String(32), primary_key=True)
-    modified = db.Column(db.DateTime, default=datetime.datetime.utcnow())
-    groupname = db.Column(db.String(80))
+    _insert_required = Identity._insert_required + ["admin_id", "description", "profile_id", "state"]
+    _update_required = Identity._update_required + ["state"]
+
+    id = db.Column(db.String(32), db.ForeignKey('identity.id'), primary_key=True)
     description = db.Column(db.Text)
 
     state = db.Column(db.Integer, default=0)
 
-    author_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
-    author = db.relationship("Persona", primaryjoin="persona.c.id==group.c.author_id")
+    admin_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
+    admin = db.relationship("Persona", primaryjoin="persona.c.id==group.c.admin_id")
 
     profile_id = db.Column(db.String(32), db.ForeignKey('starmap.id'))
     profile = db.relationship('Starmap', primaryjoin='starmap.c.id==group.c.profile_id')
 
-    vesicles = db.relationship(
-        'Vesicle',
-        secondary='group_vesicles',
-        primaryjoin='group_vesicles.c.group_id==group.c.id',
-        secondaryjoin='group_vesicles.c.vesicle_id==vesicle.c.id')
-
-    # Make this work if needed!
-    """
-    members = db.relationship(
-        "Persona",
-        backref="groups",
-        primaryjoin='group.c.id==persona.c.?????_id' # TODO:How to HBTM?!
-    )"""
-
     def __repr__(self):
         try:
-            name = " {} ".format(self.groupname.encode('utf-8'))
+            name = " {} ".format(self.username.encode('utf-8'))
         except AttributeError:
             name = ""
-        return "<Group{}[{}]>".format(name, self.id[:6])
+        return "<Group @{} [{}]>".format(name, self.id[:6])
 
     def authorize(self, action, author_id=None):
         """Return True if this Group authorizes `action` for `author_id`
@@ -1646,7 +1636,7 @@ class Group(Serializable, db.Model):
             Boolean: True if authorized
         """
         if Serializable.authorize(self, action, author_id=author_id):
-            return self.author_id == author_id
+            return self.admin_id == author_id
         return False
 
     def get_state(self):
@@ -1684,63 +1674,70 @@ class Group(Serializable, db.Model):
     @staticmethod
     def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
         """Create a new group from changeset"""
-        modified_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
+        group = Identity.create_from_changeset(changeset,
+            stub=stub, update_sender=update_sender, update_recipient=update_recipient)
 
-        if stub is not None:
-            group = stub
-            group.id = changeset["id"]
-            group.author = None
-            group.profile = None
-            group.modified = modified_dt
-            group.groupname = changeset["groupname"]
-            group.description = changeset["description"]
-        else:
-            group = Group(
-                id=changeset["id"],
-                modified=modified_dt,
-                author=None,
-                profile=None,
-                groupname=changeset["groupname"],
-                description=changeset["description"]
-            )
-
-        group.set_state(int(changeset["state"]))
+        group.description = changeset["description"]
+        group.set_state(changeset["state"])
         request_list = list()
 
-        # Update profile
-        profile = Starmap.query.get(changeset["profile_id"])
-        if profile is None or profile.get_state() == -1:
-            request_list.append({
-                "type": "Starmap",
-                "id": changeset["profile_id"],
-                "author_id": update_recipient.id if update_recipient else None,
-                "recipient_id": update_sender.id if update_sender else None,
-            })
-
-        if profile is None:
-            profile = Starmap(
-                id=changeset["profile_id"],
-                kind="group_profile"
-            )
-            profile.state = -1
-
-        group.profile = profile
-
-        # Update author
-        author = Persona.query.get(changeset["author_id"])
-        if author is None or author._stub:
+        # Update admin
+        admin = Persona.query.get(changeset["admin_id"])
+        if admin is None or admin._stub:
             request_list.append({
                 "type": "Persona",
-                "id": changeset["author_id"],
+                "id": changeset["admin_id"],
                 "author_id": update_recipient.id if update_recipient else None,
                 "recipient_id": update_sender.id if update_sender else None,
             })
 
-        if author is None:
-            author = Persona(
-                id=changeset["author_id"],
+        if admin is None:
+            admin = Persona(
+                id=changeset["admin_id"],
             )
-            author._stub = True
+            admin._stub = True
 
-        group.author = author
+        group.admin = admin
+
+        for req in request_list:
+            request_objects.send(Group.create_from_changeset, message=req)
+
         return group
+
+    def update_from_changeset(self, changeset, update_sender=None, update_recipient=None):
+        """Update group. See Serializable.update_from_changeset"""
+        Identity.update_from_changeset(self, changeset,
+            update_sender=update_sender, update_recipient=update_recipient)
+
+        app.logger.info("Now applying Group-specific updates for {}".format(self))
+
+        request_list = list()
+
+        self.set_state(changeset["state"])
+
+        if "description" in changeset:
+            self.description = changeset["description"]
+            app.logger.info("Updated {}'s description".format(self))
+
+        if "admin_id" in changeset:
+            admin = Persona.query.get(changeset["admin_id"])
+            if admin is None or admin._stub:
+                request_list.append({
+                    "type": "Persona",
+                    "id": changeset["admin_id"],
+                    "author_id": update_recipient.id if update_recipient else None,
+                    "recipient_id": update_sender.id if update_sender else None,
+                })
+
+            if admin is None:
+                admin = Persona(
+                    id=changeset["admin_id"],
+                )
+                admin._stub = True
+
+            self.admin = admin
+
+        app.logger.info("Updated {} from changeset. Requesting {} objects.".format(self, len(request_list)))
+
+        for req in request_list:
+            request_objects.send(Group.update_from_changeset, message=req)
