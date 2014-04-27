@@ -333,13 +333,15 @@ class Vesicle(db.Model):
         self.keycrypt = json.dumps(keycrypt)
         app.logger.info("Removed {} as a recipient of {}".format(recipient, self))
 
-    def json(self):
+    def json(self, indent=False,):
         """
         Generate JSON representation of this Vesicle, including all attributes defined in self._send_attributes.
 
         Returns:
             String: JSON encoded Vesicle contents
         """
+        indent = 4 if indent else None
+
         # Temporarily encode data if this is a plaintext message
         if self.payload is None:
             plainenc = True
@@ -352,7 +354,7 @@ class Vesicle(db.Model):
             message[attr] = getattr(self, attr)
         message["created"] = datetime.datetime.utcnow().isoformat()
         message["souma_id"] = app.config["SOUMA_ID"]
-        r = json.dumps(message)
+        r = json.dumps(message, indent=indent)
 
         if plainenc:
             self.payload = None

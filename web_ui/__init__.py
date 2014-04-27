@@ -66,7 +66,7 @@ if args.reset is True:
         except OSError:
             app.logger.warning("RESET: {} not found".format(fileid))
         else:
-            app.logger.warning("RESET: {} deleted")
+            app.logger.warning("RESET: {} deleted".format(fileid))
 
 if args.port is not None:
     app.config['LOCAL_PORT'] = args.port
@@ -132,6 +132,9 @@ uploads.configure_uploads(app, (attachments))
 # mode. This overrides this setting and enables a new logging handler which prints
 # to the shell.
 loggers = [app.logger, logging.getLogger('synapse'), logging.getLogger('e-synapse')]
+
+if app.config["LOG_SQL_STATEMENTS"]:
+    loggers.append(logging.getLogger('sqlalchemy.engine'))
 
 console_handler = logging.StreamHandler(stream=sys.stdout)
 console_handler.setFormatter(logging.Formatter(app.config['LOG_FORMAT']))

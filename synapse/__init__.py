@@ -56,7 +56,6 @@ class Synapse():
         signal('local-model-changed').connect(self.on_local_model_change)
         signal('new-contact').connect(self.on_new_contact)
         signal('request-objects').connect(self.on_request_objects)
-        signal('group-created').connect(self.on_group_created)
 
     def _distribute_vesicle(self, vesicle, recipients=None):
         """
@@ -511,7 +510,7 @@ class Synapse():
             session.rollback()
             raise
         else:
-            self.logger.info("Local {} changed: Distributing {}\n{}".format(obj, vesicle, vesicle.json()))
+            self.logger.info("Local {} changed: Distributing {}\n{}".format(obj, vesicle, vesicle.json(indent=True)))
             vesicle = self._distribute_vesicle(vesicle, recipients=recipients)
 
         session.add(vesicle)
@@ -554,10 +553,6 @@ class Synapse():
             raise
         finally:
             session.flush()
-
-    def on_group_created(self, sender, message):
-        # TODO: Implement how to react on blinker notification
-        pass
 
     def request_object(self, object_type, object_id, author, recipient, session):
         """
