@@ -17,6 +17,7 @@ from uuid import uuid4
 from nucleus.set_hosts import test_host_entry, create_new_hosts_file, HOSTSFILE
 from nucleus.models import Souma, Starmap
 from synapse import Synapse
+from web_ui.helpers import compile_less
 
 from astrolab.helpers import repeated_func_schedule
 from astrolab.interestmodel import update
@@ -83,6 +84,7 @@ def watch_layouts():
                 app.logger.error("Failed loading layout definitions")
                 app.config['LAYOUT_DEFINITIONS'] = dict()
         mtime_last = mtime_cur
+
 
 """ patch gevent for py2app """
 if getattr(sys, 'frozen', None) == 'macosx_app':
@@ -159,6 +161,8 @@ else:
                 os.system("runas /noprofile /user:Administrator move '{}' '{}'".format(tempfile_path, HOSTSFILE))
             else:
                 os.system("""osascript -e 'do shell script "mv \\"{}\\" \\"{}\\"" with administrator privileges'""".format(tempfile_path, HOSTSFILE))
+
+        compile_less()
 
         app.logger.info("Starting Web-UI")
         local_server = WSGIServer(('', app.config['LOCAL_PORT']), app)
