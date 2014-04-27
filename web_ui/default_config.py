@@ -44,6 +44,7 @@ LOG_FORMAT = (
     '%(message)s\n')
 
 LAYOUT_DEFINITIONS = dict()
+LESS_FILENAMES = ["main"]
 
 #
 # --------------------- SYNAPSE OPTIONS -------------------

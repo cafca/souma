@@ -5,7 +5,6 @@ from flask import session
 from datetime import datetime
 from gevent import sleep
 
-
 # For calculating scores
 epoch = datetime.utcfromtimestamp(0)
 epoch_seconds = lambda dt: (dt - epoch).total_seconds() - 1356048000
@@ -16,9 +15,22 @@ def allowed_file(filename):
            filename.rsplit('.', 1)[1] in app.config['ALLOWED_EXTENSIONS']
 
 
+def compile_less():
+    """Compile all less files that are newer than their css counterparts."""
+    filenames = app.config["LESS_FILENAMES"]
+    for fn in filenames:
+        app.logger.info("Compiling {}.less".format(fn))
+
+        rv = os.system("touch static/css/{}.css".format(fn))
+        rv += os.system("lesscpy static/css/{fn}.less > static/css/{fn}.css".format(fn=fn))
+
+    if rv > 0:
+        app.logger.error("Compilation of LESS stylesheets failed.")
+
+
 def get_active_persona():
-    from nucleus.models import Persona
     """ Return the currently active persona or 0 if there is no controlled persona. """
+    from nucleus.models import Persona
 
     if 'active_persona' not in session or session['active_persona'] is None:
         """Activate first Persona with a private key"""
