@@ -501,7 +501,7 @@ class Star(Serializable, db.Model):
 
     __tablename__ = "star"
 
-    _insert_required = ["id", "text", "created", "modified", "author_id", "planet_assocs"]
+    _insert_required = ["id", "text", "created", "modified", "author_id", "planet_assocs", "parent_id"]
     _update_required = ["id", "text", "modified"]
 
     id = db.Column(db.String(32), primary_key=True)
@@ -593,8 +593,6 @@ class Star(Serializable, db.Model):
         else:
             star.author = author
 
-        app.logger.info("Created new Star from changeset")
-
         # Append planets to new Star
         for planet_assoc in changeset["planet_assocs"]:
             if not PlanetAssociation.validate_changeset(planet_assoc):
@@ -618,6 +616,21 @@ class Star(Serializable, db.Model):
                 assoc = PlanetAssociation(author=author, planet=planet)
                 star.planet_assocs.append(assoc)
                 app.logger.info("Added {} to new {}".format(planet, star))
+
+        app.logger.info("Created {} from changeset".format(star))
+
+        if changeset["parent_id"] != "None":
+            parent = Star.query.get(changeset["parent_id"])
+            if parent:
+                star.parent = parent
+            else:
+                app.logger.info("Requesting {}'s parent star".format(star))
+                request_objects.send({
+                    "type": "Star",
+                    "id": changeset["parent_id"],
+                    "author_id": update_recipient.id,
+                    "recipient_id": update_sender.id,
+                })
 
         return star
 
