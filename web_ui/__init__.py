@@ -133,7 +133,7 @@ if app.config["CONSOLE_LOGGING"] is True:
     console_handler.setFormatter(logging.Formatter(app.config['LOG_FORMAT']))
     handlers.append(console_handler)
 
-if app.config["FILE_LOGGIN"] is True:
+if app.config["FILE_LOGGING"] is True:
     file_handler = RotatingFileHandler(app.config["LOG_FILENAME"],
         maxBytes=app.config["LOG_MAXBYTES"], backupCount=5, delay=True)
     file_handler.setFormatter(logging.Formatter(app.config['LOG_FORMAT']))
