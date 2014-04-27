@@ -15,7 +15,7 @@ def packaged_app():
 
 USER_DATA = appdirs.user_data_dir("souma", "souma", roaming=True)
 
-VERSION = "1.0.0-alpha.2"
+VERSION = "1.0.0-alpha.1"
 
 #
 # --------------------- FLASK OPTIONS ---------------------

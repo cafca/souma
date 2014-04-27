@@ -113,11 +113,11 @@ if getattr(sys, 'frozen', None) == 'macosx_app':
 """ Initialize database """
 try:
     local_souma = Souma.query.get(app.config["SOUMA_ID"])
-except OperationalError:
-    app.logger.error("Operational error while testing database access. Resetting user data")
-    from web_ui.helpers import reset_userdata
-    reset_userdata()
-    local_souma = None
+except OperationalError, e:
+    app.logger.error("An operational error occured while testing the local database. " +
+        "You should reset all user data with `-r` or delete it from `{}`\n\nError: {}".format(
+            app.config["USER_DATA"], e))
+    quit()
 
 if local_souma is None:
     app.logger.info("Setting up database")
