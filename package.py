@@ -14,6 +14,12 @@ import sys, os
 if sys.platform == 'win32':
     import py2exe
 
+# Compile .less files
+filenames = ["main", ]
+for fn in filenames:
+    rv = os.system("touch ./static/css/{}.css".format(fn))
+    rv += os.system("lesscpy ./static/css/{fn}.less > ./static/css/{fn}.css".format(fn=fn))
+
 APP = ['run.py']
 DATA_FILES = ['templates', 'static']
 

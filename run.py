@@ -17,6 +17,7 @@ from uuid import uuid4
 from nucleus.set_hosts import test_host_entry, create_new_hosts_file, HOSTSFILE
 from nucleus.models import Souma, Starmap
 from synapse import Synapse
+from web_ui.helpers import host_kind, compile_less
 
 from astrolab.helpers import repeated_func_schedule
 from astrolab.interestmodel import update
@@ -142,6 +143,10 @@ else:
                 os.system("runas /noprofile /user:Administrator move '{}' '{}'".format(tempfile_path, HOSTSFILE))
             else:
                 os.system("""osascript -e 'do shell script "mv \\"{}\\" \\"{}\\"" with administrator privileges'""".format(tempfile_path, HOSTSFILE))
+
+        # Compile less when running from console
+        if host_kind() == "":
+            compile_less()
 
         app.logger.info("Starting Web-UI")
         local_server = WSGIServer(('', app.config['LOCAL_PORT']), app)
