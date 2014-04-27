@@ -511,7 +511,7 @@ class Synapse():
             session.rollback()
             raise
         else:
-            self.logger.info("Local {} changed: Distributing {}\n{}".format(obj, vesicle, vesicle.json()))
+            self.logger.info("Local {} changed: Distributing {}\n{}".format(obj, vesicle, vesicle.json(indent=True)))
             vesicle = self._distribute_vesicle(vesicle, recipients=recipients)
 
         session.add(vesicle)
