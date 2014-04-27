@@ -136,6 +136,191 @@ class Serializable():
         """
         raise NotImplementedError()
 
+
+t_identity_vesicles = db.Table(
+    'identity_vesicles',
+    db.Column('identity_id', db.String(32), db.ForeignKey('identity.id')),
+    db.Column('vesicle_id', db.String(32), db.ForeignKey('vesicle.id'))
+)
+
+
+class Identity(Serializable, db.Model):
+    """Abstract identity, superclass of Persona and Group"""
+
+    __tablename__ = "identity"
+
+    _insert_required = ["id", "username", "crypt_public", "sign_public", "modified", "profile_id"]
+    _update_required = ["id", "modified"]
+
+    _stub = db.Column(db.Boolean, default=False)
+    id = db.Column(db.String(32), primary_key=True)
+    username = db.Column(db.String(80))
+    crypt_private = db.Column(db.Text)
+    crypt_public = db.Column(db.Text)
+    sign_private = db.Column(db.Text)
+    sign_public = db.Column(db.Text)
+    modified = db.Column(db.DateTime, default=datetime.datetime.utcnow())
+
+    vesicles = db.relationship(
+        'Vesicle',
+        secondary='identity_vesicles',
+        primaryjoin='identity_vesicles.c.identity_id==identity.c.id',
+        secondaryjoin='identity_vesicles.c.vesicle_id==vesicle.c.id')
+
+    profile_id = db.Column(db.String(32), db.ForeignKey('starmap.id'))
+    profile = db.relationship('Starmap', primaryjoin='starmap.c.id==identity.c.profile_id')
+
+    # Myelin offset stores the date at which the last Vesicle receieved from Myelin was created
+    myelin_offset = db.Column(db.DateTime)
+
+    def __repr__(self):
+        return "<@{} [{}]>".format(str(self.username), self.id[:6])
+
+    def authorize(self, action, author_id=None):
+        """Return True if this Identity authorizes `action` for `author_id`
+
+        Args:
+            action (String): Action to be performed (see Synapse.CHANGE_TYPES)
+            author_id (String): Identity ID that wants to perform the action
+
+        Returns:
+            Boolean: True if authorized
+        """
+        if Serializable.authorize(self, action, author_id=author_id):
+            return (self.id == author_id)
+        return False
+
+    def controlled(self):
+        """
+        Return True if this Identity has private keys attached
+        """
+        if self.crypt_private is not None and self.sign_private is not None:
+            return True
+        else:
+            return False
+
+    @staticmethod
+    def list_controlled():
+        return Identity.query.filter('Identity.sign_private != ""')
+
+    def generate_keys(self, password):
+        """ Generate new RSA keypairs for signing and encrypting. Commit to DB afterwards! """
+
+        # TODO: Store keys encrypted
+        rsa1 = RsaPrivateKey.Generate()
+        self.sign_private = str(rsa1)
+        self.sign_public = str(rsa1.public_key)
+
+        rsa2 = RsaPrivateKey.Generate()
+        self.crypt_private = str(rsa2)
+        self.crypt_public = str(rsa2.public_key)
+
+    def encrypt(self, data):
+        """ Encrypt data using RSA """
+
+        key_public = RsaPublicKey.Read(self.crypt_public)
+        return b64encode(key_public.Encrypt(data))
+
+    def decrypt(self, cypher):
+        """ Decrypt cyphertext using RSA """
+
+        cypher = b64decode(cypher)
+        key_private = RsaPrivateKey.Read(self.crypt_private)
+        return key_private.Decrypt(cypher)
+
+    def sign(self, data):
+        """ Sign data using RSA """
+
+        key_private = RsaPrivateKey.Read(self.sign_private)
+        signature = key_private.Sign(data)
+        return b64encode(signature)
+
+    def verify(self, data, signature_b64):
+        """ Verify a signature using RSA """
+
+        signature = b64decode(signature_b64)
+        key_public = RsaPublicKey.Read(self.sign_public)
+        return key_public.Verify(data, signature)
+
+    @staticmethod
+    def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
+        """See Serializable.create_from_changeset"""
+        request_list = list()
+
+        modified_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
+
+        if stub:
+            ident = stub
+            ident.id = changeset["id"]
+            ident.username = changeset["username"]
+            ident.crypt_public = changeset["crypt_public"]
+            ident.sign_public = changeset["sign_public"]
+            ident.modified = modified_dt
+            ident._stub = False
+        else:
+            ident = Identity(
+                id=changeset["id"],
+                username=changeset["username"],
+                crypt_public=changeset["crypt_public"],
+                sign_public=changeset["sign_public"],
+                modified=modified_dt,
+            )
+
+        # Update profile
+        profile = Starmap.query.get(changeset["profile_id"])
+        if profile is None or profile.get_state() == -1:
+            request_list.append({
+                "type": "Starmap",
+                "id": changeset["profile_id"],
+                "author_id": update_recipient.id,
+                "recipient_id": update_sender.id,
+            })
+
+        if profile is None:
+            profile = Starmap(id=changeset["profile_id"])
+            profile.state = -1
+
+        ident.profile = profile
+
+        app.logger.info("Created {} from changeset, now requesting {} linked objects".format(
+            ident, len(request_list)))
+
+        for req in request_list:
+            request_objects.send(Identity.create_from_changeset, message=req)
+
+        return ident
+
+    def update_from_changeset(self, changeset, update_sender=None, update_recipient=None):
+        """See Serializable.update_from_changeset"""
+        request_list = list()
+
+        # Update modified
+        modified_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
+        self.modified = modified_dt
+
+        # Update username
+        self.username = changeset["username"]
+        app.logger.info("Updated {}'s {}".format(self.username, "username"))
+
+        # Update profile
+        profile = Starmap.query.get(changeset["profile_id"])
+        if profile is None or profile.get_state() == -1:
+            request_list.append({
+                "type": "Starmap",
+                "id": changeset["profile_id"],
+                "author_id": update_recipient.id,
+                "recipient_id": update_sender.id,
+            })
+            app.logger.info("Requested {}'s {}".format(self.username, "profile starmap"))
+        else:
+            self.profile = profile
+            app.logger.info("Updated {}'s {}".format(self.username, "profile starmap"))
+
+        app.logger.info("Updated {} from changeset. Requesting {} objects.".format(self, len(request_list)))
+
+        for req in request_list:
+            request_objects.send(Persona.create_from_changeset, message=req)
+
 #
 # Setup follower relationship on Persona objects
 #
@@ -144,12 +329,6 @@ t_contacts = db.Table(
     'contacts',
     db.Column('left_id', db.String(32), db.ForeignKey('persona.id')),
     db.Column('right_id', db.String(32), db.ForeignKey('persona.id'))
-)
-
-t_persona_vesicles = db.Table(
-    'persona_vesicles',
-    db.Column('persona_id', db.String(32), db.ForeignKey('persona.id')),
-    db.Column('vesicle_id', db.String(32), db.ForeignKey('vesicle.id'))
 )
 
 
