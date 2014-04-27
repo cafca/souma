@@ -7,6 +7,7 @@ from flask import url_for, session
 from hashlib import sha256
 from keyczar.keys import RsaPrivateKey, RsaPublicKey
 from sqlalchemy import ForeignKey
+from sqlalchemy.orm import remote
 from uuid import uuid4
 
 from nucleus import ONEUP_STATES, STAR_STATES, PLANET_STATES, \
@@ -191,7 +192,11 @@ class Identity(Serializable, db.Model):
     }
 
     def __repr__(self):
-        return "<@{} [{}]>".format(str(self.username), self.id[:6])
+        try:
+            name = self.username.encode('utf-8')
+        except AttributeError:
+            name = ""
+        return "<ID @{} [{}]>".format(name, self.id[:6])
 
     def authorize(self, action, author_id=None):
         """Return True if this Identity authorizes `action` for `author_id`
@@ -260,8 +265,12 @@ class Identity(Serializable, db.Model):
         return key_public.Verify(data, signature)
 
     @staticmethod
-    def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
-        """See Serializable.create_from_changeset"""
+    def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None, kind=None):
+        """See Serializable.create_from_changeset
+
+        Args:
+            kind (class): Pass a class to create new entity from
+        """
         request_list = list()
 
         modified_dt = iso8601.parse_date(changeset["modified"]).replace(tzinfo=None)
@@ -275,7 +284,10 @@ class Identity(Serializable, db.Model):
             ident.modified = modified_dt
             ident._stub = False
         else:
-            ident = Identity(
+            if kind is None:
+                kind = Identity
+
+            ident = kind(
                 id=changeset["id"],
                 username=changeset["username"],
                 crypt_public=changeset["crypt_public"],
@@ -347,7 +359,8 @@ class Identity(Serializable, db.Model):
 t_contacts = db.Table(
     'contacts',
     db.Column('left_id', db.String(32), db.ForeignKey('persona.id')),
-    db.Column('right_id', db.String(32), db.ForeignKey('persona.id'))
+    db.Column('right_id', db.String(32), db.ForeignKey('persona.id')),
+    db.UniqueConstraint('left_id', 'right_id', name='_uc_contacts')
 )
 
 
@@ -365,7 +378,7 @@ class Persona(Identity):
         'polymorphic_identity': 'persona'
     }
 
-    _insert_required = Identity._insert_required + ["email", "index_id", "contacts"]
+    _insert_required = Identity._insert_required + ["email", "index_id", "contacts", "groups"]
     _update_required = Identity._update_required
 
     id = db.Column(db.String(32), db.ForeignKey('identity.id'), primary_key=True)
@@ -375,6 +388,7 @@ class Persona(Identity):
         'Persona',
         secondary='contacts',
         lazy="dynamic",
+        remote_side='contacts.c.right_id',
         primaryjoin='contacts.c.left_id==persona.c.id',
         secondaryjoin='contacts.c.right_id==persona.c.id')
 
@@ -383,6 +397,13 @@ class Persona(Identity):
 
     # Myelin offset stores the date at which the last Vesicle receieved from Myelin was created
     myelin_offset = db.Column(db.DateTime)
+
+    def __repr__(self):
+        try:
+            name = self.username.encode('utf-8')
+        except AttributeError:
+            name = ""
+        return "<Persona @{} [{}]>".format(name, self.id[:6])
 
     def authorize(self, action, author_id=None):
         """Return True if this Persona authorizes `action` for `author_id`
@@ -406,12 +427,18 @@ class Persona(Identity):
         return url_for('persona', id=self.id)
 
     def export(self, update=False):
-        data = Identity.export(self, exclude=["contacts", ], update=update)
+        data = Identity.export(self, exclude=["contacts", "groups"], update=update)
 
         data["contacts"] = list()
         for contact in self.contacts:
             data["contacts"].append({
                 "id": contact.id,
+            })
+
+        data["groups"] = list()
+        for group in self.groups:
+            data["groups"].append({
+                "id": group.id,
             })
 
         return data
@@ -435,7 +462,7 @@ class Persona(Identity):
     def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
         """See Serializable.create_from_changeset"""
         p = Identity.create_from_changeset(changeset,
-            stub=stub, update_sender=update_sender, update_recipient=update_recipient)
+            stub=stub, update_sender=update_sender, update_recipient=update_recipient, kind=Persona)
 
         request_list = list()
 
@@ -462,10 +489,21 @@ class Persona(Identity):
         for mc in missing_contacts:
             request_list.append({
                 "type": "Persona",
-                "id": mc["id"],
+                "id": mc,
                 "author_id": update_recipient.id,
                 "recipient_id": update_sender.id,
             })
+
+        # Request unknown groups
+        for group_info in changeset["groups"]:
+            group = Group.query.get(group_info["id"])
+            if group is None:
+                request_list.append({
+                    "type": "Group",
+                    "id": group_info["id"],
+                    "author_id": update_recipient.id,
+                    "recipient_id": update_sender.id,
+                })
 
         app.logger.info("Made {} a Persona object, now requesting {} linked objects".format(
             p, len(request_list)))
@@ -514,10 +552,22 @@ class Persona(Identity):
             for mc in missing_contacts:
                 request_list.append({
                     "type": "Persona",
-                    "id": mc["id"],
+                    "id": mc,
                     "author_id": update_recipient.id,
                     "recipient_id": update_sender.id,
                 })
+
+        # Request unknown groups
+        if "groups" in changeset:
+            for group_info in changeset["groups"]:
+                group = Group.query.get(group_info["id"])
+                if group is None:
+                    request_list.append({
+                        "type": "Group",
+                        "id": group_info["id"],
+                        "author_id": update_recipient.id,
+                        "recipient_id": update_sender.id,
+                    })
 
         app.logger.info("Updated {} from changeset. Requesting {} objects.".format(self, len(request_list)))
 
@@ -537,31 +587,33 @@ class Persona(Identity):
         updated_contacts = 0
         request_list = list()
 
-        # remove_contacts contains all old contacts at first, all current
+        # stale_contacts contains all old contacts at first, all current
         # contacts get then removed so that the remaining can get deleted
-        remove_contacts = set(self.contacts)
+        stale_contacts = set(self.contacts)
 
         for contact in contact_list:
             c = Persona.query.get(contact["id"])
 
             if c is None:
                 c = Persona(id=contact["id"], _stub=True)
+
+            if c._stub is True:
                 request_list.append(contact["id"])
-            else:
+
+            try:
+                # Old and new contact; remove from stale list
+                stale_contacts.remove(c)
+            except KeyError:
+                # New contact
+                self.contacts.append(c)
                 updated_contacts += 1
 
-                try:
-                    remove_contacts.remove(c)
-                except KeyError:
-                    pass
-
-            self.contacts.append(c)
-
-        for contact in remove_contacts:
+        # Remove old contacts that are not new contacts
+        for contact in stale_contacts:
             self.contacts.remove(contact)
 
         app.logger.info("Updated {}'s contacts: {} added, {} removed, {} requested".format(
-            self.username, updated_contacts, len(remove_contacts), len(request_list)))
+            self.username, updated_contacts, len(stale_contacts), len(request_list)))
 
         return request_list
 
@@ -1614,7 +1666,7 @@ class Group(Identity):
     __tablename__ = "group"
     __mapper_args__ = {'polymorphic_identity': 'group'}
 
-    _insert_required = Identity._insert_required + ["admin_id", "description", "profile_id", "state"]
+    _insert_required = Identity._insert_required + ["admin_id", "description", "profile_id", "state", "members"]
     _update_required = Identity._update_required + ["state"]
 
     id = db.Column(db.String(32), db.ForeignKey('identity.id'), primary_key=True)
@@ -1638,7 +1690,7 @@ class Group(Identity):
 
     def __repr__(self):
         try:
-            name = " {} ".format(self.username.encode('utf-8'))
+            name = self.username.encode('utf-8')
         except AttributeError:
             name = ""
         return "<Group @{} [{}]>".format(name, self.id[:6])
@@ -1665,6 +1717,24 @@ class Group(Identity):
         if Serializable.authorize(self, action, author_id=author_id):
             return self.admin_id == author_id
         return False
+
+    def export(self, exclude=None, update=False):
+        if not exclude:
+            exclude = list()
+
+        data = Identity.export(self, exclude=exclude + ["members"], update=update)
+
+        if "members" in exclude:
+            quit("yolo")
+
+        if "members" not in exclude:
+            data["members"] = list()
+            for m in self.members:
+                data["members"].append({
+                    "id": m.id,
+                })
+
+        return data
 
     def get_state(self):
         """
@@ -1707,11 +1777,54 @@ class Group(Identity):
         else:
             self.state = new_state
 
+    def update_members(self, new_member_list):
+        """Update Groups's members from a list of the new members
+
+        Args:
+            new_member_list (list): List of dictionaries with keys:
+                id (String) -- 32 byte ID of the member
+
+        Returns:
+            list: List of missing Persona IDs to be requested
+        """
+        updated_members = 0
+        request_list = list()
+
+        # stale_members contains all old members at first, all current
+        # members get then removed so that the remaining can get deleted
+        stale_members = set(self.members)
+
+        for member in new_member_list:
+            m = Persona.query.get(member["id"])
+
+            if m is None:
+                m = Persona(id=member["id"], _stub=True)
+
+            if m._stub is True:
+                request_list.append(member["id"])
+
+            try:
+                # Old and new member; remove from stale list
+                stale_members.remove(m)
+            except KeyError:
+                # New member
+                self.members.append(m)
+                updated_members += 1
+
+        # Remove old members that are not new members
+        for member in stale_members:
+            self.members.remove(member)
+
+        app.logger.info("Updated {}'s members: {} added, {} removed, {} requested".format(
+            self.username, updated_members, len(stale_members), len(request_list)))
+
+        return request_list
+
     @staticmethod
     def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
         """Create a new group from changeset"""
         group = Identity.create_from_changeset(changeset,
-            stub=stub, update_sender=update_sender, update_recipient=update_recipient)
+            stub=stub, update_sender=update_sender, update_recipient=update_recipient, kind=Group)
 
         group.description = changeset["description"]
         group.set_state(changeset["state"])
@@ -1734,6 +1847,15 @@ class Group(Identity):
             admin._stub = True
 
         group.admin = admin
+
+        mc = group.update_members(changeset["members"])
+        for m in mc:
+            request_list.append({
+                "type": "Persona",
+                "id": m,
+                "author_id": update_recipient.id if update_recipient else None,
+                "recipient_id": update_sender.id if update_sender else None,
+            })
 
         for req in request_list:
             request_objects.send(Group.create_from_changeset, message=req)
@@ -1772,6 +1894,16 @@ class Group(Identity):
                 admin._stub = True
 
             self.admin = admin
+
+        if "members" in changeset:
+            mc = self.update_members(changeset["members"])
+            for m in mc:
+                request_list.append({
+                    "type": "Persona",
+                    "id": m["id"],
+                    "author_id": update_recipient.id if update_recipient else None,
+                    "recipient_id": update_sender.id if update_sender else None,
+                })
 
         app.logger.info("Updated {} from changeset. Requesting {} objects.".format(self, len(request_list)))
 

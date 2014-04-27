@@ -652,7 +652,8 @@ def create_group():
             admin=admin,
             modified=created_dt,
             username=request.form['username'],
-            description=request.form['description']
+            description=request.form['description'],
+            members=[admin, ]
         )
 
         db.session.add(g)
@@ -683,6 +684,13 @@ def create_group():
             "action": "insert",
             "object_id": g.profile.id,
             "object_type": "Starmap",
+        })
+
+        local_model_changed.send(create_group, message={
+            "author_id": admin.id,
+            "action": "update",
+            "object_id": admin.id,
+            "object_type": "Persona",
         })
 
         return redirect(url_for('group', id=g.id))
