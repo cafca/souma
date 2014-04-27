@@ -9,7 +9,7 @@ import ez_setup
 ez_setup.use_setuptools()
 
 from setuptools import setup
-import sys
+import sys, os
 
 if sys.platform == 'win32':
     import py2exe
@@ -255,6 +255,17 @@ elif sys.platform == 'win32':
         options=dict(py2exe=WIN_OPTIONS),
         zipfile=None
     )
+
+    #Some little hacks for making py2exe work
+    #Create empty __init__.py in flaskext directory
+    #so py2exe recognizes it as module
+    import flaskext
+    try:
+        flaskext.__file__
+    except:
+        flaskext_init = open(flaskext.__path__[0]+'\\__init__.py', 'w')
+        flaskext_init.close()
+
 
     install_requires = open('requirements_win.txt').read()
 
