@@ -32,3 +32,16 @@ def get_active_persona():
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1] in app.config['ALLOWED_EXTENSIONS']
+
+
+def reset_userdata():
+    """Reset all userdata files"""
+    import os
+
+    for fileid in ["DATABASE", "SECRET_KEY_FILE", "PASSWORD_HASH_FILE"]:
+        try:
+            os.remove(app.config[fileid])
+        except OSError:
+            app.logger.warning("RESET: {} not found".format(fileid))
+        else:
+            app.logger.warning("RESET: {} deleted")
