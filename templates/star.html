@@ -20,11 +20,17 @@
         }}
     </section>
 
-    {% for star in star.children[:4] %}
-    <section class="col7 row{{ loop.index0 + 3 }} w4 h2">
-        {{ star_macros.star(star, author=active_persona, controlled_personas=controlled_personas) }}
-    </section>
-    {% endfor %}
+    {% if star.children[0] %}
+        <section class="col7 row4 w4 h1" style="margin-top: -3em">
+            <h3 style="margin: 0 auto; color: #666">Comments</h3>
+        </section>
+
+        {% for star in star.children.filter_by(kind="star")[:4] %}
+        <section class="col7 row{{ loop.index0 + 4 }} w4 h2">
+            {{ star_macros.star(star, author=active_persona, controlled_personas=controlled_personas) }}
+        </section>
+        {% endfor %}
+    {% endif %}
 {% else %}
     <section class="col1 row1 w6 h2">
         {{ star_macros.star(star, author=active_persona, controlled_personas=controlled_personas, controls="extended") }}
