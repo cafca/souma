@@ -113,13 +113,18 @@ if getattr(sys, 'frozen', None) == 'macosx_app':
         assert __httplib__ is httplib
 
 """ Initialize database """
+start = True
+local_souma = None
+
 try:
     local_souma = Souma.query.get(app.config["SOUMA_ID"])
 except OperationalError, e:
     app.logger.error("An operational error occured while testing the local database. " +
-        "You should reset all user data with `-r` or delete it from `{}`\n\nError: {}".format(
+        "This is normal if you don't have a local database yet. If you do already have data" +
+        "you should reset it with `-r` or delete it from `{}`\n\nError: {}".format(
             app.config["USER_DATA"], e))
-    quit()
+    local_souma = None
+    start = False
 
 if local_souma is None:
     app.logger.info("Setting up database")
@@ -131,57 +136,64 @@ if local_souma is None:
     local_souma.starmap = Starmap(id=uuid4().hex, kind="index")
 
     db.session.add(local_souma)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except OperationalError, e:
+        app.logger.error("Failed setting up database.\n\n{}".format(e))
+        start = False
+    else:
+        start = True
 
 elif local_souma.version < semantic_version.Version(app.config["VERSION"]):
     app.logger.error("""Local Souma data is outdated (local Souma {} < codebase {}
         You should reset all user data with `-r` or delete it from `{}`""".format(
         local_souma.version, app.config["VERSION"], app.config["USER_DATA"]))
-    quit()
+    start = False
 
 """ Start app """
-if app.config['USE_DEBUG_SERVER']:
-    # flask development server
-    app.run(app.config['LOCAL_HOSTNAME'], app.config['LOCAL_PORT'])
-else:
-    shutdown = Event()
-
-    # Synapse
-    app.logger.info("Starting Synapses")
-
-    if app.config["DEBUG"]:
-        synapse = Synapse()
-        synapse.electrical.login_all()
+if start:
+    if app.config['USE_DEBUG_SERVER']:
+        # flask development server
+        app.run(app.config['LOCAL_HOSTNAME'], app.config['LOCAL_PORT'])
     else:
-        try:
+        shutdown = Event()
+
+        # Synapse
+        app.logger.info("Starting Synapses")
+
+        if app.config["DEBUG"]:
             synapse = Synapse()
             synapse.electrical.login_all()
-        except Exception, e:
-            app.logger.error(e)
+        else:
+            try:
+                synapse = Synapse()
+                synapse.electrical.login_all()
+            except Exception, e:
+                app.logger.error(e)
 
-    # Web UI
-    if not app.config['NO_UI']:
-        if not test_host_entry():
-            app.logger.info("No hosts entry found. Will now enable access to local Souma service in your browser.")
-            app.logger.info("Please enter your Administrator password if prompted")
-            tempfile_path = os.path.join(app.config["USER_DATA"], "hosts.tmp")
-            create_new_hosts_file(tempfile_path)
-            # move temporary new hosts file to final location using administrator privileges
-            if platform == 'win32':
-                os.system("runas /noprofile /user:Administrator move '{}' '{}'".format(tempfile_path, HOSTSFILE))
-            else:
-                cmd = """osascript -e 'do shell script "mv \\"{}\\" \\"{}\\"" with administrator privileges'"""
-                os.system(cmd.format(tempfile_path, HOSTSFILE))
+        # Web UI
+        if not app.config['NO_UI']:
+            if not test_host_entry():
+                app.logger.info("No hosts entry found. Will now enable access to local Souma service in your browser.")
+                app.logger.info("Please enter your Administrator password if prompted")
+                tempfile_path = os.path.join(app.config["USER_DATA"], "hosts.tmp")
+                create_new_hosts_file(tempfile_path)
+                # move temporary new hosts file to final location using administrator privileges
+                if platform == 'win32':
+                    os.system("runas /noprofile /user:Administrator move '{}' '{}'".format(tempfile_path, HOSTSFILE))
+                else:
+                    cmd = """osascript -e 'do shell script "mv \\"{}\\" \\"{}\\"" with administrator privileges'"""
+                    os.system(cmd.format(tempfile_path, HOSTSFILE))
 
-        compile_less()
+            compile_less()
 
-        app.logger.info("Starting Web-UI")
-        local_server = WSGIServer(('', app.config['LOCAL_PORT']), app)
-        local_server.start()
-        webbrowser.open("http://{}/".format(app.config["LOCAL_ADDRESS"]))
+            app.logger.info("Starting Web-UI")
+            local_server = WSGIServer(('', app.config['LOCAL_PORT']), app)
+            local_server.start()
+            webbrowser.open("http://{}/".format(app.config["LOCAL_ADDRESS"]))
 
-    # Setup Astrolab
-    Greenlet.spawn(setup_astrolab)
-    Greenlet.spawn(watch_layouts)
+        # Setup Astrolab
+        Greenlet.spawn(setup_astrolab)
+        Greenlet.spawn(watch_layouts)
 
-    shutdown.wait()
+        shutdown.wait()
