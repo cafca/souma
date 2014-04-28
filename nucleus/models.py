@@ -185,7 +185,7 @@ class Identity(Serializable, db.Model):
         secondaryjoin='identity_vesicles.c.vesicle_id==vesicle.c.id')
 
     profile_id = db.Column(db.String(32), db.ForeignKey('starmap.id'))
-    profile = db.relationship('Starmap', primaryjoin='starmap.c.id==identity.c.profile_id')
+    profile = db.relationship('Starmap', backref="contexts", primaryjoin='starmap.c.id==identity.c.profile_id')
 
     __mapper_args__ = {
         'polymorphic_identity': 'identity',
@@ -1703,9 +1703,6 @@ class Group(Identity):
 
     admin_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
     admin = db.relationship("Persona", primaryjoin="persona.c.id==group.c.admin_id")
-
-    profile_id = db.Column(db.String(32), db.ForeignKey('starmap.id'))
-    profile = db.relationship('Starmap', primaryjoin='starmap.c.id==group.c.profile_id')
 
     members = db.relationship(
         'Persona',

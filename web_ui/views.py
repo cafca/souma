@@ -359,6 +359,8 @@ def create_star():
             local_model_changed.send(create_star, message=m)
 
         # if new star belongs to a starmap, show starmap page
+        if new_star.parent_id:
+            return redirect(url_for('star', id=new_star.parent_id))
         if starmap is None:
             return redirect(url_for('star', id=uuid))
         else:

@@ -1,15 +1,16 @@
 {% import "macros/planet.html" as planet_macros %}
 
-{% macro star(star, author, controlled_personas, csrf_token='', controls="default", display_planets=True) %}
+{% macro star(star, author, controlled_personas, csrf_token='', controls="default", display_planets=True, link_context=True) %}
 
 <!-- STAR: {{star.id}} -->
 <span class="content">
     {% if star.text %}
-        {% if star.link_url() %}
-            <p>{{ star.text }} <a href="{{ star.link_url() }}"><i class="fa fa-external-link"></i></a></p>
-        {% else %}
-            <p>{{ star.text }}</p>
-        {% endif %}
+            <p class="title">
+                <a href="{{ url_for('star', id=star.id) }}" title="{{star.created}}">{{ star.text }} </a>
+                {% if star.link_url() %}
+                    <a href="{{ star.link_url() }}"><i class="fa fa-external-link"></i></a>
+                {% endif %}
+            </p>
     {% endif %}
 </span>
 
@@ -29,7 +30,6 @@
     </span>
 
     <span class="attribute">
-        <i class="fa fa-asterisk"></i>
         <span class="caption">
             <a href="{{ url_for('star', id=star.id) }}" title="{{star.created}}">{{star.created|naturaltime}}</a>
         </span>
@@ -43,6 +43,19 @@
             <a href="{{ url_for('persona', id=star.author.id) }}">{{ star.author.username}}</a>
         </span>
     </span>
+
+    {% if link_context %}
+        {% if star.starmaps and (star.starmaps[0] != star.author.profile) %}
+        <span class="inline-semantic"> in </span>
+
+        <span class="attribute">
+            <i class="fa fa-group"></i>
+            <span class="caption">
+                <a href="{{ star.starmaps[0].get_absolute_url() }}">{{ star.starmaps[0].contexts[0].username }}</a>
+            </span>
+        </span>
+        {% endif %}
+    {% endif %}
 
     {% if controls == "extended" %}
     <span class="attribute">
