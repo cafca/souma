@@ -848,7 +848,7 @@ class Star(Serializable, db.Model):
         from math import log
         # Uncomment to assign a score with analytics.score
         #s = score(self)
-        s = 1.0
+        s = self.oneup_count()
         order = log(max(abs(s), 1), 10)
         sign = 1 if s > 0 else -1 if s < 0 else 0
         return round(order + sign * epoch_seconds(self.created) / 45000, 7)
