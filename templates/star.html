@@ -19,6 +19,12 @@
             display_planets=False)
         }}
     </section>
+
+    {% for star in star.children[:4] %}
+    <section class="col7 row{{ loop.index0 + 3 }} w4 h2">
+        {{ star_macros.star(star, author=active_persona, controlled_personas=controlled_personas) }}
+    </section>
+    {% endfor %}
 {% else %}
     <section class="col1 row1 w6 h2">
         {{ star_macros.star(star, author=active_persona, controlled_personas=controlled_personas, controls="extended") }}
