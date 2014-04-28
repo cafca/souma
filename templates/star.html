@@ -23,5 +23,15 @@
     <section class="col1 row1 w6 h2">
         {{ star_macros.star(star, author=active_persona, controlled_personas=controlled_personas, controls="extended") }}
     </section>
+
+    {% for star in star.children[:8] %}
+        {% if loop.index < 5 %}
+    <section class="col1 row{{ loop.index0 + 3 }} w4 h2">
+        {% else %}
+    <section class="col6 row{{ loop.index0 -1 }} w4 h2">
+        {% endif %}
+        {{ star_macros.star(star, author=active_persona, controlled_personas=controlled_personas) }}
+    </section>
+    {% endfor %}
 {% endif %}
 {% endblock %}
