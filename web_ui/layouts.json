@@ -17,20 +17,31 @@
         "name": "grouppage",
         "vizier_version": 1,
         "context":["group_page"],
-        "header": [0, 1, 3, 1],
+        "header": [1, 1, 3, 1],
         "create_star_form": [
-            [0, 2, 5, 1],
-            [0, 3, 5, 1]
+            [7, 3, 5, 1],
+            [7, 4, 5, 1]
         ],
         "stars": [
-            [7, 2, 4, 1],
-            [7, 3, 4, 1],
-            [7, 4, 4, 1],
+            [1, 3, 4, 1],
+            [1, 4, 4, 1],
+            [1, 5, 4, 1],
+            [1, 6, 4, 1],
             [7, 5, 4, 1],
             [7, 6, 4, 1],
-            [7, 7, 4, 1],
-            [7, 8, 4, 1]
+            [7, 7, 4, 1]
         ]
+    },
+    {
+        "name": "group_no_stars",
+        "vizier_version": 1,
+        "context":["group_page"],
+        "header": [1, 1, 3, 1],
+        "create_star_form": [
+            [1, 3, 4, 1],
+            [1, 4, 4, 1]
+        ],
+        "stars": []
     },
     {
         "name": "create_star_page",
