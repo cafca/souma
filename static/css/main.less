@@ -131,7 +131,7 @@ article {
             }
         }
 
-        &.w5, &.w6, &.w7, &.w8 {
+        &.w5, &.w6, &.w7, &.w8, &.w9, &.w10, &.w11, &.w12 {
             .content {
                 font-size: (@font-size * 2.5)/16*1em;
                 line-height: 1em;
@@ -232,6 +232,10 @@ article {
     &:hover {
         background-color: rgba(0,0,0,0.15);
 
+        .title a {
+            color: white;
+        }
+
         .meta a {
             color: white;
         }
@@ -280,6 +284,10 @@ article {
 
     .inline-semantic {
         display: none;
+    }
+
+    .title a {
+        color: darken(white, 10%);
     }
 }
 }
