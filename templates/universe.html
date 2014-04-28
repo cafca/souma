@@ -4,6 +4,16 @@
 
 {% block content %}
 
+{% if page.stars_with_images %}
+    {% for star in page.stars_with_images %}
+
+    <section class="image-overlay {{ star.css_class }}">
+        {{ star_macros.star(star.content, author=active_persona, controlled_personas=controlled_personas) }}
+    </section>
+
+    {% endfor %}
+{% endif %}
+
 {% for star in page.stars %}
 
 <section class="{%if star.content.has_picture() %}image-overlay{% endif %} {{ star.css_class }}">

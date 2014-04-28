@@ -177,8 +177,6 @@ class PageManager(object):
         context = 'star_page'
         layouts = self._get_layouts_for(context)
 
-        section = 'stars'
-
         if stars is None:
             pagination = Pagination(list(), current_page, self.page_size, 0, None)
         else:
@@ -195,10 +193,23 @@ class PageManager(object):
             # print("\nLayout: {}".format(layout['name']))
             layout_scores[layout['name']] = 0
 
-            for i, star_cell in enumerate(layout[section]):
-                if i >= len(stars_ranked):
+            stars_with_images = [s for s in stars_ranked if s.has_picture()]
+            all_stars = stars_ranked[:]
+
+            if "stars_with_images" in layout:
+                for i, star_cell in enumerate(layout['stars_with_images']):
+                    if i >= len(stars_with_images):
+                        continue
+                    star = stars_with_images[i]
+
+                    cell_score = self._cell_score(star_cell) * 2.0
+                    layout_scores[layout['name']] += star.hot() * cell_score
+                    all_stars.remove(star)
+
+            for i, star_cell in enumerate(layout['stars']):
+                if i >= len(all_stars):
                     continue
-                star = stars_ranked[i]
+                star = all_stars[i]
 
                 cell_score = self._cell_score(star_cell)
                 layout_scores[layout['name']] += star.hot() * cell_score
@@ -227,6 +238,18 @@ class PageManager(object):
         # Add pagination information
         setattr(page, "pagination", pagination)
 
+        section = 'stars_with_images'
+        if section in layout:
+            for i, star_cell in enumerate(layout[section]):
+                if i >= len(stars_ranked):
+                    break
+
+                for star in stars_ranked:
+                    if star.has_picture():
+                        page.add_to_section(section, star_cell, star)
+                        stars_ranked.remove(star)
+
+        section = 'stars'
         for i, star_cell in enumerate(layout[section]):
             if i >= len(stars_ranked):
                 break
