@@ -1,9 +1,12 @@
-from topicmodel import TopicModel
-from web_ui import db, app
-from nucleus.models import Persona, Oneup, Star, LinkPlanet
-from sklearn.naive_bayes import GaussianNB
-from helpers import get_site_content
 from datetime import datetime
+
+from sklearn.naive_bayes import GaussianNB
+
+from astrolab import logger
+from astrolab.helpers import get_site_content
+from astrolab.topicmodel import TopicModel
+from nucleus.models import Persona, Oneup, Star, LinkPlanet
+from web_ui import db, app
 
 
 class InterestModel(db.Model):
@@ -32,7 +35,7 @@ class InterestModel(db.Model):
 
 
 def update():
-    app.logger.info("Updating interest model")
+    logger.info("Updating interest model")
 
     topic_model = TopicModel(
         app.config["TOPIC_MODEL"], app.config["TOPIC_MODEL_IDS"])
@@ -46,7 +49,7 @@ def update():
         fit(interestmodel, topic_model)
 
     del topic_model
-    app.logger.info("Update finished")
+    logger.info("Update finished")
 
 
 def fit(interestmodel, topic_model):
@@ -76,8 +79,8 @@ def fit(interestmodel, topic_model):
         else:
             train_set_neg.append(topics)
 
-    app.logger.info("Fitting persona %s" % interestmodel.persona_id)
-    app.logger.info("Positive: %d    Negative: %d" % (len(train_set_pos), len(train_set_neg)))
+    logger.info("Fitting persona %s" % interestmodel.persona_id)
+    logger.info("Positive: %d    Negative: %d" % (len(train_set_pos), len(train_set_neg)))
     if len(train_set_pos) > 0:
         train_labels = [1 for x in range(len(train_set_pos))]
         train_set = train_set_pos

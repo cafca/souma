@@ -1,90 +1,26 @@
 #!/usr/bin/python
 
 import os
-import requests
 import sys
 import webbrowser
 import semantic_version
 
 from web_ui import app, db
 
-from gevent import Greenlet, sleep, monkey
+from gevent import Greenlet, monkey
 from gevent.wsgi import WSGIServer
 from gevent.event import Event
 from sqlalchemy.exc import OperationalError
 from sys import platform
 from uuid import uuid4
 
+from astrolab.helpers import setup_astrolab
 from nucleus.set_hosts import test_host_entry, create_new_hosts_file, HOSTSFILE
 from nucleus.models import Souma, Starmap
 from synapse import Synapse
-from web_ui.helpers import compile_less
-
-from astrolab.helpers import repeated_func_schedule
-from astrolab.interestmodel import update
+from web_ui.helpers import compile_less, watch_layouts
 
 monkey.patch_all()
-
-
-def setup_astrolab():
-    """Download topic model and schedule model updates"""
-    sleep(0)
-    model_filename = app.config["TOPIC_MODEL"]
-    word_ids_filename = app.config["TOPIC_MODEL_IDS"]
-
-    model_url = app.config["TOPIC_MODEL_UPDATE"]
-    word_ids_url = app.config["TOPIC_MODEL_IDS_UPDATE"]
-
-    try:
-        with open(word_ids_filename):
-            app.logger.debug("Model word ids found")
-    except IOError:
-        app.logger.info("Now downloading model data ids")
-        r = requests.get(word_ids_url, stream=True)
-        with open(word_ids_filename, 'wb') as f:
-            for chunk in r.iter_content(chunk_size=1024):
-                if chunk:
-                    f.write(chunk)
-                    f.flush()
-        app.logger.info("Model data ids downloaded")
-
-    try:
-        with open(model_filename):
-            app.logger.debug("Model data found")
-    except IOError:
-        app.logger.info("Downloading model data")
-        r = requests.get(model_url, stream=True)
-        with open(model_filename, 'wb') as f:
-            i = 0
-            for chunk in r.iter_content(chunk_size=1024):
-                if chunk:
-                    f.write(chunk)
-                    f.flush()
-                    i += 1
-                    if i % (1024 * 5) == 0:
-                        app.logger.info("Downloaded {} MB / 323 MB".format(i / 1024))
-        app.logger.info("Model data downloaded")
-
-    repeated_func_schedule(60 * 60, update)
-
-
-def watch_layouts():
-    import json
-
-    mtime_last = 0
-    layout_filename = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'web_ui', 'layouts.json')
-    while True:
-        sleep(1)
-        mtime_cur = os.path.getmtime(layout_filename)
-        if mtime_cur != mtime_last:
-            app.logger.info("Loading new layout definitions")
-            try:
-                with open(layout_filename) as f:
-                    app.config['LAYOUT_DEFINITIONS'] = json.load(f)
-            except IOError:
-                app.logger.error("Failed loading layout definitions")
-                app.config['LAYOUT_DEFINITIONS'] = dict()
-        mtime_last = mtime_cur
 
 
 """ patch gevent for py2app """

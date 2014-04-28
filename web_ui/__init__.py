@@ -127,7 +127,7 @@ uploads.configure_uploads(app, (attachments))
 # Flask is configured to route logging events only to the console if it is in debug
 # mode. This overrides this setting and enables a new logging handler which prints
 # to the shell.
-loggers = [app.logger, logging.getLogger('synapse'), logging.getLogger('e-synapse')]
+loggers = [app.logger, logging.getLogger('synapse'), logging.getLogger('e-synapse'), logging.getLogger('astrolab')]
 
 if app.config["LOG_SQL_STATEMENTS"]:
     loggers.append(logging.getLogger('sqlalchemy.engine'))

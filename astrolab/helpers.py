@@ -2,10 +2,11 @@ import lxml.html
 import requests
 
 from gensim import utils
-from gevent import spawn_later
+from gevent import spawn_later, sleep
 from readability import Document
 from lxml.etree import XMLSyntaxError
 
+from astrolab import logger
 from web_ui import app
 
 
@@ -21,8 +22,7 @@ def remove_html(text):
     try:
         tree = lxml.html.fromstring(text)
     except XMLSyntaxError:
-        app.logger.error("Error getting XML tree")
-        import pdb; pdb.set_trace()
+        logger.error("Error getting XML tree")
     else:
         cleaner = lxml.html.clean.Cleaner(style=True)
         cleaner.clean_html(tree)
@@ -31,6 +31,50 @@ def remove_html(text):
         rv = lxml.html.tostring(tree, encoding='unicode', pretty_print=True,
                               method='text')
     return rv
+
+
+def setup_astrolab():
+    """Download topic model and schedule model updates"""
+    from astrolab.interestmodel import update
+
+    sleep(0)
+    model_filename = app.config["TOPIC_MODEL"]
+    word_ids_filename = app.config["TOPIC_MODEL_IDS"]
+
+    model_url = app.config["TOPIC_MODEL_UPDATE"]
+    word_ids_url = app.config["TOPIC_MODEL_IDS_UPDATE"]
+
+    try:
+        with open(word_ids_filename):
+            logger.debug("Model word ids found")
+    except IOError:
+        logger.info("Now downloading model data ids")
+        r = requests.get(word_ids_url, stream=True)
+        with open(word_ids_filename, 'wb') as f:
+            for chunk in r.iter_content(chunk_size=1024):
+                if chunk:
+                    f.write(chunk)
+                    f.flush()
+        logger.info("Model data ids downloaded")
+
+    try:
+        with open(model_filename):
+            logger.debug("Model data found")
+    except IOError:
+        logger.info("Downloading model data")
+        r = requests.get(model_url, stream=True)
+        with open(model_filename, 'wb') as f:
+            i = 0
+            for chunk in r.iter_content(chunk_size=1024):
+                if chunk:
+                    f.write(chunk)
+                    f.flush()
+                    i += 1
+                    if i % (1024 * 5) == 0:
+                        logger.info("Downloaded {} MB / 323 MB".format(i / 1024))
+        logger.info("Model data downloaded")
+
+    repeated_func_schedule(60 * 60, update)
 
 
 def tokenize(text):
@@ -65,7 +109,7 @@ def get_site_content(link):
     try:
         r = requests.get(link, timeout=15.0)
     except requests.exceptions.RequestException, e:
-        app.logger.warning("Failed loading URL '{}': {}".format(link, e))
+        logger.warning("Failed loading URL '{}': {}".format(link, e))
     else:
         if valid_request(r):
             # extract the  (most likely) main content
@@ -73,7 +117,7 @@ def get_site_content(link):
             content = doc.summary(html_partial=True)
             rv = remove_html(content)
         else:
-            app.logger.info("Invalid request {} for url '{}'".format(r, link))
+            logger.info("Invalid request {} for url '{}'".format(r, link))
 
     return rv
 

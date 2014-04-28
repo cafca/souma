@@ -1,5 +1,8 @@
 import os
 import logging
+import json
+
+from gevent import sleep
 
 from flask import session
 from datetime import datetime
@@ -68,3 +71,22 @@ def compile_less(filenames=None):
 
     if rv > 0:
         logging.error("Compilation of LESS stylesheets failed.")
+
+
+def watch_layouts():
+    from web_ui import app
+
+    mtime_last = 0
+    layout_filename = os.path.join(os.path.abspath("."), 'web_ui', 'layouts.json')
+    while True:
+        sleep(1)
+        mtime_cur = os.path.getmtime(layout_filename)
+        if mtime_cur != mtime_last:
+            app.logger.info("Loading new layout definitions")
+            try:
+                with open(layout_filename) as f:
+                    app.config['LAYOUT_DEFINITIONS'] = json.load(f)
+            except IOError:
+                app.logger.error("Failed loading layout definitions")
+                app.config['LAYOUT_DEFINITIONS'] = dict()
+        mtime_last = mtime_cur
