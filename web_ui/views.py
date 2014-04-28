@@ -4,12 +4,12 @@ from flask import abort, flash, redirect, render_template, request, session, url
 from flask.helpers import send_from_directory
 from hashlib import sha256
 
-from web_ui import app, cache, db, logged_in, attachments
+from web_ui import app, cache, db, logged_in
 from web_ui import pagemanager
 from web_ui.forms import *
-from web_ui.helpers import get_active_persona
+from web_ui.helpers import get_active_persona, find_links
 from nucleus import notification_signals, PersonaNotFoundError
-from nucleus.models import Persona, Star, Planet, PlanetAssociation, PicturePlanet, LinkPlanet, Group, Starmap, LinkedPicturePlanet
+from nucleus.models import Persona, Star, Planet, PlanetAssociation, LinkPlanet, Group, Starmap, LinkedPicturePlanet
 
 # Create blinker signal namespace
 local_model_changed = notification_signals.signal('local-model-changed')
@@ -261,6 +261,10 @@ def create_star():
         if 'parent_id' in request.values:
             new_star.parent_id = request.values.get('parent_id')
 
+        # Find links
+        links, new_text = find_links(new_star.text)
+        new_star.text = new_text
+
         db.session.add(new_star)
         db.session.commit()
 
@@ -268,68 +272,44 @@ def create_star():
         app.logger.info('Created new {}'.format(new_star))
         model_change_messages = list()
 
-        # if 'picture' in request.files and request.files['picture'].filename != "":
-        #     # compute hash
-        #     picture_hash = sha256(request.files['picture'].stream.read()).hexdigest()
-        #     request.files['picture'].stream.seek(0)
+        for link in links:
+            if "content-type" in link.headers and link.headers["content-type"][:5] == "image":
+                # "linkedpicture" is added to the hash so that two people can
+                # attach the same link as a linked picture and as a regular link
+                # without causing a clash because of their ids.
+                # https://github.com/ciex/souma/issues/155
+                picture_hash = sha256("linkedpicture" + link.url).hexdigest()[:32]
+                planet = LinkedPicturePlanet.query.filter_by(id=picture_hash).first()
+                if not planet:
+                    app.logger.info("Storing new linked Picture")
+                    planet = LinkedPicturePlanet(
+                        id=picture_hash,
+                        url=link.url)
+                    db.session.add(planet)
 
-        #     # create or get planet
-        #     planet = Planet.query.filter_by(id=picture_hash[:32]).first()
-        #     if not planet:
-        #         app.logger.info("Creating new planet for submitted file")
-        #         filename = attachments.save(request.files['picture'],
-        #             folder=picture_hash[:2], name=picture_hash[2:] + ".")
-        #         planet = PicturePlanet(
-        #             id=picture_hash[:32],
-        #             filename=os.path.join(attachments.name, filename))
-        #         db.session.add(planet)
+                # attach to star
+                assoc = PlanetAssociation(star=new_star, planet=planet, author=author)
+                new_star.planet_assocs.append(assoc)
 
-        #     # attach to star
-        #     new_star.planets.append(planet)
+                # commit
+                db.session.add(new_star)
+                db.session.commit()
+                app.logger.info("Attached {} to new {}".format(planet, new_star))
+            else:
+                link_hash = sha256(link.url).hexdigest()[:32]
+                planet = LinkPlanet.query.filter_by(id=link_hash).first()
+                if not planet:
+                    app.logger.info("Storing new Link")
+                    planet = LinkPlanet(
+                        id=link_hash,
+                        url=link.url)
+                    db.session.add(planet)
 
-        #     # commit
-        #     db.session.add(new_star)
-        #     db.session.commit()
-        #     app.logger.info("Attached {} to new {}".format(planet, new_star))
-
-        if 'linkedpicture' in request.form and request.form['linkedpicture'] != "":
-            # "linkedpicture" is added to the hash so that two people can
-            # attach the same link as a linked picture and as a regular link
-            # without causing a clash because of their ids.
-            # https://github.com/ciex/souma/issues/155
-            picture_hash = sha256("linkedpicture" + request.form['linkedpicture']).hexdigest()[:32]
-            planet = LinkedPicturePlanet.query.filter_by(id=picture_hash).first()
-            if not planet:
-                app.logger.info("Storing new linked Picture")
-                planet = LinkedPicturePlanet(
-                    id=picture_hash,
-                    url=request.form['linkedpicture'])
-                db.session.add(planet)
-
-            # attach to star
-            assoc = PlanetAssociation(star=new_star, planet=planet, author=author)
-            new_star.planet_assocs.append(assoc)
-
-            # commit
-            db.session.add(new_star)
-            db.session.commit()
-            app.logger.info("Attached {} to new {}".format(planet, new_star))
-
-        if 'link' in request.form and request.form['link'] != "":
-            link_hash = sha256(request.form['link']).hexdigest()[:32]
-            planet = LinkPlanet.query.filter_by(id=link_hash).first()
-            if not planet:
-                app.logger.info("Storing new Link")
-                planet = LinkPlanet(
-                    id=link_hash,
-                    url=request.form['link'])
-                db.session.add(planet)
-
-            assoc = PlanetAssociation(star=new_star, planet=planet, author=author)
-            new_star.planet_assocs.append(assoc)
-            db.session.add(new_star)
-            db.session.commit()
-            app.logger.info("Attached {} to new {}".format(planet, new_star))
+                assoc = PlanetAssociation(star=new_star, planet=planet, author=author)
+                new_star.planet_assocs.append(assoc)
+                db.session.add(new_star)
+                db.session.commit()
+                app.logger.info("Attached {} to new {}".format(planet, new_star))
 
         model_change_messages.append({
             "author_id": new_star.author.id,

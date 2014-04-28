@@ -23,54 +23,8 @@
         {{ form.group_id }}
     </section>
 
-    <!-- Link attachment field -->
-    <section class="card {{ page.create_star_form[1].css_class }}">
-        <div class="card-handle">
-            <i class="fa fa-link"></i>
-        </div>
-
-        <div class="sidenav">
-            {% if form.link.errors %}
-                {% for error in form.link.errors %}<small>{{ error }}</small>{% endfor %}
-            {% endif %}
-        </div>
-
-        <div class="fullsize-input">
-            {{ form.link(default='Enter a URL', placeholder="Optional link address") }}
-        </div>
-    </section>
-
-    <!-- Linked picture attachment field -->
-    <section class="card {{ page.create_star_form[2].css_class }}">
-        <div class="card-handle">
-            <i class="fa fa-camera"></i>
-        </div>
-
-        <div class="sidenav">
-            {% if form.linkedpicture.errors %}
-                {% for error in form.linkedpicture.errors %}<small>{{ error }}</small>{% endfor %}
-            {% endif %}
-        </div>
-
-        <div class="fullsize-input">
-            {{ form.linkedpicture(default='Enter URL of a picture', placeholder="Optional linked picture") }}
-        </div>
-    </section>
-
-
-    <!-- Add Attachments -->
-    <section class="{{ page.create_star_form[3].css_class }}">
-        <div class="card-handle">
-            <i class="fa fa-plus"></i>
-        </div>
-        <div class="btn-group well well-small">
-            <a class="btn" href="#"><i class="fa fa-font"></i></a>
-            <a class="btn" href="#"><i class="fa fa-link"></i></a>
-        </div>
-    </section>
-
     <!-- Controls -->
-    <section class="{{ page.create_star_form[4].css_class }}">
+    <section class="{{ page.create_star_form[1].css_class }}">
         <span class="pull-right">
             <button type="submit" class="btn" disabled="disabled"><i
                     class="fa fa-save"></i> Save Draft</button>
