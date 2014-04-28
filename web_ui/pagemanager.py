@@ -47,11 +47,20 @@ class PageManager(object):
         context = 'group_page'
         layouts = self._get_layouts_for(context)
 
+        if stars is None:
+            pagination = Pagination(list(), current_page, self.page_size, 0, None)
+        else:
+            pagination = stars.paginate(current_page, self.page_size)
+            stars = pagination.items
+
         # currently no logic to choose among different layouts
         assert(len(layouts) == 1)
         best_layout = layouts[0]
 
         page = Page()
+
+        # Add pagination information
+        setattr(page, "pagination", pagination)
 
         # Add header to group page
         section = 'header'
@@ -62,8 +71,6 @@ class PageManager(object):
 
         for cell in layouts[0][section]:
             page.add_to_section(section, cell, None)
-
-        stars = page.paginate(stars, current_page, self.page_size)
 
         if stars is not None:
             # Add the stars of the group to page
@@ -129,6 +136,12 @@ class PageManager(object):
         context = 'persona_page'
         layouts = self._get_layouts_for(context)
 
+        if stars is None:
+            pagination = Pagination(list(), current_page, self.page_size, 0, None)
+        else:
+            pagination = stars.paginate(current_page, self.page_size)
+            stars = pagination.items
+
         # currently no logic to choose among different layouts
         assert(len(layouts) == 1)
         best_layout = layouts[0]
@@ -139,7 +152,8 @@ class PageManager(object):
         section = 'vcard'
         page.add_to_section(section, best_layout[section], None)
 
-        stars = page.paginate(stars, current_page, self.page_size)
+        # Add pagination information
+        setattr(page, "pagination", pagination)
 
         if stars is not None:
             # Add the stars of the profile to page
@@ -165,8 +179,11 @@ class PageManager(object):
 
         section = 'stars'
 
-        pagination = stars.paginate(current_page, self.page_size)
-        stars = pagination.items
+        if stars is None:
+            pagination = Pagination(list(), current_page, self.page_size, 0, None)
+        else:
+            pagination = stars.paginate(current_page, self.page_size)
+            stars = pagination.items
 
         # Rank stars by score
         stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
@@ -285,9 +302,3 @@ class Page(object):
             cell[3])
 
         return {'css_class': css_class, 'content': content}
-
-    def paginate(self, stars, current_page, per_page):
-        """Paginate given stars"""
-        count = 0 if stars is None else stars.count()
-        self.pagination = Pagination(stars, current_page, per_page, count, None)
-        return self.pagination.items
