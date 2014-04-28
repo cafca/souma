@@ -30,11 +30,11 @@ parser.add_argument('--no_ui',
     action="store_true",
     help="skip starting the web ui server")
 
-parser.add_argument('-v',
-    '--verbose',
+parser.add_argument('-d',
+    '--debug',
     default=False,
     action="store_true",
-    help="gimme moar-logs")
+    help="display more log events, halt on exceptions")
 
 parser.add_argument('-r',
     '--reset',
@@ -56,8 +56,9 @@ args = parser.parse_args()
 app.config['NO_UI'] = args.no_ui
 app.config['LOGIN_SERVER'] = args.glia
 
-if args.verbose is True:
+if args.debug is True:
     app.config["LOG_LEVEL"] = logging.DEBUG
+    app.config["DEBUG"] = True
 
 if args.reset is True:
     from web_ui.helpers import reset_userdata
