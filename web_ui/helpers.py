@@ -73,6 +73,42 @@ def compile_less(filenames=None):
         logging.error("Compilation of LESS stylesheets failed.")
 
 
+def find_links(text):
+    """Given a text, find all alive links inside
+
+    Args:
+        text(String): The input to parse
+
+    Returns:
+        tuple:
+            list: List of response objects for found URLs
+            str: Text with all link occurrences removed
+    """
+    import re
+    import requests
+
+    from web_ui import app
+
+    # Everything that looks remotely like a URL
+    expr = "(https?://[\S]+)"
+    rv = list()
+
+    candidates = re.findall(expr, text)
+
+    if candidates:
+        for c in candidates:
+            app.logger.info("Testing potential link '{}' for availability".format(c))
+            try:
+                res = requests.head(c, timeout=15.0)
+            except requests.exceptions.RequestException:
+                pass
+            else:
+                if res and res.status_code < 400:
+                    rv.append(res)
+                    text = text.replace(c, "")
+    return (rv, text)
+
+
 def watch_layouts():
     from web_ui import app
 
