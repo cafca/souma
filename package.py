@@ -6,6 +6,7 @@ Usage:
     python package.py py2exe
 """
 import ez_setup
+import numpy #important for py2exe to work
 ez_setup.use_setuptools()
 
 from setuptools import setup
@@ -156,7 +157,9 @@ INCLUDES = [
     "sklearn.utils.sparsetools._graph_validation",
     "gevent",
     "gevent.core",
-    "logging"]
+    "logging",
+    "Crypto",
+    "Crypto.Hash"]
 
 # might need to explicitly include dll:
 # data_files=[('.', 'libmmd.dll')
