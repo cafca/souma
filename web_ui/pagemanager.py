@@ -73,12 +73,25 @@ class PageManager(object):
             # print("\nLayout: {}".format(layout['name']))
             layout_scores[layout['name']] = 0
 
-            section = 'stars'
-            for i, star_cell in enumerate(layout[section]):
-                if i >= len(stars_ranked):
+            stars_with_images = [s for s in stars_ranked if s.has_picture()]
+            all_stars = stars_ranked[:]
+
+            if "stars_with_images" in layout:
+                for i, star_cell in enumerate(layout['stars_with_images']):
+                    if i >= len(stars_with_images):
+                        layout_scores[layout['name']] -= 0.1
+                        continue
+                    star = stars_with_images[i]
+
+                    cell_score = self._cell_score(star_cell) * 2.0
+                    layout_scores[layout['name']] += (1 + star.hot()) * cell_score
+                    all_stars.remove(star)
+
+            for i, star_cell in enumerate(layout['stars']):
+                if i >= len(all_stars):
                     layout_scores[layout['name']] -= 0.1
                     continue
-                star = stars_ranked[i]
+                star = all_stars[i]
 
                 cell_score = self._cell_score(star_cell)
                 layout_scores[layout['name']] += (1 + star.hot()) * cell_score
@@ -115,6 +128,18 @@ class PageManager(object):
 
         for cell in best_layout[section]:
             page.add_to_section(section, cell, None)
+
+        section = 'stars_with_images'
+        if section in layout:
+            for i, star_cell in enumerate(layout[section]):
+                if i >= len(stars_ranked):
+                    break
+
+                for star in stars_ranked:
+                    if star.has_picture():
+                        page.add_to_section(section, star_cell, star)
+                        stars_ranked.remove(star)
+                        break
 
         if stars is not None:
             # Add the stars of the group to page
@@ -182,12 +207,13 @@ class PageManager(object):
 
         if stars is None:
             pagination = Pagination(list(), current_page, self.page_size, 0, None)
+            stars_ranked = list()
         else:
             pagination = stars.paginate(current_page, self.page_size)
             stars = pagination.items
 
-        # Rank stars by score
-        stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
+            # Rank stars by score
+            stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
 
         # Find best layout by filling each one with stars
         # and determining which one gives the best score
@@ -282,13 +308,15 @@ class PageManager(object):
         layouts = self._get_layouts_for(context)
 
         if stars is None:
+            stars_ranked = list()
             pagination = Pagination(list(), current_page, self.page_size, 0, None)
         else:
             pagination = stars.paginate(current_page, self.page_size)
             stars = pagination.items
 
-        # Rank stars by score
-        stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
+            # Rank stars by score
+            stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
+
 
         # Find best layout by filling each one with stars
         # and determining which one gives the best score
