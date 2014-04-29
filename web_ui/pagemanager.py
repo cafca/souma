@@ -81,6 +81,72 @@ class PageManager(object):
         return [layout for layout in layouts if
                 context in layout['context']]
 
+    def _best_layout(self, layouts, stars):
+        """Find the best layout for some Stars
+
+        This method will fill each of the layouts with the given Stars
+        and then calculate a score for each of them and return the best.
+
+        _cell_score is used to assign a score to each cell contained
+        in the layout.
+
+        Args:
+            layouts (list): List of layout dicts
+            stars (iterable): Stars for the layout
+
+        Returns:
+            dict: Best layout
+        """
+        # Find best layout by filling each one with stars
+        # and determining which one gives the best score
+        layout_scores = dict()
+        for layout in layouts:
+            # print("\nLayout: {}".format(layout['name']))
+            layout_scores[layout['name']] = 0
+
+            stars_with_images = [s for s in stars if s.has_picture()]
+            all_stars = stars[:]
+
+            if "stars_with_images" in layout:
+                for i, star_cell in enumerate(layout['stars_with_images']):
+                    if i >= len(stars_with_images):
+                        # Penalty for layouts that are not completely filled
+                        layout_scores[layout['name']] -= 0.1
+                        continue
+                    star = stars_with_images[i]
+
+                    cell_score = self._cell_score(star_cell) * 2.0
+                    layout_scores[layout['name']] += (1 + star.hot()) * cell_score
+                    all_stars.remove(star)
+
+            for i, star_cell in enumerate(layout['stars']):
+                if i >= len(all_stars):
+                    layout_scores[layout['name']] -= 0.1
+                    continue
+                star = all_stars[i]
+
+                cell_score = self._cell_score(star_cell)
+                layout_scores[layout['name']] += (1 + star.hot()) * cell_score
+                # print("{}\t{}\t{}".format(star, (1 + star.hot()) * cell_score, cell_score))
+            # print("Score: {}".format(layout_scores[layout['name']]))
+
+        # Select best layout
+        selected_layouts = sorted(
+            layout_scores.iteritems(),
+            key=itemgetter(1),
+            reverse=True)
+
+        if len(selected_layouts) == 0:
+            # TODO: Throw exception here, if no layout found the PM failed
+            app.logger.error("No fitting layout found")
+            return
+
+        for layout in layouts:
+            if layout['name'] == selected_layouts[0][0]:
+                best_layout = layout
+
+        return best_layout
+
     def create_group_layout(self):
         """Returns a page for creating groups.
 
@@ -138,7 +204,6 @@ class PageManager(object):
             Page: Layout object for the page
         """
         context = 'group_page'
-        layouts = self._get_layouts_for(context)
 
         if stars is None:
             pagination = Pagination(list(), current_page, self.page_size, 0, None)
@@ -149,53 +214,8 @@ class PageManager(object):
         # Rank stars by score
         stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
 
-        # Find best layout by filling each one with stars
-        # and determining which one gives the best score
-        layout_scores = dict()
-        for layout in layouts:
-            # print("\nLayout: {}".format(layout['name']))
-            layout_scores[layout['name']] = 0
-
-            stars_with_images = [s for s in stars_ranked if s.has_picture()]
-            all_stars = stars_ranked[:]
-
-            if "stars_with_images" in layout:
-                for i, star_cell in enumerate(layout['stars_with_images']):
-                    if i >= len(stars_with_images):
-                        layout_scores[layout['name']] -= 0.1
-                        continue
-                    star = stars_with_images[i]
-
-                    cell_score = self._cell_score(star_cell) * 2.0
-                    layout_scores[layout['name']] += (1 + star.hot()) * cell_score
-                    all_stars.remove(star)
-
-            for i, star_cell in enumerate(layout['stars']):
-                if i >= len(all_stars):
-                    layout_scores[layout['name']] -= 0.1
-                    continue
-                star = all_stars[i]
-
-                cell_score = self._cell_score(star_cell)
-                layout_scores[layout['name']] += (1 + star.hot()) * cell_score
-                # print("{}\t{}\t{}".format(star, (1 + star.hot()) * cell_score, cell_score))
-            # print("Score: {}".format(layout_scores[layout['name']]))
-
-        # Select best layout
-        selected_layouts = sorted(
-            layout_scores.iteritems(),
-            key=itemgetter(1),
-            reverse=True)
-
-        if len(selected_layouts) == 0:
-            # TODO: Throw exception here, if no layout found the PM failed
-            app.logger.error("No fitting layout found")
-            return
-
-        for layout in layouts:
-            if layout['name'] == selected_layouts[0][0]:
-                best_layout = layout
-                break
+        layouts = self._get_layouts_for(context)
+        best_layout = self._best_layout(layouts, stars_ranked)
 
         page = Page()
 
@@ -213,8 +233,8 @@ class PageManager(object):
             page.add_to_section(section, cell, None)
 
         section = 'stars_with_images'
-        if section in layout:
-            for i, star_cell in enumerate(layout[section]):
+        if section in best_layout:
+            for i, star_cell in enumerate(best_layout[section]):
                 if i >= len(stars_ranked):
                     break
 
@@ -257,7 +277,6 @@ class PageManager(object):
             stars = persona.profile.index.filter(Star.state >= 0).filter(Star.parent_id == None)
 
         context = 'persona_page'
-        layouts = self._get_layouts_for(context)
 
         if stars is None:
             pagination = Pagination(list(), current_page, self.page_size, 0, None)
@@ -269,55 +288,9 @@ class PageManager(object):
             # Rank stars by score
             stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
 
-        # Find best layout by filling each one with stars
-        # and determining which one gives the best score
-        layout_scores = dict()
-        for layout in layouts:
-            # print("\nLayout: {}".format(layout['name']))
-            layout_scores[layout['name']] = 0
-
-            stars_with_images = [s for s in stars_ranked if s.has_picture()]
-            all_stars = stars_ranked[:]
-
-            if "stars_with_images" in layout:
-                for i, star_cell in enumerate(layout['stars_with_images']):
-                    if i >= len(stars_with_images):
-                        layout_scores[layout['name']] -= 0.1
-                        continue
-                    star = stars_with_images[i]
-
-                    cell_score = self._cell_score(star_cell) * 2.0
-                    layout_scores[layout['name']] += (1 + (1 + star.hot())) * cell_score
-                    all_stars.remove(star)
-
-            for i, star_cell in enumerate(layout['stars']):
-                if i >= len(all_stars):
-                    layout_scores[layout['name']] -= 0.1
-                    continue
-                star = all_stars[i]
-
-                cell_score = self._cell_score(star_cell)
-                layout_scores[layout['name']] += (1 + star.hot()) * cell_score
-                # print("{}\t{}\t{}".format(star, (1 + (1 + star.hot())) * cell_score, cell_score))
-            # print("Score: {}".format(layout_scores[layout['name']]))
-
-        # Select best layout
-        selected_layouts = sorted(
-            layout_scores.iteritems(),
-            key=itemgetter(1),
-            reverse=True)
-
-        if len(selected_layouts) == 0:
-            # TODO: Throw exception here, if no layout found the PM failed
-            app.logger.error("No fitting layout found")
-            return
-
-        for layout in layouts:
-            if layout['name'] == selected_layouts[0][0]:
-                best_layout = layout
-                break
-
-        # print("Chosen {}".format(best_layout))
+        # Find best layout
+        layouts = self._get_layouts_for(context)
+        best_layout = self._best_layout(layouts, stars_ranked)
 
         page = Page()
 
@@ -331,8 +304,8 @@ class PageManager(object):
         # Add the stars of the profile to page
         if stars is not None:
             section = 'stars_with_images'
-            if section in layout:
-                for i, star_cell in enumerate(layout[section]):
+            if section in best_layout:
+                for i, star_cell in enumerate(best_layout[section]):
                     if i >= len(stars_ranked):
                         break
 
@@ -367,7 +340,6 @@ class PageManager(object):
         """
 
         context = 'star_page'
-        layouts = self._get_layouts_for(context)
 
         if stars is None:
             stars_ranked = list()
@@ -379,54 +351,8 @@ class PageManager(object):
             # Rank stars by score
             stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
 
-        # Find best layout by filling each one with stars
-        # and determining which one gives the best score
-        layout_scores = dict()
-        for layout in layouts:
-            # print("\nLayout: {}".format(layout['name']))
-            layout_scores[layout['name']] = 0
-
-            stars_with_images = [s for s in stars_ranked if s.has_picture()]
-            all_stars = stars_ranked[:]
-
-            if "stars_with_images" in layout:
-                for i, star_cell in enumerate(layout['stars_with_images']):
-                    if i >= len(stars_with_images):
-                        layout_scores[layout['name']] -= 0.1
-                        continue
-                    star = stars_with_images[i]
-
-                    cell_score = self._cell_score(star_cell) * 2.0
-                    layout_scores[layout['name']] += (1 + star.hot()) * cell_score
-                    all_stars.remove(star)
-
-            for i, star_cell in enumerate(layout['stars']):
-                if i >= len(all_stars):
-                    layout_scores[layout['name']] -= 0.1
-                    continue
-                star = all_stars[i]
-
-                cell_score = self._cell_score(star_cell)
-                layout_scores[layout['name']] += (1 + star.hot()) * cell_score
-                # print("{}\t{}\t{}".format(star, (1 + star.hot()) * cell_score, cell_score))
-            # print("Score: {}".format(layout_scores[layout['name']]))
-
-        # Select best layout
-        selected_layouts = sorted(
-            layout_scores.iteritems(),
-            key=itemgetter(1),
-            reverse=True)
-
-        if len(selected_layouts) == 0:
-            # TODO: Throw exception here, if no layout found the PM failed
-            app.logger.error("No fitting layout found")
-            return
-
-        for layout in layouts:
-            if layout['name'] == selected_layouts[0][0]:
-                break
-
-        # print("Chosen {}".format(layout))
+        layouts = self._get_layouts_for(context)
+        best_layout = self._best_layout(layouts, stars_ranked)
 
         page = Page()
 
@@ -434,8 +360,8 @@ class PageManager(object):
         setattr(page, "pagination", pagination)
 
         section = 'stars_with_images'
-        if section in layout:
-            for i, star_cell in enumerate(layout[section]):
+        if section in best_layout:
+            for i, star_cell in enumerate(best_layout[section]):
                 if i >= len(stars_ranked):
                     break
 
@@ -446,7 +372,7 @@ class PageManager(object):
                         break
 
         section = 'stars'
-        for i, star_cell in enumerate(layout[section]):
+        for i, star_cell in enumerate(best_layout[section]):
             if i >= len(stars_ranked):
                 break
 
