@@ -331,44 +331,41 @@ class PageManager(object):
 
         if stars is None:
             stars_ranked = list()
-            pagination = Pagination(list(), current_page, self.page_size, 0, None)
         else:
-            pagination = stars.paginate(current_page, self.page_size)
-            stars = pagination.items
-
             # Rank stars by score
-            stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
+            stars_ranked = sorted(stars, key=lambda s: s.hot())
 
         layouts = self._get_layouts_for(context)
-        best_layout = self._best_layout(layouts, stars_ranked)
+        ch = Chapter(current_page=current_page)
 
-        page = Page(pagination=pagination)
+        while ch.empty or len(stars_ranked) > 0:
+            best_layout = self._best_layout(layouts, stars_ranked)
 
-        section = 'stars_with_images'
-        if section in best_layout:
+            page = Page()
+
+            section = 'stars_with_images'
+            if section in best_layout:
+                for i, star_cell in enumerate(best_layout[section]):
+                    for star in reversed(stars_ranked):
+                        if star.has_picture():
+                            page.add_to_section(section, star_cell, star)
+                            stars_ranked.remove(star)
+                            break
+
+            section = 'stars'
             for i, star_cell in enumerate(best_layout[section]):
-                if i >= len(stars_ranked):
-                    break
+                if len(stars_ranked) > 0:
+                    star = stars_ranked.pop()
+                    page.add_to_section(section, star_cell, star)
 
-                for star in stars_ranked:
-                    if star.has_picture():
-                        page.add_to_section(section, star_cell, star)
-                        stars_ranked.remove(star)
-                        break
+            ch.add_page(page)
 
-        section = 'stars'
-        for i, star_cell in enumerate(best_layout[section]):
-            if i >= len(stars_ranked):
-                break
-
-            star = stars_ranked[i]
-            page.add_to_section(section, star_cell, star)
-
-        return page
+        return ch
 
 
 class Chapter(object):
     """Contains a set of pages with layout information"""
+
     def __init__(self, current_page=1):
         self.current_page = current_page
         self.pages = list()
@@ -400,6 +397,11 @@ class Chapter(object):
         """Iterates over the page numbers in the pagination.  The four
         parameters control the thresholds how many numbers should be produced
         from the sides.  Skipped page numbers are represented as `None`.
+
+        This method is taken from the Pagination class in the Flask-SQLAlchemy
+        package (Copyright (c) 2010 by Armin Ronacher) and licensed under the
+        Flask-SQLAlchemy LICENSE as seen in the /licenses folder of this
+        repository.
         """
         last = 0
         for num in xrange(1, self.page_count + 1):
@@ -424,7 +426,7 @@ class Chapter(object):
     @property
     def page(self):
         """Return current page"""
-        return self.pages[self.current_page-1]
+        return self.pages[self.current_page - 1]
 
     @property
     def page_count(self):
