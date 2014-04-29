@@ -64,7 +64,14 @@ class PageManager(object):
         return pscore * sscore
 
     def _get_layouts_for(self, context):
-        """ Returns all layouts appropriate for context """
+        """ Returns all layouts appropriate for context
+
+        Args:
+            context (String): Name of the context
+
+        Returns:
+            list: List of dicts containing layout information
+        """
 
         layouts = app.config["LAYOUT_DEFINITIONS"]
         if len(layouts) == 0:
@@ -75,7 +82,11 @@ class PageManager(object):
                 context in layout['context']]
 
     def create_group_layout(self):
-        """Returns a page for creating groups."""
+        """Returns a page for creating groups.
+
+        Returns:
+            Page: Layout object for the page
+        """
 
         # use layouts for create_group_page context
         context = 'create_group_page'
@@ -93,7 +104,11 @@ class PageManager(object):
         return page
 
     def create_star_layout(self):
-        """Returns a page for creating stars."""
+        """Returns a page for creating stars.
+
+        Returns:
+            Page: Layout object for the page
+        """
 
         # use layouts for create_star_page context
         context = 'create_star_page'
@@ -113,6 +128,15 @@ class PageManager(object):
         return page
 
     def group_layout(self, stars, current_page=1):
+        """Given some stars, return layout for a group page containing these Stars.
+
+        Args:
+            stars (flask.ext.sqlalchemy.BaseQuery): Query for stars to contain in the page
+            current_page (int): Page number used for pagination
+
+        Returns:
+            Page: Layout object for the page
+        """
         context = 'group_page'
         layouts = self._get_layouts_for(context)
 
@@ -217,7 +241,16 @@ class PageManager(object):
         return page
 
     def persona_layout(self, persona, stars=None, current_page=1):
-        """Return page for a Persona's profile page"""
+        """Return page for a Persona's profile page
+
+        Args:
+            persona (Persona): Persona object whose profile will be used to fill the page
+            stars (flask.ext.sqlalchemy.BaseQuery): Optional query for stars to replace persona's profile
+            current_page (int): Page number used for pagination
+
+        Returns:
+            Page: Layout object for the page
+        """
         from nucleus.models import Star
 
         if stars is None and hasattr(persona, "profile") and hasattr(persona.profile, "index"):
@@ -323,7 +356,15 @@ class PageManager(object):
         return page
 
     def star_layout(self, stars, current_page=1):
-        """Return the optimal layouted page for the given stars."""
+        """Return the optimal layouted page for the given stars.
+
+        Args:
+            stars (flask.ext.sqlalchemy.BaseQuery): Query for stars in the page
+            current_page (int): Page number used for pagination
+
+        Returns:
+            Page: Layout object for the page
+        """
 
         context = 'star_page'
         layouts = self._get_layouts_for(context)
@@ -337,7 +378,6 @@ class PageManager(object):
 
             # Rank stars by score
             stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
-
 
         # Find best layout by filling each one with stars
         # and determining which one gives the best score
@@ -435,11 +475,19 @@ class Page(object):
     def _create_entry(self, cell, content):
         """ Creates a section of a page consisting of a dict
         containing the css_class and the content of the section.
-        CSS class name format
-         col   column at which the css container begins
-         row   row at which it begins
-         w     width of the container
-         h     height of the container
+
+         Args:
+            cell (list): List of four elements:
+                0 (int) -- column at which the css container begins
+                1 (int) -- row at which it begins
+                2 (int) -- width of the container
+                3 (int) -- height of the container
+            content (object): Object containing entry contents
+
+        Returns:
+            dict: Entry information
+                css_class (String): CSS classname of the entry
+                content (object): Object containing page contents
         """
         css_class = "col{} row{} w{} h{}".format(
             cell[0],
@@ -451,7 +499,17 @@ class Page(object):
 
     def add_to_section(self, section, entry, content):
         """ Adds a new entry to the page section 'section'
-        (and creates it if necessary). """
+        (and creates it if necessary).
+
+        Args:
+            section (String): Section name
+            entry (list): List of four elements:
+                0 (int) -- column at which the css container begins
+                1 (int) -- row at which it begins
+                2 (int) -- width of the container
+                3 (int) -- height of the container
+            content (object): Object containing entry contents
+        """
 
         section_entry = self._create_entry(entry, content)
 
