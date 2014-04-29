@@ -382,6 +382,11 @@ class Chapter(object):
         self.pages.append(page)
 
     @property
+    def empty(self):
+        """Return True if no pages"""
+        return self.page_count == 0
+
+    @property
     def has_next(self):
         """True if a next page exists."""
         return self.current_page < self.page_count
@@ -415,6 +420,11 @@ class Chapter(object):
     def next_num(self):
         """Number of the next page"""
         return self.current_page + 1
+
+    @property
+    def page(self):
+        """Return current page"""
+        return self.pages[self.current_page-1]
 
     @property
     def page_count(self):
