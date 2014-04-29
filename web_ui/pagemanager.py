@@ -367,6 +367,71 @@ class PageManager(object):
         return page
 
 
+class Chapter(object):
+    """Contains a set of pages with layout information"""
+    def __init__(self, current_page=1):
+        self.current_page = current_page
+        self.pages = list()
+
+    def add_page(self, page):
+        """Append a page to this chapter
+
+        Args:
+            page (Page): Page object
+        """
+        self.pages.append(page)
+
+    @property
+    def has_next(self):
+        """True if a next page exists."""
+        return self.current_page < self.page_count
+
+    @property
+    def has_prev(self):
+        """True if a previous page exists"""
+
+    def iter_pages(self, left_edge=2, left_current=2,
+                   right_current=5, right_edge=2):
+        """Iterates over the page numbers in the pagination.  The four
+        parameters control the thresholds how many numbers should be produced
+        from the sides.  Skipped page numbers are represented as `None`.
+        """
+        last = 0
+        for num in xrange(1, self.page_count + 1):
+            if num <= left_edge or \
+               (num > self.current_page - left_current - 1 and
+                num < self.current_page + right_current) or \
+               num > self.page_count - right_edge:
+                if last + 1 != num:
+                    yield None
+                yield num
+                last = num
+
+    def next(self):
+        """Return the next page"""
+        self.pages[self.next_num]
+
+    @property
+    def next_num(self):
+        """Number of the next page"""
+        return self.current_page + 1
+
+    @property
+    def page_count(self):
+        """The total number of pages"""
+        return len(self.pages)
+
+    @property
+    def prev(self):
+        """Previous page"""
+        self.pages[self.prev_num]
+
+    @property
+    def prev_num(self):
+        """Number of the previous page."""
+        self.current_page - 1
+
+
 class Page(object):
     """Responsible for the layout of a page. Instances of Page
     hold variables for each dynamic section of the page. This
