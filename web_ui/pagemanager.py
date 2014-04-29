@@ -206,53 +206,46 @@ class PageManager(object):
         context = 'group_page'
 
         if stars is None:
-            pagination = Pagination(list(), current_page, self.page_size, 0, None)
+            stars_ranked = list()
         else:
-            pagination = stars.paginate(current_page, self.page_size)
-            stars = pagination.items
-
-        # Rank stars by score
-        stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
+            # Rank stars by score
+            stars_ranked = sorted(stars, key=lambda s: s.hot())
 
         layouts = self._get_layouts_for(context)
-        best_layout = self._best_layout(layouts, stars_ranked)
+        ch = Chapter(current_page=current_page)
 
-        page = Page(pagination=pagination)
+        while ch.empty or len(stars_ranked) > 0:
+            page = Page()
 
-        # Add header to group page
-        section = 'header'
-        page.add_to_section(section, best_layout[section], None)
+            best_layout = self._best_layout(layouts, stars_ranked)
 
-        # Add create_star form to page
-        section = 'create_star_form'
+            # Add header to group page
+            section = 'header'
+            page.add_to_section(section, best_layout[section], None)
 
-        for cell in best_layout[section]:
-            page.add_to_section(section, cell, None)
+            # Add create_star form to page
+            section = 'create_star_form'
 
-        section = 'stars_with_images'
-        if section in best_layout:
-            for i, star_cell in enumerate(best_layout[section]):
-                if i >= len(stars_ranked):
-                    break
+            for cell in best_layout[section]:
+                page.add_to_section(section, cell, None)
 
-                for star in stars_ranked:
-                    if star.has_picture():
-                        page.add_to_section(section, star_cell, star)
-                        stars_ranked.remove(star)
-                        break
+            section = 'stars_with_images'
+            if section in best_layout:
+                for i, star_cell in enumerate(best_layout[section]):
+                    for star in reversed(stars_ranked):
+                        if star.has_picture():
+                            page.add_to_section(section, star_cell, star)
+                            stars_ranked.remove(star)
+                            break
 
-        if stars_ranked is not None:
-            # Add the stars of the group to page
             section = 'stars'
-
             for i, star_cell in enumerate(best_layout[section]):
-                if i >= len(stars_ranked):
-                    break
+                if len(stars_ranked) > 0:
+                    star = stars_ranked.pop()
+                    page.add_to_section(section, star_cell, star)
 
-                star = stars_ranked[i]
-                page.add_to_section(section, star_cell, star)
-
-        return page
+            ch.add_page(page)
+        return ch
 
     def persona_layout(self, persona, stars=None, current_page=1):
         """Return page for a Persona's profile page
@@ -273,34 +266,28 @@ class PageManager(object):
         context = 'persona_page'
 
         if stars is None:
-            pagination = Pagination(list(), current_page, self.page_size, 0, None)
             stars_ranked = list()
         else:
-            pagination = stars.paginate(current_page, self.page_size)
-            stars = pagination.items
-
             # Rank stars by score
             stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
 
         # Find best layout
         layouts = self._get_layouts_for(context)
-        best_layout = self._best_layout(layouts, stars_ranked)
+        ch = Chapter(current_page=current_page)
 
-        page = Page(pagination=pagination)
+        while ch.empty or len(stars_ranked) > 0:
+            page = Page()
 
-        # Add vcard to group page
-        section = 'vcard'
-        page.add_to_section(section, best_layout[section], None)
+            best_layout = self._best_layout(layouts, stars_ranked)
 
-        # Add the stars of the profile to page
-        if stars is not None:
+            # Add vcard to group page
+            section = 'vcard'
+            page.add_to_section(section, best_layout[section], None)
+
             section = 'stars_with_images'
             if section in best_layout:
                 for i, star_cell in enumerate(best_layout[section]):
-                    if i >= len(stars_ranked):
-                        break
-
-                    for star in stars_ranked:
+                    for star in reversed(stars_ranked):
                         if star.has_picture():
                             page.add_to_section(section, star_cell, star)
                             stars_ranked.remove(star)
@@ -308,13 +295,13 @@ class PageManager(object):
 
             section = 'stars'
             for i, star_cell in enumerate(best_layout[section]):
-                if i >= len(stars_ranked):
-                    break
+                if len(stars_ranked) > 0:
+                    star = stars_ranked.pop()
+                    page.add_to_section(section, star_cell, star)
 
-                star = stars_ranked[i]
-                page.add_to_section(section, star_cell, star)
+            ch.add_page(page)
 
-        return page
+        return ch
 
     def star_layout(self, stars, current_page=1):
         """Return the optimal layouted page for the given stars.
@@ -339,9 +326,9 @@ class PageManager(object):
         ch = Chapter(current_page=current_page)
 
         while ch.empty or len(stars_ranked) > 0:
-            best_layout = self._best_layout(layouts, stars_ranked)
-
             page = Page()
+
+            best_layout = self._best_layout(layouts, stars_ranked)
 
             section = 'stars_with_images'
             if section in best_layout:

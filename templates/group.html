@@ -7,7 +7,7 @@
 
 {% block content %}
 <!-- <section class="col0 row1 w3 h1">-->
-<section class='{{ page.header[0].css_class }}'>
+<section class='{{ chapter.page.header[0].css_class }}'>
     <span class="content">
         <h1>{{group.username}}</h1>
         <p>Description: {{group.description}}</p>
@@ -17,10 +17,10 @@
 </form>
 
 
-{{ create_macro.create_star(page, form, active_persona) }}
+{{ create_macro.create_star(chapter.page, form, active_persona) }}
 
-{% if page.stars_with_images %}
-    {% for star in page.stars_with_images %}
+{% if chapter.page.stars_with_images %}
+    {% for star in chapter.page.stars_with_images %}
 
     <section class="image-overlay {{ star.css_class }}">
         {{ star_macros.star(star.content, author=active_persona, controlled_personas=controlled_personas) }}
@@ -29,7 +29,7 @@
     {% endfor %}
 {% endif %}
 
-{% for star in page.stars %}
+{% for star in chapter.page.stars %}
     {% for planet_assoc in star.content.planet_assocs %}
     <section class='{{ star.css_class }}'>
         {{ planet_macros.planet(planet_assoc.planet, False)}}
@@ -41,6 +41,6 @@
     </section>
 {% endfor %}
 
-{{ pagination.render_pagination(page.pagination, "group", id=group.id) }}
+{{ pagination.render_pagination(chapter, "group", id=group.id) }}
 
 {% endblock %}

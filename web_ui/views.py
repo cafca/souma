@@ -123,13 +123,13 @@ def persona(id, current_page=1):
 
     persona = Persona.query.filter_by(id=id).first_or_404()
 
-    page = pagemanager.persona_layout(persona, current_page=current_page)
+    chapter = pagemanager.persona_layout(persona, current_page=current_page)
 
 
     return render_template(
         'persona.html',
         layout="persona",
-        page=page,
+        chapter=chapter,
         persona=persona)
 
 
@@ -596,12 +596,12 @@ def group(id, current_page=1):
     form.context.data = group.profile.id
 
     # create layouted page for group
-    page = pagemanager.group_layout(stars, current_page=current_page)
+    chapter = pagemanager.group_layout(stars, current_page=current_page)
 
     return render_template(
         'group.html',
         group=group,
-        page=page,
+        chapter=chapter,
         form=form)
 
 
