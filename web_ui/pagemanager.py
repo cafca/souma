@@ -194,14 +194,14 @@ class PageManager(object):
         return page
 
     def group_layout(self, stars, current_page=1):
-        """Given some stars, return layout for a group page containing these Stars.
+        """Given some stars, return Chapter for a group page containing these Stars.
 
         Args:
             stars (flask.ext.sqlalchemy.BaseQuery): Query for stars to contain in the page
             current_page (int): Page number used for pagination
 
         Returns:
-            Page: Layout object for the page
+            Chapter: Layout object for the page
         """
         context = 'group_page'
 
@@ -248,7 +248,7 @@ class PageManager(object):
         return ch
 
     def persona_layout(self, persona, stars=None, current_page=1):
-        """Return page for a Persona's profile page
+        """Return Chapter for a Persona's profile page
 
         Args:
             persona (Persona): Persona object whose profile will be used to fill the page
@@ -256,7 +256,7 @@ class PageManager(object):
             current_page (int): Page number used for pagination
 
         Returns:
-            Page: Layout object for the page
+            Chapter: Layout object for the star collection
         """
         from nucleus.models import Star
 
@@ -304,14 +304,14 @@ class PageManager(object):
         return ch
 
     def star_layout(self, stars, current_page=1):
-        """Return the optimal layouted page for the given stars.
+        """Return a chapter containing layouts for the given stars.
 
         Args:
             stars (flask.ext.sqlalchemy.BaseQuery): Query for stars in the page
             current_page (int): Page number used for pagination
 
         Returns:
-            Page: Layout object for the page
+            Chapter: Layout object for the star collection
         """
 
         context = 'star_page'
