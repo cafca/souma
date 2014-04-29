@@ -241,12 +241,9 @@ class PageManager(object):
                         stars_ranked.remove(star)
                         break
 
-        if stars is not None:
+        if stars_ranked is not None:
             # Add the stars of the group to page
             section = 'stars'
-
-            # Rank stars by score
-            stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
 
             for i, star_cell in enumerate(best_layout[section]):
                 if i >= len(stars_ranked):
@@ -310,9 +307,6 @@ class PageManager(object):
                             break
 
             section = 'stars'
-            # Rank stars by score
-            stars_ranked = sorted(stars, key=lambda s: s.hot(), reverse=True)
-
             for i, star_cell in enumerate(best_layout[section]):
                 if i >= len(stars_ranked):
                     break
