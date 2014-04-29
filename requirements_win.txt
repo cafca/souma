@@ -33,6 +33,7 @@ python-dateutil==2.2
 python-keyczar==0.71c
 readability-lxml==0.3.0.2
 requests==2.2.1
+semantic-version==2.3.0
 
 six==1.5.2
 smmap==0.8.2
