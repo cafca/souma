@@ -390,8 +390,7 @@ class Page(object):
     """
 
     def __init__(self, pagination=None):
-        if pagination:
-            self.pagination = pagination
+        self.pagination = pagination
 
     def _create_entry(self, cell, content):
         """ Creates a section of a page consisting of a dict
