@@ -42,6 +42,27 @@ class PageManager(object):
         for cell in layout[section]:
             page.add_to_section(section, cell, None)
 
+    def _cell_score(self, cell):
+        """ Return a score that describes how valuable a given cell on
+        the screen is. Cell on the top left is 1.0, score diminishes to
+        the right and bottom. Bigger cells get higher scores, cells off
+        the screen get a 0.0 """
+
+        import math
+
+        # position score
+        if cell[0] > self.screen_size[0] or cell[1] > self.screen_size[1]:
+            pscore = 0.0
+        else:
+            score_x = 1.0 if cell[0] == 0 else 1.0 / (1.0 + (cell[0] / self.screen_size[0]))
+            score_y = 1.0 if cell[1] == 0 else 1.0 / (1.0 + (cell[1] / self.screen_size[1]))
+            pscore = (score_x + score_y) / 2.0
+
+        # size score (sigmoid)
+        area = cell[2] * cell[3]
+        sscore = 1.0 / (1 + pow(math.exp(1), -0.1 * (area - 12.0)))
+        return pscore * sscore
+
     def _get_layouts_for(self, context):
         """ Returns all layouts appropriate for context """
 
@@ -52,6 +73,44 @@ class PageManager(object):
 
         return [layout for layout in layouts if
                 context in layout['context']]
+
+    def create_group_layout(self):
+        """Returns a page for creating groups."""
+
+        # use layouts for create_group_page context
+        context = 'create_group_page'
+        layouts = self._get_layouts_for(context)
+        page = Page()
+
+        # currently no logic to choose among different layouts
+        assert(len(layouts) == 1)
+        best_layout = layouts[0]
+
+        # add layout for static fields
+        self._add_static_section(page, 'header', best_layout)
+        self._add_static_section(page, 'create_group_form', best_layout)
+
+        return page
+
+    def create_star_layout(self):
+        """Returns a page for creating stars."""
+
+        # use layouts for create_star_page context
+        context = 'create_star_page'
+        layouts = self._get_layouts_for(context)
+
+        # currently no logic to choose among different layouts
+        assert(len(layouts) == 1)
+
+        # page entry containing the form will be called:
+        section = 'create_star_form'
+
+        page = Page()
+
+        for cell in layouts[0][section]:
+            page.add_to_section(section, cell, None)
+
+        return page
 
     def group_layout(self, stars, current_page=1):
         context = 'group_page'
@@ -154,44 +213,6 @@ class PageManager(object):
 
                 star = stars_ranked[i]
                 page.add_to_section(section, star_cell, star)
-
-        return page
-
-    def create_star_layout(self):
-        """Returns a page for creating stars."""
-
-        # use layouts for create_star_page context
-        context = 'create_star_page'
-        layouts = self._get_layouts_for(context)
-
-        # currently no logic to choose among different layouts
-        assert(len(layouts) == 1)
-
-        # page entry containing the form will be called:
-        section = 'create_star_form'
-
-        page = Page()
-
-        for cell in layouts[0][section]:
-            page.add_to_section(section, cell, None)
-
-        return page
-
-    def create_group_layout(self):
-        """Returns a page for creating groups."""
-
-        # use layouts for create_group_page context
-        context = 'create_group_page'
-        layouts = self._get_layouts_for(context)
-        page = Page()
-
-        # currently no logic to choose among different layouts
-        assert(len(layouts) == 1)
-        best_layout = layouts[0]
-
-        # add layout for static fields
-        self._add_static_section(page, 'header', best_layout)
-        self._add_static_section(page, 'create_group_form', best_layout)
 
         return page
 
@@ -394,27 +415,6 @@ class PageManager(object):
 
         return page
 
-    def _cell_score(self, cell):
-        """ Return a score that describes how valuable a given cell on
-        the screen is. Cell on the top left is 1.0, score diminishes to
-        the right and bottom. Bigger cells get higher scores, cells off
-        the screen get a 0.0 """
-
-        import math
-
-        # position score
-        if cell[0] > self.screen_size[0] or cell[1] > self.screen_size[1]:
-            pscore = 0.0
-        else:
-            score_x = 1.0 if cell[0] == 0 else 1.0 / (1.0 + (cell[0] / self.screen_size[0]))
-            score_y = 1.0 if cell[1] == 0 else 1.0 / (1.0 + (cell[1] / self.screen_size[1]))
-            pscore = (score_x + score_y) / 2.0
-
-        # size score (sigmoid)
-        area = cell[2] * cell[3]
-        sscore = 1.0 / (1 + pow(math.exp(1), -0.1 * (area - 12.0)))
-        return pscore * sscore
-
 
 class Page(object):
     """Responsible for the layout of a page. Instances of Page
@@ -432,18 +432,6 @@ class Page(object):
               ]
     """
 
-    def add_to_section(self, section, entry, content):
-        """ Adds a new entry to the page section 'section'
-        (and creates it if necessary). """
-
-        section_entry = self._create_entry(entry, content)
-
-        if not hasattr(self, section):
-            setattr(self, section, [])
-
-        attr = getattr(self, section)
-        attr.append(section_entry)
-
     def _create_entry(self, cell, content):
         """ Creates a section of a page consisting of a dict
         containing the css_class and the content of the section.
@@ -460,3 +448,15 @@ class Page(object):
             cell[3])
 
         return {'css_class': css_class, 'content': content}
+
+    def add_to_section(self, section, entry, content):
+        """ Adds a new entry to the page section 'section'
+        (and creates it if necessary). """
+
+        section_entry = self._create_entry(entry, content)
+
+        if not hasattr(self, section):
+            setattr(self, section, [])
+
+        attr = getattr(self, section)
+        attr.append(section_entry)
