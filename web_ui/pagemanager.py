@@ -217,10 +217,7 @@ class PageManager(object):
         layouts = self._get_layouts_for(context)
         best_layout = self._best_layout(layouts, stars_ranked)
 
-        page = Page()
-
-        # Add pagination information
-        setattr(page, "pagination", pagination)
+        page = Page(pagination=pagination)
 
         # Add header to group page
         section = 'header'
@@ -292,14 +289,11 @@ class PageManager(object):
         layouts = self._get_layouts_for(context)
         best_layout = self._best_layout(layouts, stars_ranked)
 
-        page = Page()
+        page = Page(pagination=pagination)
 
         # Add vcard to group page
         section = 'vcard'
         page.add_to_section(section, best_layout[section], None)
-
-        # Add pagination information
-        setattr(page, "pagination", pagination)
 
         # Add the stars of the profile to page
         if stars is not None:
@@ -354,10 +348,7 @@ class PageManager(object):
         layouts = self._get_layouts_for(context)
         best_layout = self._best_layout(layouts, stars_ranked)
 
-        page = Page()
-
-        # Add pagination information
-        setattr(page, "pagination", pagination)
+        page = Page(pagination=pagination)
 
         section = 'stars_with_images'
         if section in best_layout:
@@ -397,6 +388,10 @@ class Page(object):
                 {css_class:'col1 row3 w3 h1', content: star2}
               ]
     """
+
+    def __init__(self, pagination=None):
+        if pagination:
+            self.pagination = pagination
 
     def _create_entry(self, cell, content):
         """ Creates a section of a page consisting of a dict
