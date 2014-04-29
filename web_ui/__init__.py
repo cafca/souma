@@ -6,7 +6,7 @@ import argparse
 from Crypto.Hash import SHA256
 from flask import Flask, json
 from flask.ext.sqlalchemy import SQLAlchemy
-from flaskext import uploads
+from flask.ext import uploads
 from humanize import naturaltime
 from logging.handlers import RotatingFileHandler
 from werkzeug.contrib.cache import SimpleCache
@@ -15,8 +15,10 @@ from werkzeug.contrib.cache import SimpleCache
 # Initialize Flask app
 app = Flask('souma')
 
-# Load config from default_config.py
+# Load configuration
 app.config.from_object("web_ui.default_config")
+app.config.from_object('astrolab.config')
+
 app.jinja_env.filters['naturaltime'] = naturaltime
 
 # Create application data folder
@@ -59,6 +61,7 @@ app.config['LOGIN_SERVER'] = args.glia
 if args.debug is True:
     app.config["LOG_LEVEL"] = logging.DEBUG
     app.config["DEBUG"] = True
+    app.logger.debug("Verbose logs active")
 
 if args.reset is True:
     from web_ui.helpers import reset_userdata
@@ -104,15 +107,6 @@ else:
     app.config['PASSWORD_HASH'] = None
 
 
-# Load layout definitions
-try:
-    with open(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'layouts.json')) as f:
-        app.config['LAYOUT_DEFINITIONS'] = json.load(f)
-except IOError, e:
-    logging.error("Failed loading layout definitions")
-    app.config['LAYOUT_DEFINITIONS'] = dict()
-
-
 # Setup SQLAlchemy database
 db = SQLAlchemy(app)
 
@@ -127,23 +121,28 @@ uploads.configure_uploads(app, (attachments))
 # Flask is configured to route logging events only to the console if it is in debug
 # mode. This overrides this setting and enables a new logging handler which prints
 # to the shell.
+handlers = []
 loggers = [app.logger, logging.getLogger('synapse'), logging.getLogger('e-synapse'), logging.getLogger('astrolab')]
 
 if app.config["LOG_SQL_STATEMENTS"]:
     loggers.append(logging.getLogger('sqlalchemy.engine'))
 
-console_handler = logging.StreamHandler(stream=sys.stdout)
-console_handler.setFormatter(logging.Formatter(app.config['LOG_FORMAT']))
+if app.config["CONSOLE_LOGGING"] is True:
+    console_handler = logging.StreamHandler(stream=sys.stdout)
+    console_handler.setFormatter(logging.Formatter(app.config['LOG_FORMAT']))
+    handlers.append(console_handler)
 
-file_handler = RotatingFileHandler(app.config["LOG_FILENAME"],
-    maxBytes=app.config["LOG_MAXBYTES"], backupCount=5, delay=True)
-file_handler.setFormatter(logging.Formatter(app.config['LOG_FORMAT']))
+if app.config["FILE_LOGGING"] is True:
+    file_handler = RotatingFileHandler(app.config["LOG_FILENAME"],
+        maxBytes=app.config["LOG_MAXBYTES"], backupCount=5, delay=True)
+    file_handler.setFormatter(logging.Formatter(app.config['LOG_FORMAT']))
+    handlers.append(file_handler)
 
 for l in loggers:
     del l.handlers[:]  # remove old handlers
     l.setLevel(logging.DEBUG)
-    l.addHandler(console_handler)
-    l.addHandler(file_handler)
+    for h in handlers:
+        l.addHandler(h)
     l.propagate = False  # setting this to true triggers the root logger
 
 

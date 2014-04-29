@@ -38,11 +38,11 @@ def setup_astrolab():
     from astrolab.interestmodel import update
 
     sleep(0)
-    model_filename = app.config["TOPIC_MODEL"]
-    word_ids_filename = app.config["TOPIC_MODEL_IDS"]
+    model_filename = app.config["ASTROLAB_MODEL"]
+    word_ids_filename = app.config["ASTROLAB_MODEL_IDS"]
 
-    model_url = app.config["TOPIC_MODEL_UPDATE"]
-    word_ids_url = app.config["TOPIC_MODEL_IDS_UPDATE"]
+    model_url = app.config["ASTROLAB_UPDATE"]
+    word_ids_url = app.config["ASTROLAB_IDS_UPDATE"]
 
     try:
         with open(word_ids_filename):

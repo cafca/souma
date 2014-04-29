@@ -6,18 +6,26 @@ Usage:
     python package.py py2exe
 """
 import ez_setup
+import numpy #important for py2exe to work
 ez_setup.use_setuptools()
 
 from setuptools import setup
-import sys
+import sys, os
 
 if sys.platform == 'win32':
     import py2exe
+
+# Compile .less files
+filenames = ["main", ]
+for fn in filenames:
+    rv = os.system("touch ./static/css/{}.css".format(fn))
+    rv += os.system("lesscpy ./static/css/{fn}.less > ./static/css/{fn}.css".format(fn=fn))
 
 APP = ['run.py']
 DATA_FILES = ['templates', 'static']
 
 INCLUDES = [
+    "web_ui",
     "jinja2.ext",
     "sklearn",
     "sklearn.utils",
@@ -34,10 +42,12 @@ INCLUDES = [
     "flask.helpers",
     # "flask_restful.representations",
     # "flask_restful.representations.json",
-    "flaskext",
-    "flaskext.wtf",
+    #"flaskext",
+    #"flaskext.wtf",
     "flask.ext",
-    "flask.ext.wtf",
+    "flaskext",
+    "flaskext.uploads",
+    "flask_wtf",
     "sqlalchemy.orm",
     "sqlalchemy.event",
     "sqlalchemy.ext.declarative",
@@ -138,17 +148,30 @@ INCLUDES = [
     "sqlalchemy.util.langhelpers",
     "sqlalchemy.util.queue",
     "sqlalchemy.util.topological",
-    "flask_sqlalchemy._compat", ]
+    "flask_sqlalchemy._compat",
+    "lxml._elementpath",
+    "lxml.etree",
+    "scipy.sparse.csgraph._validation",
+    "gzip",
+    "scipy.special._ufuncs_cxx",
+    "sklearn.utils.sparsetools._graph_validation",
+    "gevent",
+    "gevent.core",
+    "logging",
+    "Crypto",
+    "Crypto.Hash"]
 
 # might need to explicitly include dll:
 # data_files=[('.', 'libmmd.dll')
 # also:
 # http://stackoverflow.com/questions/10060765/create-python-exe-without-msvcp90-dll
+
 WIN_OPTIONS = {
     "dist_dir": "../dist",
     "includes": INCLUDES,
     "packages": ["nucleus", "web_ui", "synapse", "astrolab"],
-    "dll_excludes": ["libmmd.dll", "libifcoremd.dll", "libiomp5md.dll", "MSVCP90.dll"],
+    "dll_excludes": [],
+    'bundle_files': 1
 }
 
 DARWIN_OPTIONS = {
@@ -165,6 +188,42 @@ DARWIN_OPTIONS = {
         "LSUIElement": True
     },
 }
+
+
+def find_data_files(source, target, patterns):
+    """Locates the specified data-files and returns the matches
+    in a data_files compatible format.
+
+    Parameters:
+        source(String): Root of the source data tree.
+            Use '' or '.' for current directory.
+        target(String): Root of the target data tree.
+            Use '' or '.' for the distribution directory.
+        patterns(Iterable):  Sequence of glob-patterns for the
+            files you want to copy.
+
+    Returns:
+        dict:
+    """
+    import os
+    import glob
+
+    if glob.has_magic(source) or glob.has_magic(target):
+        raise ValueError("Magic not allowed in src, target")
+    ret = {}
+    more = []
+    for pattern in patterns:
+        pattern = os.path.join(source, pattern)
+        for filename in glob.glob(pattern):
+            if os.path.isfile(filename):
+                targetpath = os.path.join(target, os.path.relpath(filename, source))
+                path = os.path.dirname(targetpath)
+                ret.setdefault(path, []).append(filename)
+            elif os.path.isdir(filename):
+                more.extend(find_data_files(filename, filename, '*'))
+    ret = sorted(ret.items())
+    ret.extend(more)
+    return ret
 
 """ Platform specific options """
 if sys.platform == 'darwin':
@@ -196,15 +255,38 @@ if sys.platform == 'darwin':
         app=['run.py'],
         options=dict(py2app=DARWIN_OPTIONS))
 
+    install_requires = open('requirements_osx.txt').read()
+
 elif sys.platform == 'win32':
     extra_options = dict(
         setup_requires=['py2exe'],
-        app=APP,
-        options=dict(py2exe=WIN_OPTIONS)
+        console=[{'script': "run.py"}],
+        options=dict(py2exe=WIN_OPTIONS),
+        zipfile=None
     )
+
+    #Some little hacks for making py2exe work
+    #Create empty __init__.py in flaskext directory
+    #so py2exe recognizes it as module
+    import flaskext
+    try:
+        flaskext.__file__
+    except:
+        flaskext_init = open(flaskext.__path__[0]+'\\__init__.py', 'w')
+        flaskext_init.close()
+
+
+    install_requires = open('requirements_win.txt').read()
+
+    data_files_tmp = DATA_FILES
+    DATA_FILES = []
+    for data_file in data_files_tmp:
+        DATA_FILES.extend(find_data_files(data_file, data_file, '*'))
 else:
     extra_options = dict(
         scripts=APP)
+
+    install_requires = open('requirements_osx.txt').read()
 
 setup(
     name="Souma",
@@ -212,12 +294,11 @@ setup(
     author="Cognitive Networks Group",
     author_email="cognitive-networks@googlegroups.com",
     url="https://github.com/ciex/souma/",
-    scripts=["run.py"],
     packages=["nucleus", "web_ui", "synapse", "astrolab"],
     data_files=DATA_FILES,
     license="Apache License 2.0",
     description="A Cognitive Network for Groups",
     long_description=open("README.md").read(),
-    install_requires=open("requirements.txt").read(),
+    install_requires=install_requires,
     **extra_options
 )

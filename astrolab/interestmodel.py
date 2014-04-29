@@ -61,16 +61,14 @@ def fit(interestmodel, topic_model):
             like = Oneup.query.filter(
                 Oneup.state >= 0).filter_by(parent_id=star.id, author_id=interestmodel.persona_id).all()
 
-        content = ""
-        if star.text:
-            content = " ".join([content, star.text])
 
+        content = star.text
         for planet_assoc in star.planet_assocs:
             planet = planet_assoc.planet
             if isinstance(planet, LinkPlanet):
                 link = planet.url
                 link_content = get_site_content(link)
-                content = " ".join([content, link_content])
+                content += ' ' + link_content
 
         topics = topic_model.get_topics_text(content)
 

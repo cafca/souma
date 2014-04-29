@@ -1,6 +1,5 @@
 import os
 import logging
-import json
 
 from gevent import sleep
 
@@ -12,9 +11,11 @@ epoch = datetime.utcfromtimestamp(0)
 epoch_seconds = lambda dt: (dt - epoch).total_seconds() - 1356048000
 
 
-def score(star_object):
-    import random
-    return random.random() * 100 - random.random() * 10
+def allowed_file(filename):
+    from web_ui import app
+
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1] in app.config['ALLOWED_EXTENSIONS']
 
 
 def get_active_persona():
@@ -31,13 +32,6 @@ def get_active_persona():
             session['active_persona'] = controlled_persona.id
 
     return session['active_persona']
-
-
-def allowed_file(filename):
-    from web_ui import app
-
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1] in app.config['ALLOWED_EXTENSIONS']
 
 
 def reset_userdata():
@@ -109,20 +103,63 @@ def find_links(text):
     return (rv, text)
 
 
-def watch_layouts():
+def host_kind():
+    """Determine whether the App runs pacaged or from the command line
+
+    Returns:
+        String: Host system kind
+            ``    -- Runs from the command line
+            `win` -- Packaged Windows app
+            `osx` -- Packaded OSX app
+
+    """
+    import sys
+    frozen = getattr(sys, 'frozen', None)
+
+    if not frozen:
+        return ''
+    elif frozen in ('dll', 'console_exe', 'windows_exe'):
+        return 'win'
+    elif frozen in ('macosx_app',):
+        return 'osx'
+
+
+def score(star_object):
+    import random
+    return random.random() * 100 - random.random() * 10
+
+
+def watch_layouts(continuous=True):
+    """Watch layout file and update layout definitions once they change
+
+    Parameters:
+        continuous (bool): Set False to only load definitions once
+
+    Returns:
+        dict: Layout definitions if `continuous` is False
+    """
+    import json
     from web_ui import app
 
     mtime_last = 0
-    layout_filename = os.path.join(os.path.abspath("."), 'web_ui', 'layouts.json')
-    while True:
-        sleep(1)
+    layout_filename = os.path.join(app.config["RUNTIME_DIR"], 'static', 'layouts.json')
+    cont = True
+    while cont is True:
         mtime_cur = os.path.getmtime(layout_filename)
+
         if mtime_cur != mtime_last:
-            app.logger.info("Loading new layout definitions")
+
             try:
                 with open(layout_filename) as f:
                     app.config['LAYOUT_DEFINITIONS'] = json.load(f)
             except IOError:
                 app.logger.error("Failed loading layout definitions")
                 app.config['LAYOUT_DEFINITIONS'] = dict()
+            else:
+                app.logger.info("Loaded {} layout definitions".format(len(app.config["LAYOUT_DEFINITIONS"])))
         mtime_last = mtime_cur
+
+        cont = True if continuous is True else False
+        sleep(1)
+
+    return app.config["LAYOUT_DEFINITIONS"]

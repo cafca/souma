@@ -18,10 +18,9 @@ from astrolab.helpers import setup_astrolab
 from nucleus.set_hosts import test_host_entry, create_new_hosts_file, HOSTSFILE
 from nucleus.models import Souma, Starmap
 from synapse import Synapse
-from web_ui.helpers import compile_less, watch_layouts
+from web_ui.helpers import host_kind, compile_less, watch_layouts
 
 monkey.patch_all()
-
 
 """ patch gevent for py2app """
 if getattr(sys, 'frozen', None) == 'macosx_app':
@@ -86,6 +85,9 @@ elif local_souma.version < semantic_version.Version(app.config["VERSION"]):
         local_souma.version, app.config["VERSION"], app.config["USER_DATA"]))
     start = False
 
+#__file__ doesn't work with freezing
+app.config["RUNTIME_DIR"] = os.path.abspath('.')
+
 """ Start app """
 if start:
     if app.config['USE_DEBUG_SERVER']:
@@ -121,7 +123,9 @@ if start:
                     cmd = """osascript -e 'do shell script "mv \\"{}\\" \\"{}\\"" with administrator privileges'"""
                     os.system(cmd.format(tempfile_path, HOSTSFILE))
 
-            compile_less()
+            # Compile less when running from console
+            if host_kind() == "":
+                compile_less()
 
             app.logger.info("Starting Web-UI")
             local_server = WSGIServer(('', app.config['LOCAL_PORT']), app)
@@ -130,6 +134,5 @@ if start:
 
         # Setup Astrolab
         Greenlet.spawn(setup_astrolab)
-        Greenlet.spawn(watch_layouts)
 
         shutdown.wait()
