@@ -20,7 +20,7 @@
         }}
     </section>
 
-    {% if star.children[0] %}
+    {% if star.children.filter_by(kind='star')[0] %}
         <section class="col7 row4 w4 h1" style="margin-top: -3em">
             <h3 style="margin: 0 auto; color: #666">Comments</h3>
         </section>
