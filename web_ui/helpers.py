@@ -42,9 +42,9 @@ def reset_userdata():
         try:
             os.remove(app.config[fileid])
         except OSError:
-            app.logger.warning("RESET: {} not found".format(fileid))
+            app.logger.warning("RESET: {} {} not found".format(fileid, app.config[fileid]))
         else:
-            app.logger.warning("RESET: {} deleted".format(fileid))
+            app.logger.warning("RESET: {} {} deleted".format(fileid, app.config[fileid]))
 
 
 def compile_less(filenames=None):

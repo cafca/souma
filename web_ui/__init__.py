@@ -63,10 +63,6 @@ if args.debug is True:
     app.config["DEBUG"] = True
     app.logger.debug("Verbose logs active")
 
-if args.reset is True:
-    from web_ui.helpers import reset_userdata
-    reset_userdata()
-
 if args.port is not None:
     app.config['LOCAL_PORT'] = args.port
     app.config['LOCAL_ADDRESS'] = "{}:{}".format(app.config['LOCAL_HOSTNAME'], args.port)
@@ -76,15 +72,10 @@ if args.port is not None:
     app.config["SECRET_KEY_FILE"] = os.path.join(app.config["USER_DATA"], "secret_key_{}.dat".format(args.port))
     app.config["PASSWORD_HASH_FILE"] = os.path.join(app.config["USER_DATA"], "pw_hash_{}.dat".format(args.port))
 
+# Must occur after lines for args.port
 if args.reset is True:
-    for fileid in ["DATABASE", "SECRET_KEY_FILE", "PASSWORD_HASH_FILE"]:
-        try:
-            os.remove(app.config[fileid])
-        except OSError:
-            app.logger.warning("RESET: {} not found".format(fileid))
-        else:
-            app.logger.warning("RESET: {} deleted")
-
+    from web_ui.helpers import reset_userdata
+    reset_userdata()
 
 """ Load/set secret key """
 try:
