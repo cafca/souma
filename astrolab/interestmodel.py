@@ -38,7 +38,7 @@ def update():
     logger.info("Updating interest model")
 
     topic_model = TopicModel(
-        app.config["TOPIC_MODEL"], app.config["TOPIC_MODEL_IDS"])
+        app.config["ASTROLAB_MODEL"], app.config["ASTROLAB_MODEL_IDS"])
 
     for persona in Persona.query.filter_by(_stub=False).all():
         interestmodel = InterestModel.query.filter_by(persona_id=persona.id).first()
