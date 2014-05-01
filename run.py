@@ -18,7 +18,7 @@ from astrolab.helpers import setup_astrolab
 from nucleus.set_hosts import test_host_entry, create_new_hosts_file, HOSTSFILE
 from nucleus.models import Souma, Starmap
 from synapse import Synapse
-from web_ui.helpers import host_kind, compile_less, watch_layouts
+from web_ui.helpers import host_kind, compile_less
 
 monkey.patch_all()
 
@@ -62,6 +62,10 @@ except OperationalError, e:
     start = False
 
 if local_souma is None:
+    # Make sure all models have been loaded before creating the database to
+    # create all their tables
+    from astrolab import interestmodel
+
     app.logger.info("Setting up database")
     db.create_all()
 
