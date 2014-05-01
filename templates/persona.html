@@ -4,15 +4,15 @@
 {% import "macros/pagination.html" as pagination %}
 
 {% block content %}
-<section class="{{ page.vcard[0].css_class }}">
+<section class="{{ chapter.page.vcard[0].css_class }}">
     <span class="content">
         <h1>{{persona.username}}</h1>
         <p>Email: {{persona.email}}</p>
     </span>
 </section>
 
-{% if page.stars_with_images %}
-    {% for star in page.stars_with_images %}
+{% if chapter.page.stars_with_images %}
+    {% for star in chapter.page.stars_with_images %}
 
     <section class="image-overlay {{ star.css_class }}">
         {{ star_macros.star(star.content, author=active_persona, controlled_personas=controlled_personas) }}
@@ -21,12 +21,12 @@
     {% endfor %}
 {% endif %}
 
-{% for star in page.stars %}
+{% for star in chapter.page.stars %}
     <section class="{%if star.content.has_picture() %}image-overlay{% endif %} {{ star.css_class }}">
         {{ star_macros.star(star.content, author=active_persona, controlled_personas=controlled_personas) }}
     </section>
 {% endfor %}
 
-{{ pagination.render_pagination(page.pagination, "persona", id=persona.id) }}
+{{ pagination.render_pagination(chapter, "persona", id=persona.id) }}
 
 {% endblock %}

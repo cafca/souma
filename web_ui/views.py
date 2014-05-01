@@ -123,13 +123,13 @@ def persona(id, current_page=1):
 
     persona = Persona.query.filter_by(id=id).first_or_404()
 
-    page = pagemanager.persona_layout(persona, current_page=current_page)
+    chapter = pagemanager.persona_layout(persona, current_page=current_page)
 
 
     return render_template(
         'persona.html',
         layout="persona",
-        page=page,
+        chapter=chapter,
         persona=persona)
 
 
@@ -395,15 +395,12 @@ def universe(current_page=1):
     """ Render the landing page """
 
     stars = Star.query.filter(Star.parent_id == None, Star.state >= 0)
-    page = pagemanager.star_layout(stars, current_page=current_page)
+    chapter = pagemanager.star_layout(stars, current_page=current_page)
 
     if len(persona_context()['controlled_personas'].all()) == 0:
         return redirect(url_for('create_persona'))
 
-    if page.pagination.total == 0:
-        return redirect(url_for('create_star'))
-
-    return render_template('universe.html', page=page)
+    return render_template('universe.html', chapter=chapter)
 
 
 @app.route('/s/<id>/', methods=['GET'])
@@ -599,12 +596,12 @@ def group(id, current_page=1):
     form.context.data = group.profile.id
 
     # create layouted page for group
-    page = pagemanager.group_layout(stars, current_page=current_page)
+    chapter = pagemanager.group_layout(stars, current_page=current_page)
 
     return render_template(
         'group.html',
         group=group,
-        page=page,
+        chapter=chapter,
         form=form)
 
 
