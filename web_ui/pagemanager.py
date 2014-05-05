@@ -116,7 +116,7 @@ class PageManager(object):
                     star = stars_with_images[i]
 
                     cell_score = self._cell_score(star_cell) * 2.0
-                    layout_scores[layout['name']] += (1 + star.hot()) * cell_score
+                    layout_scores[layout['name']] += (1 + star.oneup_count()) * cell_score
                     all_stars.remove(star)
 
             for i, star_cell in enumerate(layout['stars']):
@@ -126,8 +126,8 @@ class PageManager(object):
                 star = all_stars[i]
 
                 cell_score = self._cell_score(star_cell)
-                layout_scores[layout['name']] += (1 + star.hot()) * cell_score
-                # print("{}\t{}\t{}".format(star, (1 + star.hot()) * cell_score, cell_score))
+                layout_scores[layout['name']] += (1 + star.oneup_count()) * cell_score
+                # print("{}\t\t{}\t{}\t{}".format(star, star.oneup_count(), cell_score, (1 + star.oneup_count()) * cell_score))
             # print("Score: {}".format(layout_scores[layout['name']]))
 
         # Select best layout
