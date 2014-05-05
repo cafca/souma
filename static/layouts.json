@@ -30,6 +30,18 @@
         ]
     },
     {
+        "name": "image_and_2_texts",
+        "vizier_version": 1,
+        "context":["star_page"],
+        "stars_with_images": [
+            [1, 1, 6, 6]
+        ],
+        "stars": [
+            [7, 1, 6, 3],
+            [7, 4, 6, 3]
+        ]
+    },
+    {
         "name": "grouppage_with_image_only_cell",
         "vizier_version": 1,
         "context":["group_page"],
