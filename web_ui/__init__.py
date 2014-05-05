@@ -23,7 +23,7 @@ app.jinja_env.filters['naturaltime'] = naturaltime
 
 # Create application data folder
 if not os.path.exists(app.config["USER_DATA"]):
-    os.mkdir(app.config["USER_DATA"], 0700)
+    os.makedirs(app.config["USER_DATA"], 0700)
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description='Start Souma client')
