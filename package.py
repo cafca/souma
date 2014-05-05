@@ -292,7 +292,7 @@ setup(
     name="Souma",
     version="0.2.1",
     author="Cognitive Networks Group",
-    author_email="cognitive-networks@googlegroups.com",
+    author_email="team@souma.io",
     url="https://github.com/ciex/souma/",
     packages=["nucleus", "web_ui", "synapse", "astrolab"],
     data_files=DATA_FILES,
