@@ -21,14 +21,16 @@
     </section>
 
     {% if star.children.filter_by(kind='star')[0] %}
-        <section class="col7 row4 w4 h1" style="margin-top: -3em">
+        <section class="col7 row4 w4 h4">
             <h3 style="margin: 0 auto; color: #666">Comments</h3>
-
-        {% for star in star.children.filter_by(kind="star")[:4] %}
-
-        {{ star_macros.star(star, author=active_persona, controlled_personas=controlled_personas) }}
-        <div style="margin-bottom: 1em;"></div>
-        {% endfor %}
+            <ul class="star_list">
+            {% for star in star.children.filter_by(kind="star")[:4] %}
+                <li class="{% if star.has_picture() %}rel-blend image-overlay{% endif %}">
+                {{ star_macros.star(star, author=active_persona, controlled_personas=controlled_personas, display_planets=True) }}
+                </li>
+                <div style="margin-bottom: 1em;"></div>
+            {% endfor %}
+        </ul>
         </section>
     {% endif %}
 {% else %}
