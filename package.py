@@ -6,24 +6,40 @@ Usage:
     python package.py py2exe
 """
 import ez_setup
-import numpy #important for py2exe to work
+import numpy  # important for py2exe to work
 ez_setup.use_setuptools()
 
+import sys
+import os
+from esky.bdist_esky import Executable
 from setuptools import setup
-import sys, os
 
 if sys.platform == 'win32':
     import py2exe
 
-# Compile .less files
+APP = ['run.py', ]
+
+""" Read current version identifier as recorded in `souma/__init__.py` """
+with open("__init__.py", 'rb') as f:
+    VERSION = f.readline().split("=")[1].strip().replace('"', '')
+
+""" Compile .less files """
 filenames = ["main", ]
 for fn in filenames:
     rv = os.system("touch ./static/css/{}.css".format(fn))
     rv += os.system("lesscpy ./static/css/{fn}.less > ./static/css/{fn}.css".format(fn=fn))
 
-APP = ['run.py']
-DATA_FILES = ['templates', 'static']
 
+""" Compile list of static files """
+with open(".gitignore") as f:
+    ignorefiles = [l.strip() for l in f.readlines()]
+
+DATA_FILES = [('', ['__init__.py'])]
+for datadir in ['templates', 'static']:
+    for root, dirs, files in os.walk(datadir):
+        DATA_FILES.append((root, [os.path.join(root, fn) for fn in files if fn not in ignorefiles]))
+
+""" Modules imported using import() need to be manually specified here """
 INCLUDES = [
     "web_ui",
     "jinja2.ext",
@@ -34,16 +50,10 @@ INCLUDES = [
     "wtforms.ext",
     "wtforms.ext.csrf",
     "flask",
-    # "flask_restful",
     "flask_sqlalchemy",
     "flask.views",
     "flask.signals",
-    # "flask_restful.utils",
     "flask.helpers",
-    # "flask_restful.representations",
-    # "flask_restful.representations.json",
-    #"flaskext",
-    #"flaskext.wtf",
     "flask.ext",
     "flaskext",
     "flaskext.uploads",
@@ -55,13 +65,9 @@ INCLUDES = [
     "sqlalchemy.connectors.mxodbc",
     "sqlalchemy.connectors.mysqldb",
     "sqlalchemy.connectors.zxJDBC",
-    # "sqlalchemy.connectorsodbc.py",
     "sqlalchemy.dialects.sqlite.base",
-    # "sqlalchemy.dialects.sqlitesqlite.py",
     "sqlalchemy.dialects.sybase.base",
     "sqlalchemy.dialects.sybase.mxodbc",
-    # "sqlalchemy.dialects.sybaseodbc.py",
-    # "sqlalchemy.dialects.sybasesybase.py",
     "sqlalchemy.engine.base",
     "sqlalchemy.engine.default",
     "sqlalchemy.engine.interfaces",
@@ -159,7 +165,8 @@ INCLUDES = [
     "gevent.core",
     "logging",
     "Crypto",
-    "Crypto.Hash"]
+    "Crypto.Hash"
+]
 
 # might need to explicitly include dll:
 # data_files=[('.', 'libmmd.dll')
@@ -183,7 +190,7 @@ DARWIN_OPTIONS = {
     "packages": ["nucleus", "web_ui", "synapse", "astrolab"],
     "site_packages": True,
     "plist": {
-        "CFBundleShortVersionString": "0.2",
+        "CFBundleVersion": VERSION,
         "LSBackgroundOnly": True,
         "LSUIElement": True
     },
@@ -250,10 +257,24 @@ if sys.platform == 'darwin':
         if not patched:
             f.write(patch)
 
+    """ Setup Esky Executable """
+    exe = Executable("run.py",
+        description="Souma App",
+        gui_only=True,
+        icon=DARWIN_OPTIONS["iconfile"],
+        name="run")
+
     extra_options = dict(
         setup_requires=['py2app'],
         app=['run.py'],
-        options=dict(py2app=DARWIN_OPTIONS))
+        options=dict(
+            bdist_esky=dict(
+                freezer_module="py2app",
+                freezer_options=DARWIN_OPTIONS
+            )
+        ),
+        scripts=[exe, ]
+    )
 
     install_requires = open('requirements_osx.txt').read()
 
@@ -261,7 +282,15 @@ elif sys.platform == 'win32':
     extra_options = dict(
         setup_requires=['py2exe'],
         console=[{'script': "run.py"}],
-        options=dict(py2exe=WIN_OPTIONS),
+        options=dict(
+            bdist_esky=dict(
+                freezer_module="py2exe",
+                freezer_options=WIN_OPTIONS
+            ),
+            # Removed because py2exe is called from bdist_esky
+            # py2exe=WIN_OPTIONS
+        ),
+        scripts=APP,
         zipfile=None
     )
 
@@ -272,9 +301,8 @@ elif sys.platform == 'win32':
     try:
         flaskext.__file__
     except:
-        flaskext_init = open(flaskext.__path__[0]+'\\__init__.py', 'w')
+        flaskext_init = open(flaskext.__path__[0] + '\\__init__.py', 'w')
         flaskext_init.close()
-
 
     install_requires = open('requirements_win.txt').read()
 
@@ -290,7 +318,7 @@ else:
 
 setup(
     name="Souma",
-    version="0.2.1",
+    version=VERSION,
     author="Cognitive Networks Group",
     author_email="team@souma.io",
     url="https://github.com/ciex/souma/",
