@@ -17,7 +17,7 @@ from uuid import uuid4
 from astrolab.helpers import setup_astrolab
 from nucleus.set_hosts import test_host_entry, create_new_hosts_file, HOSTSFILE
 from nucleus.models import Souma, Starmap
-from nucleus.update import update_souma
+from nucleus.update import timed_update_check
 from synapse import Synapse
 from web_ui.helpers import host_kind, compile_less
 
@@ -141,6 +141,7 @@ if start:
 
         # Update Souma
         if host_kind() in ["win", "osx"]:
-            Greenlet.spawn(update_souma)
+            app.logger.info("Checking for updates")
+            timed_update_check()
 
         shutdown.wait()

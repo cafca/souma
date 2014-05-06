@@ -17,6 +17,7 @@ RUNTIME_DIR = ""
 
 VERSION = read_version()
 UPDATE_URL = "https://github.com/ciex/souma/wiki/Download-links"
+UPDATE_CHECK_INTERVAL = 15 * 60
 
 #
 # --------------------- FLASK OPTIONS ---------------------
