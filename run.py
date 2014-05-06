@@ -93,7 +93,6 @@ elif local_souma.version < semantic_version.Version(app.config["VERSION"]):
     app.logger.error("""Local Souma data is outdated (local Souma {} < codebase {}
         You should reset all user data with `-r` or delete it from `{}`""".format(
         local_souma.version, app.config["VERSION"], app.config["USER_DATA"]))
-    start = False
 
 #__file__ doesn't work with freezing
 app.config["RUNTIME_DIR"] = os.path.abspath('.')
