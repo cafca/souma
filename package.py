@@ -176,6 +176,7 @@ INCLUDES = [
 WIN_OPTIONS = {
     "dist_dir": "../dist",
     "includes": INCLUDES,
+    "iconfile": "static/images/icon_win.ico",
     "packages": ["nucleus", "web_ui", "synapse", "astrolab"],
     "dll_excludes": [],
     'bundle_files': 1
@@ -279,6 +280,13 @@ if sys.platform == 'darwin':
     install_requires = open('requirements_osx.txt').read()
 
 elif sys.platform == 'win32':
+    """ Setup Esky Executable """
+    exe = Executable("run.py",
+        description="Souma App",
+        gui_only=True,
+        icon=WIN_OPTIONS["iconfile"],
+        name="run")
+
     extra_options = dict(
         setup_requires=['py2exe'],
         console=[{'script': "run.py"}],
@@ -286,9 +294,7 @@ elif sys.platform == 'win32':
             bdist_esky=dict(
                 freezer_module="py2exe",
                 freezer_options=WIN_OPTIONS
-            ),
-            # Removed because py2exe is called from bdist_esky
-            # py2exe=WIN_OPTIONS
+            )
         ),
         scripts=APP,
         zipfile=None
