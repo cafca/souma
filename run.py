@@ -52,11 +52,6 @@ if getattr(sys, 'frozen', None) == 'macosx_app':
 start = True
 local_souma = None
 
-""" Update Souma if new version is available """
-if host_kind() in ["win", "osx"]:
-    update_souma()
-
-
 try:
     local_souma = Souma.query.get(app.config["SOUMA_ID"])
 except OperationalError, e:
@@ -105,19 +100,6 @@ if start:
     else:
         shutdown = Event()
 
-        # Synapse
-        app.logger.info("Starting Synapses")
-
-        if app.config["DEBUG"]:
-            synapse = Synapse()
-            synapse.electrical.login_all()
-        else:
-            try:
-                synapse = Synapse()
-                synapse.electrical.login_all()
-            except Exception, e:
-                app.logger.error(e)
-
         # Web UI
         if not app.config['NO_UI']:
             if not test_host_entry():
@@ -141,7 +123,24 @@ if start:
             local_server.start()
             webbrowser.open("http://{}/".format(app.config["LOCAL_ADDRESS"]))
 
+        # Synapse
+        app.logger.info("Starting Synapses")
+
+        if app.config["DEBUG"]:
+            synapse = Synapse()
+            synapse.electrical.login_all()
+        else:
+            try:
+                synapse = Synapse()
+                synapse.electrical.login_all()
+            except Exception, e:
+                app.logger.error(e)
+
         # Setup Astrolab
         Greenlet.spawn(setup_astrolab)
+
+        # Update Souma
+        if host_kind() in ["win", "osx"]:
+            Greenlet.spawn(update_souma)
 
         shutdown.wait()
