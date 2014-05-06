@@ -16,7 +16,7 @@ USER_DATA = appdirs.user_data_dir("souma", "souma", roaming=True)
 RUNTIME_DIR = ""
 
 VERSION = read_version()
-UPDATE_URL = "http://localhost:8000/"
+UPDATE_URL = "https://github.com/ciex/souma/wiki/Download-links"
 
 #
 # --------------------- FLASK OPTIONS ---------------------
