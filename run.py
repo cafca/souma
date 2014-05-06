@@ -17,6 +17,7 @@ from uuid import uuid4
 from astrolab.helpers import setup_astrolab
 from nucleus.set_hosts import test_host_entry, create_new_hosts_file, HOSTSFILE
 from nucleus.models import Souma, Starmap
+from nucleus.update import timed_update_check
 from synapse import Synapse
 from web_ui.helpers import host_kind, compile_less
 
@@ -87,7 +88,6 @@ elif local_souma.version < semantic_version.Version(app.config["VERSION"]):
     app.logger.error("""Local Souma data is outdated (local Souma {} < codebase {}
         You should reset all user data with `-r` or delete it from `{}`""".format(
         local_souma.version, app.config["VERSION"], app.config["USER_DATA"]))
-    start = False
 
 #__file__ doesn't work with freezing
 app.config["RUNTIME_DIR"] = os.path.abspath('.')
@@ -99,19 +99,6 @@ if start:
         app.run(app.config['LOCAL_HOSTNAME'], app.config['LOCAL_PORT'])
     else:
         shutdown = Event()
-
-        # Synapse
-        app.logger.info("Starting Synapses")
-
-        if app.config["DEBUG"]:
-            synapse = Synapse()
-            synapse.electrical.login_all()
-        else:
-            try:
-                synapse = Synapse()
-                synapse.electrical.login_all()
-            except Exception, e:
-                app.logger.error(e)
 
         # Web UI
         if not app.config['NO_UI']:
@@ -136,7 +123,25 @@ if start:
             local_server.start()
             webbrowser.open("http://{}/".format(app.config["LOCAL_ADDRESS"]))
 
+        # Synapse
+        app.logger.info("Starting Synapses")
+
+        if app.config["DEBUG"]:
+            synapse = Synapse()
+            synapse.electrical.login_all()
+        else:
+            try:
+                synapse = Synapse()
+                synapse.electrical.login_all()
+            except Exception, e:
+                app.logger.error(e)
+
         # Setup Astrolab
         Greenlet.spawn(setup_astrolab)
+
+        # Update Souma
+        if host_kind() in ["win", "osx"]:
+            app.logger.info("Checking for updates")
+            timed_update_check()
 
         shutdown.wait()

@@ -6,10 +6,18 @@ import appdirs
 # ANY CHANGES MADE TO OPTIONS DEPENDING ON LOCAL_PORT NEED TO BE UPDATED IN
 # web_ui/__init__.py
 
+
+def read_version():
+    """ Return current version identifier as recorded in `souma/__init__.py` """
+    with open("__init__.py", 'rb') as f:
+        return f.readline().split("=")[1].strip().replace('"', '')
+
 USER_DATA = appdirs.user_data_dir("souma", "souma", roaming=True)
 RUNTIME_DIR = ""
 
-VERSION = "1.0.0-alpha.1"
+VERSION = read_version()
+UPDATE_URL = "https://github.com/ciex/souma/wiki/Download-links"
+UPDATE_CHECK_INTERVAL = 15 * 60
 
 #
 # --------------------- FLASK OPTIONS ---------------------
