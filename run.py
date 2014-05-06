@@ -17,6 +17,7 @@ from uuid import uuid4
 from astrolab.helpers import setup_astrolab
 from nucleus.set_hosts import test_host_entry, create_new_hosts_file, HOSTSFILE
 from nucleus.models import Souma, Starmap
+from nucleus.update import update_souma
 from synapse import Synapse
 from web_ui.helpers import host_kind, compile_less
 
@@ -50,6 +51,11 @@ if getattr(sys, 'frozen', None) == 'macosx_app':
 """ Initialize database """
 start = True
 local_souma = None
+
+""" Update Souma if new version is available """
+if host_kind() in ["win", "osx"]:
+    update_souma()
+
 
 try:
     local_souma = Souma.query.get(app.config["SOUMA_ID"])

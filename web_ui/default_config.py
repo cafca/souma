@@ -16,6 +16,7 @@ USER_DATA = appdirs.user_data_dir("souma", "souma", roaming=True)
 RUNTIME_DIR = ""
 
 VERSION = read_version()
+UPDATE_URL = "http://localhost:8000/"
 
 #
 # --------------------- FLASK OPTIONS ---------------------
