@@ -45,3 +45,7 @@ smmap==0.8.2
 umemcache==1.6
 wsgiref==0.1.2
 alembic==0.6.5
+Flask-Misaka==0.3.0
+Mako==0.9.1
+argparse==1.2.1
+misaka==1.0.2
