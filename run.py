@@ -4,6 +4,7 @@ import os
 import sys
 import webbrowser
 import semantic_version
+import argparse
 
 from web_ui import app, db
 
@@ -17,10 +18,47 @@ from uuid import uuid4
 from astrolab.helpers import setup_astrolab
 from nucleus.set_hosts import test_host_entry, create_new_hosts_file, HOSTSFILE
 from nucleus.models import Souma, Starmap
+from nucleus.helpers import configure_from_args, log_config_info, set_souma_id
 from synapse import Synapse
 from web_ui.helpers import host_kind, compile_less
 
+
 monkey.patch_all()
+
+""" parse arguments for config """
+# Parse command line arguments
+parser = argparse.ArgumentParser(description='Start Souma client')
+parser.add_argument('--no_ui',
+    default=False,
+    action="store_true",
+    help="skip starting the web ui server")
+
+parser.add_argument('-d',
+    '--debug',
+    default=False,
+    action="store_true",
+    help="display more log events, halt on exceptions")
+
+parser.add_argument('-r',
+    '--reset',
+    default=False,
+    action="store_true",
+    help="reset database and secret key (irreversible!)")
+
+parser.add_argument('-p',
+    '--port',
+    type=int,
+    help='run synapse on this port')
+
+parser.add_argument('-g',
+    '--glia',
+    default=app.config['LOGIN_SERVER'],
+    help="glia server url")
+
+args = parser.parse_args()
+configure_from_args(app, args)
+set_souma_id(app)
+log_config_info(app)
 
 """ patch gevent for py2app """
 if getattr(sys, 'frozen', None) == 'macosx_app':
@@ -46,6 +84,7 @@ if getattr(sys, 'frozen', None) == 'macosx_app':
         # Verify that the patch is working properly (you can remove these lines safely)
         __httplib__ = imp.load_module('__httplib__', *imp.find_module('httplib'))
         assert __httplib__ is httplib
+
 
 """ Initialize database """
 start = True
