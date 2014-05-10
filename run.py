@@ -18,7 +18,7 @@ from uuid import uuid4
 from astrolab.helpers import setup_astrolab
 from nucleus.set_hosts import test_host_entry, create_new_hosts_file, HOSTSFILE
 from nucleus.models import Souma, Starmap
-from nucleus.helpers import configure_from_args, log_config_info, set_souma_id
+from nucleus.helpers import configure_app
 from synapse import Synapse
 from web_ui.helpers import host_kind, compile_less
 
@@ -56,9 +56,7 @@ parser.add_argument('-g',
     help="glia server url")
 
 args = parser.parse_args()
-configure_from_args(app, args)
-set_souma_id(app)
-log_config_info(app)
+configure_app(app, args)
 
 """ patch gevent for py2app """
 if getattr(sys, 'frozen', None) == 'macosx_app':

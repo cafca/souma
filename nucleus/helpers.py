@@ -3,7 +3,33 @@ from Crypto.Hash import SHA256
 import os
 
 
-def configure_from_args(app, args):
+def configure_app(app, args):
+    """ Configures the app from command-line arguments and runtime environment.
+
+    Configures app with argparse arguments args.
+    Sets the SOUMA_ID of the local souma in the configuration of app.
+    Sets the PASSWORD_HASH in the app configuration if found in the environment.
+    Logs the configuration of app to app's info logger.
+
+    Args:
+        app: A flask app
+        args: The args-object as returned by ArgumentParser.parse_args()
+    """
+
+    _configure_from_args(app, args)
+    _set_souma_id(app)
+    _set_password_hash(app)
+    _log_config_info(app)
+
+
+def _configure_from_args(app, args):
+    """ Configures app with argparse arguments args.
+
+    Args:
+        app: A flask app
+        args: The args-object as returned by ArgumentParser.parse_args()
+    """
+
     app.config['NO_UI'] = args.no_ui
     app.config['LOGIN_SERVER'] = args.glia
 
@@ -27,7 +53,13 @@ def configure_from_args(app, args):
         reset_userdata()
 
 
-def log_config_info(app):
+def _log_config_info(app):
+    """ Logs the configuration of app to app's info logger.
+
+    Args:
+        app: A flask app
+    """
+
     app.logger.info(
         "\n".join(["{:=^80}".format(" SOUMA CONFIGURATION "),
                   "{:>12}: {}".format("souma", app.config['SOUMA_ID'][:6]),
@@ -41,7 +73,16 @@ def log_config_info(app):
                   "{:>12}: {}".format("glia server", app.config['LOGIN_SERVER'])]))
 
 
-def set_souma_id(app):
+def _set_souma_id(app):
+    """ Sets the SOUMA_ID of the local souma in the configuration of app.
+
+    Loads (or creates and loades) the secret key of the local souma and uses it
+    to set the id of the local souma.
+
+    Args:
+        app: A flask app
+    """
+
     # Load/set secret key
     try:
         with open(app.config["SECRET_KEY_FILE"], 'rb') as f:
@@ -56,6 +97,14 @@ def set_souma_id(app):
 
     # Generate ID used to identify this machine
     app.config['SOUMA_ID'] = SHA256.new(app.config['SECRET_KEY'] + str(app.config['LOCAL_PORT'])).hexdigest()[:32]
+
+
+def _set_password_hash(app):
+    """ Sets the PASSWORD_HASH in the app configuration if found in the environment.
+
+    Args:
+        app: A flask app
+    """
 
     if 'SOUMA_PASSWORD_HASH_{}'.format(app.config['LOCAL_PORT']) in os.environ:
         app.config['PASSWORD_HASH'] = os.environ['SOUMA_PASSWORD_HASH_{}'.format(app.config["LOCAL_PORT"])]
