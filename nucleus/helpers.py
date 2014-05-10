@@ -1,6 +1,7 @@
 import logging
-from Crypto.Hash import SHA256
 import os
+
+from Crypto.Hash import SHA256
 
 
 def configure_app(app, args):
@@ -47,7 +48,6 @@ def _configure_from_args(app, args):
         app.config["SECRET_KEY_FILE"] = os.path.join(app.config["USER_DATA"], "secret_key_{}.dat".format(args.port))
         app.config["PASSWORD_HASH_FILE"] = os.path.join(app.config["USER_DATA"], "pw_hash_{}.dat".format(args.port))
 
-    # Must occur after lines for args.port
     if args.reset is True:
         from web_ui.helpers import reset_userdata
         reset_userdata()
