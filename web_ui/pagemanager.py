@@ -1,11 +1,57 @@
-from operator import itemgetter
-
-from web_ui import app
-from web_ui.helpers import watch_layouts
+import os
 
 from gevent import Greenlet
+from operator import itemgetter
 
-from flask.ext.sqlalchemy import Pagination
+from nucleus.models import Serializable
+from web_ui import app, db
+from web_ui.helpers import watch_layouts
+
+
+class Context(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(16), unique=True)
+
+    @classmethod
+    def get_or_create(cls, name):
+        c = Context.query.filter_by(name=name).first()
+        if c is None:
+            c = Context(name=name)
+            db.session.add(c)
+            db.session.commit()
+        return c
+
+
+class Cell(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    position = db.Column(db.String(16))
+    kind = db.Column(db.String(16))
+    layout = db.relationship('Layout')
+    layout_id = db.Column(db.String(32), db.Foreignkey('layout.id'), backref="cells")
+
+
+class Layout(Serializable, db.Model):
+    """Defines a screen layout for use by the PageManager"""
+
+    _insert_required = ["id", "name", "pm_version", "context", "cells"]
+    _update_required = ["id", "pm_version"]
+
+    id = db.Column(db.String(32), primary_key=True)
+    name = db.Column(db.String(80))
+    pm_version = db.Column(db.String(16), default="1")
+    context = db.relationship('Context')
+    context_id = db.Column(db.Integer, db.ForeignKey('context.id'))
+
+    def __init__(self, name, context, cells):
+        self.id = os.urandom(16).encode('hex')
+        self.name = name
+        self.context = Context.get_or_create(context)
+        for cval in cells:
+            pos = ";".join(cval["position"])
+            c = Cell(position=pos, kind=cval["kind"], layout_id=self.id)
+
+    def __repr__(self):
+        return "<Layout: {name}>".format(name=self.name)
 
 
 class PageManager(object):
