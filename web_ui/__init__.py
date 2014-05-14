@@ -6,6 +6,7 @@ from flask import Flask
 from flask.ext import uploads
 import logging
 from logging.handlers import RotatingFileHandler
+from flask.ext.babel import Babel
 from flask.ext.sqlalchemy import SQLAlchemy
 
 # Initialize Flask app
@@ -30,6 +31,9 @@ cache = SimpleCache()
 attachments = uploads.UploadSet('attachments', uploads.IMAGES,
     default_dest=lambda app_x: app_x.config["UPLOADS_DEFAULT_DEST"])
 uploads.configure_uploads(app, (attachments))
+
+# Setup Babel for i18n and l10n
+babel = Babel(app)
 
 # Setup loggers
 # Flask is configured to route logging events only to the console if it is in debug
