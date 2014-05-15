@@ -16,7 +16,7 @@ VERSION = "1.0.0-alpha.1"
 #
 
 LOCAL_PORT = 5000
-LOCAL_HOSTNAME = 'app.souma'
+LOCAL_HOSTNAME = 'app.souma.io'
 LOCAL_ADDRESS = "{}:{}".format(LOCAL_HOSTNAME, LOCAL_PORT)
 
 DEBUG = False
