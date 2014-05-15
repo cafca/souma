@@ -10,8 +10,7 @@ https://github.com/ciex/souma/wiki/Souma-App-Overview
 Installation Guide
 ==================
 
-1. `(sudo) python set_hosts.py` to add an entry for Souma to your /etc/hosts file
-2. `python run.py`
+1. `python run.py`
 
 Development Status
 ==================
