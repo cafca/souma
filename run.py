@@ -101,7 +101,7 @@ except OperationalError, e:
 if local_souma is None:
     # Make sure all models have been loaded before creating the database to
     # create all their tables
-    from astrolab import interestmodel
+    from astrolab import interestmodel, topicmodel
 
     app.logger.info("Setting up database")
     db.create_all()
