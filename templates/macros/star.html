@@ -29,11 +29,13 @@
         </button>
     </span>
 
+    {% if controls == "extended" %}
     <span class="attribute">
         <span class="caption">
             <a href="{{ url_for('star', id=star.id) }}" title="{{star.created}}">{{star.created|localtime|naturaltime}}</a>
         </span>
     </span>
+    {% endif %}
 
     <span class="inline-semantic"> by </span>
 
@@ -90,7 +92,7 @@
 {% if controls == "extended" %}
 <div class="comment">
     <form action="{{ url_for('create_star', parent_id=star.id) }}" method="POST">
-            <input type="text" name="text" placeholder="write a comment as {{author.username}}...">
+            <input type="text" name="title" placeholder="write a comment as {{author.username}}...">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="author" value="{{ author.id }}">
             <input type="hidden" name="context" value="">
@@ -135,7 +137,7 @@
   </div>
   <div class="modal-footer">
     <form action="{{ url_for('create_star', parent_id=star.id) }}" method="POST">
-        <input type="text" name="text" placeholder="write a comment...">
+        <input type="text" name="title" placeholder="write a comment...">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="author" value="{{ author.id }}">
         <input type="hidden" name="context" value="">

@@ -946,9 +946,30 @@ class Star(Serializable, db.Model):
         return None
 
     def has_picture(self):
-        """Return True if this Star has a Picture-Planet"""
-        count = self.planet_assocs.join(PlanetAssociation.planet.of_type(LinkedPicturePlanet)).count()
-        return count > 0
+        """Return True if this Star has a PicturePlanet"""
+        try:
+            first = self.picture_planets()[0]
+        except IndexError:
+            first = None
+
+        return first is not None
+
+    def has_text(self):
+        """Return True if this Star has a TextPlanet"""
+        try:
+            first = self.text_planets()[0]
+        except IndexError:
+            first = None
+
+        return first is not None
+
+    def picture_planets(self):
+        """Return pictures of this Star"""
+        return self.planet_assocs.join(PlanetAssociation.planet.of_type(LinkedPicturePlanet)).all()
+
+    def text_planets(self):
+        """Return TextPlanets of this Star"""
+        return self.planet_assocs.join(PlanetAssociation.planet.of_type(TextPlanet)).all()
 
 
 class PlanetAssociation(db.Model):
@@ -1172,6 +1193,55 @@ class LinkPlanet(Planet):
             stub=stub, update_sender=update_sender, update_recipient=update_recipient)
 
         new_planet.url = changeset["url"]
+
+        return new_planet
+
+    def update_from_changeset(self, changeset, update_sender=None, update_recipient=None):
+        """Update a new Planet object from a changeset (See Serializable.update_from_changeset). """
+        raise NotImplementedError
+
+
+class TextPlanet(Planet):
+    """A longform text attachment"""
+
+    _insert_required = ["id", "title", "kind", "created", "modified", "source", "text", "kind"]
+    _update_required = ["id", "title", "modified", "source", "text"]
+
+    id = db.Column(db.String(32), ForeignKey('planet.id'), primary_key=True)
+    text = db.Column(db.Text)
+
+    __mapper_args__ = {
+        'polymorphic_identity': 'text'
+    }
+
+    @classmethod
+    def get_or_create(cls, text):
+        """Return planet containing text if it already exists or create it
+
+        Args:
+            text: Content value of the TextPlanet
+        """
+        h = sha256(text).hexdigest()[:32]
+        planet = TextPlanet.query.get(h)
+
+        if planet is None:
+            app.logger.info("Storing new text")
+            planet = TextPlanet(
+                id=h,
+                text=text)
+
+        return planet
+
+    @staticmethod
+    def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
+        """Create a new Planet object from a changeset (See Serializable.create_from_changeset). """
+        if stub is None:
+            stub = TextPlanet()
+
+        new_planet = Planet.create_from_changeset(changeset,
+            stub=stub, update_sender=update_sender, update_recipient=update_recipient)
+
+        new_planet.text = changeset["text"]
 
         return new_planet
 
