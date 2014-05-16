@@ -6,8 +6,8 @@ from flask import Flask
 from flask.ext import uploads
 import logging
 from logging.handlers import RotatingFileHandler
-from flask.ext.babel import Babel
 from flask.ext.sqlalchemy import SQLAlchemy
+from web_ui.helpers import localtime
 
 # Initialize Flask app
 app = Flask('souma')
@@ -19,6 +19,7 @@ app.config.from_object("web_ui.default_config")
 app.config.from_object('astrolab.config')
 
 app.jinja_env.filters['naturaltime'] = naturaltime
+app.jinja_env.filters['localtime'] = lambda value: localtime(value, tzval=app.config["TIMEZONE"])
 
 # Create application data folder
 if not os.path.exists(app.config["USER_DATA"]):
@@ -31,9 +32,6 @@ cache = SimpleCache()
 attachments = uploads.UploadSet('attachments', uploads.IMAGES,
     default_dest=lambda app_x: app_x.config["UPLOADS_DEFAULT_DEST"])
 uploads.configure_uploads(app, (attachments))
-
-# Setup Babel for i18n and l10n
-babel = Babel(app)
 
 # Setup loggers
 # Flask is configured to route logging events only to the console if it is in debug
