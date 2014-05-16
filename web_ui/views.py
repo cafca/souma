@@ -9,7 +9,8 @@ from web_ui import pagemanager
 from web_ui.forms import *
 from web_ui.helpers import get_active_persona, find_links
 from nucleus import notification_signals, PersonaNotFoundError
-from nucleus.models import Persona, Star, Planet, PlanetAssociation, LinkPlanet, Group, Starmap, LinkedPicturePlanet
+from nucleus.models import Persona, Group
+from nucleus.models import Star, Planet, PlanetAssociation, LinkPlanet, Starmap, LinkedPicturePlanet, TextPlanet
 
 # Create blinker signal namespace
 local_model_changed = notification_signals.signal('local-model-changed')
@@ -253,7 +254,7 @@ def create_star():
         new_star_created = datetime.datetime.utcnow()
         new_star = Star(
             id=uuid,
-            text=request.form['text'],
+            text=request.form['title'],
             author=author,
             created=new_star_created,
             modified=new_star_created
@@ -311,6 +312,15 @@ def create_star():
                 db.session.add(new_star)
                 db.session.commit()
                 app.logger.info("Attached {} to new {}".format(planet, new_star))
+
+        # Add longform text field as attachment
+        if 'text' in request.values:
+            planet = TextPlanet.get_or_create(request.form['text'])
+            assoc = PlanetAssociation(star=new_star, planet=planet, author=author)
+            new_star.planet_assocs.append(assoc)
+            db.session.add(new_star)
+            db.session.commit()
+            app.logger.info("Attached {} to new {}".format(planet, new_star))
 
         model_change_messages.append({
             "author_id": new_star.author.id,

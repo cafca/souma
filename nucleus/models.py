@@ -1180,6 +1180,55 @@ class LinkPlanet(Planet):
         raise NotImplementedError
 
 
+class TextPlanet(Planet):
+    """A longform text attachment"""
+
+    _insert_required = ["id", "title", "kind", "created", "modified", "source", "text", "kind"]
+    _update_required = ["id", "title", "modified", "source", "text"]
+
+    id = db.Column(db.String(32), ForeignKey('planet.id'), primary_key=True)
+    text = db.Column(db.Text)
+
+    __mapper_args__ = {
+        'polymorphic_identity': 'text'
+    }
+
+    @classmethod
+    def get_or_create(cls, text):
+        """Return planet containing text if it already exists or create it
+
+        Args:
+            text: Content value of the TextPlanet
+        """
+        h = sha256(text).hexdigest()[:32]
+        planet = TextPlanet.query.get(h)
+
+        if planet is None:
+            app.logger.info("Storing new text")
+            planet = TextPlanet(
+                id=h,
+                text=text)
+
+        return planet
+
+    @staticmethod
+    def create_from_changeset(changeset, stub=None, update_sender=None, update_recipient=None):
+        """Create a new Planet object from a changeset (See Serializable.create_from_changeset). """
+        if stub is None:
+            stub = TextPlanet()
+
+        new_planet = Planet.create_from_changeset(changeset,
+            stub=stub, update_sender=update_sender, update_recipient=update_recipient)
+
+        new_planet.text = changeset["text"]
+
+        return new_planet
+
+    def update_from_changeset(self, changeset, update_sender=None, update_recipient=None):
+        """Update a new Planet object from a changeset (See Serializable.update_from_changeset). """
+        raise NotImplementedError
+
+
 class Oneup(Star):
     """A 1up is a vote that signals interest in its parent Star"""
 
