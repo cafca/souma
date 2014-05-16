@@ -31,7 +31,7 @@
 
     <span class="attribute">
         <span class="caption">
-            <a href="{{ url_for('star', id=star.id) }}" title="{{star.created}}">{{star.created|naturaltime}}</a>
+            <a href="{{ url_for('star', id=star.id) }}" title="{{star.created}}">{{star.created|localtime|naturaltime}}</a>
         </span>
     </span>
 
@@ -127,7 +127,7 @@
 
 
         <span class="caption" style="float: right">
-            <i class="fa fa-asterisk"></i> <a href="{{ url_for('star', id=comment.id) }}" title="{{comment.created}}">{{comment.created|naturaltime}}</a>
+            <i class="fa fa-asterisk"></i> <a href="{{ url_for('star', id=comment.id) }}" title="{{comment.created}}">{{comment.created|localtime|naturaltime}}</a>
         </span>
         </li>
     {% endfor %}
