@@ -314,7 +314,7 @@ def create_star():
                 app.logger.info("Attached {} to new {}".format(planet, new_star))
 
         # Add longform text field as attachment
-        if 'text' in request.values:
+        if 'text' in request.values and len(request.form["text"]) > 0:
             planet = TextPlanet.get_or_create(request.form['text'])
             assoc = PlanetAssociation(star=new_star, planet=planet, author=author)
             new_star.planet_assocs.append(assoc)

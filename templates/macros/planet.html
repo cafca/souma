@@ -14,7 +14,7 @@
 </span> -->
 {% elif planet.kind == 'text' %}
 <span class="content text">
-    <p>{{ planet.text|markdown}}</p>
+    {{ planet.text|markdown}}
 </span>
 {% endif %}
 
