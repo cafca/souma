@@ -946,9 +946,30 @@ class Star(Serializable, db.Model):
         return None
 
     def has_picture(self):
-        """Return True if this Star has a Picture-Planet"""
-        count = self.planet_assocs.join(PlanetAssociation.planet.of_type(LinkedPicturePlanet)).count()
-        return count > 0
+        """Return True if this Star has a PicturePlanet"""
+        try:
+            first = self.picture_planets()[0]
+        except IndexError:
+            first = None
+
+        return first is not None
+
+    def has_text(self):
+        """Return True if this Star has a TextPlanet"""
+        try:
+            first = self.text_planets()[0]
+        except IndexError:
+            first = None
+
+        return first is not None
+
+    def picture_planets(self):
+        """Return pictures of this Star"""
+        return self.planet_assocs.join(PlanetAssociation.planet.of_type(LinkedPicturePlanet)).all()
+
+    def text_planets(self):
+        """Return TextPlanets of this Star"""
+        return self.planet_assocs.join(PlanetAssociation.planet.of_type(TextPlanet)).all()
 
 
 class PlanetAssociation(db.Model):
