@@ -4,7 +4,11 @@
 
 {% block content %}
 {% if star.has_text() %}
-    <section class="col7 row1 w5 h4">
+    <section class="col1 row1 w6 h7">
+        {{ planet_macros.planet(star.text_planets()[0].planet, True) }}
+    </section>
+
+    <section class="col8 row1 w5 h4">
         {{ star_macros.star(star,
             author=active_persona,
             controlled_personas=controlled_personas,
@@ -13,12 +17,8 @@
         }}
     </section>
 
-    <section class="col2 row1 w5 h7">
-        {{ planet_macros.planet(star.text_planets()[0].planet, True) }}
-    </section>
-
     {% if star.children.filter_by(kind='star')[0] %}
-        <section class="col7 row4 w4 h4">
+        <section class="col8 row4 w4 h4">
             <h3 style="margin: 0 auto; color: #666">Comments</h3>
             <ul class="star_list">
             {% for star in star.children.filter_by(kind="star")[:4] %}
