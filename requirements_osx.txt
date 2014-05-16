@@ -34,6 +34,7 @@ pyasn1==0.1.7
 pycrypto==2.6.1
 python-dateutil==2.2
 python-keyczar==0.71c
+pytz==2014.2
 readability-lxml==0.3.0.2
 requests==2.2.1
 semantic-version==2.3.0

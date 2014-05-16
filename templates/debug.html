@@ -22,8 +22,8 @@
         <td>{{ star.id }}</td>
         <td>{{ star.text }}</td>
         <td>{{ star.author.username}}</td>
-        <td>{{ star.modified | naturaltime }}</td>
-        <td>{{ star.created | naturaltime}} </td>
+        <td>{{ star.modified | localtime|naturaltime }}</td>
+        <td>{{ star.created | localtime|naturaltime}} </td>
         <td>{{ star.get_state()}}</td>
         <td>{{ star.parent_id }}</td>
         <td>{{ star.vesicles | length }}</td>
@@ -58,7 +58,7 @@
         <td>{{ starmap.id }}</td>
         <td>{{ starmap.kind }}</td>
         <td>{{ starmap.author.username}}</td>
-        <td>{{ starmap.modified | naturaltime }}</td>
+        <td>{{ starmap.modified | localtime|naturaltime }}</td>
         <td>{{ starmap.get_state()}}</td>
         <td>{% for star in starmap.index %}{{star}}<br />{% endfor %}</td>
         <td>{{ starmap.vesicles | length }}</td>

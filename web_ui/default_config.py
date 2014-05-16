@@ -22,6 +22,8 @@ LOCAL_ADDRESS = "{}:{}".format(LOCAL_HOSTNAME, LOCAL_PORT)
 DEBUG = False
 USE_DEBUG_SERVER = False
 
+TIMEZONE = 'Europe/Berlin'
+
 SECRET_KEY_FILE = os.path.join(USER_DATA, "secret_key_{}.dat".format(LOCAL_PORT))
 PASSWORD_HASH_FILE = os.path.join(USER_DATA, "pw_hash_{}.dat".format(LOCAL_PORT))
 

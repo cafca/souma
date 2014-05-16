@@ -47,6 +47,7 @@ INCLUDES = [
     "flask.ext",
     "flaskext",
     "flaskext.uploads",
+    "flaskext.babel",
     "flask_wtf",
     "sqlalchemy.orm",
     "sqlalchemy.event",
