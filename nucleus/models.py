@@ -736,6 +736,11 @@ class Star(Serializable, db.Model):
                     planet_cls = LinkPlanet
                 elif planet_assoc["planet"]["kind"] == "linkedpicture":
                     planet_cls = LinkedPicturePlanet
+                elif planet_assoc["planet"]["kind"] == "text":
+                    planet_cls = TextPlanet
+                else:
+                    raise NotImplementedError("Planet class {} is not implemented yet".format(
+                        planet_assoc["planet"]["kind"]))
 
                 planet = planet_cls.query.get(pid)
                 if planet is None:
