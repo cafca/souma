@@ -4,6 +4,7 @@ import os
 import sys
 import webbrowser
 import semantic_version
+import argparse
 
 from web_ui import app, db
 
@@ -18,10 +19,45 @@ from astrolab.helpers import setup_astrolab
 from nucleus.set_hosts import test_host_entry, create_new_hosts_file, HOSTSFILE
 from nucleus.models import Souma, Starmap
 from nucleus.update import timed_update_check
+from nucleus.helpers import configure_app
 from synapse import Synapse
 from web_ui.helpers import host_kind, compile_less
 
+
 monkey.patch_all()
+
+""" parse arguments for config """
+# Parse command line arguments
+parser = argparse.ArgumentParser(description='Start Souma client')
+parser.add_argument('--no_ui',
+    default=False,
+    action="store_true",
+    help="skip starting the web ui server")
+
+parser.add_argument('-d',
+    '--debug',
+    default=False,
+    action="store_true",
+    help="display more log events, halt on exceptions")
+
+parser.add_argument('-r',
+    '--reset',
+    default=False,
+    action="store_true",
+    help="reset database and secret key (irreversible!)")
+
+parser.add_argument('-p',
+    '--port',
+    type=int,
+    help='run synapse on this port')
+
+parser.add_argument('-g',
+    '--glia',
+    default=app.config['LOGIN_SERVER'],
+    help="glia server url")
+
+args = parser.parse_args()
+configure_app(app, args)
 
 """ patch gevent for py2app """
 if getattr(sys, 'frozen', None) == 'macosx_app':
@@ -61,6 +97,8 @@ except OperationalError, e:
             app.config["USER_DATA"], e))
     local_souma = None
     start = False
+
+
 
 if local_souma is None:
     # Make sure all models have been loaded before creating the database to
