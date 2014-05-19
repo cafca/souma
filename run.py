@@ -84,43 +84,33 @@ if getattr(sys, 'frozen', None) == 'macosx_app':
         __httplib__ = imp.load_module('__httplib__', *imp.find_module('httplib'))
         assert __httplib__ is httplib
 
+
 """ Initialize database """
 start = True
 local_souma = None
 
+from nucleus.database import initialize_database
+
 try:
-    local_souma = Souma.query.get(app.config["SOUMA_ID"])
+    initialize_database(app)
 except OperationalError, e:
-    app.logger.error("An operational error occured while testing the local database. " +
-        "This is normal if you don't have a local database yet. If you do already have data" +
-        "you should reset it with `-r` or delete it from `{}`\n\nError: {}".format(
+    app.logger.error("An operational error occured while updating the local database. " +
+        "If you do already have data in it you should make a backup and then" +
+        "reset the database with `-r` or delete it from `{}`\n\nError: {}".format(
             app.config["USER_DATA"], e))
-    local_souma = None
     start = False
 
-
+local_souma = Souma.query.get(app.config["SOUMA_ID"])
 
 if local_souma is None:
-    # Make sure all models have been loaded before creating the database to
-    # create all their tables
-    from astrolab import interestmodel
-
-    app.logger.info("Setting up database")
-    db.create_all()
-
     app.logger.info("Setting up Nucleus for <Souma [{}]>".format(app.config['SOUMA_ID'][:6]))
     local_souma = Souma(id=app.config['SOUMA_ID'], version=app.config["VERSION"])
     local_souma.generate_keys()
     local_souma.starmap = Starmap(id=uuid4().hex, kind="index")
 
     db.session.add(local_souma)
-    try:
-        db.session.commit()
-    except OperationalError, e:
-        app.logger.error("Failed setting up database.\n\n{}".format(e))
-        start = False
-    else:
-        start = True
+    db.session.commit()
+    start = True
 
 elif local_souma.version < semantic_version.Version(app.config["VERSION"]):
     app.logger.error("""Local Souma data is outdated (local Souma {} < codebase {}
