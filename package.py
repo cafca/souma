@@ -26,6 +26,7 @@ DATA_FILES = ['templates', 'static']
 
 INCLUDES = [
     "web_ui",
+    "argparse",
     "jinja2.ext",
     "sklearn",
     "sklearn.utils",
@@ -48,6 +49,7 @@ INCLUDES = [
     "flaskext",
     "flaskext.uploads",
     "flaskext.babel",
+    "flask_misaka",
     "flask_wtf",
     "sqlalchemy.orm",
     "sqlalchemy.event",
