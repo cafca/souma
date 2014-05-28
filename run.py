@@ -4,6 +4,7 @@ import os
 import sys
 import webbrowser
 import semantic_version
+import argparse
 
 from web_ui import app, db
 
@@ -11,16 +12,49 @@ from gevent import Greenlet, monkey
 from gevent.wsgi import WSGIServer
 from gevent.event import Event
 from sqlalchemy.exc import OperationalError
-from sys import platform
 from uuid import uuid4
 
 from astrolab.helpers import setup_astrolab
-from nucleus.set_hosts import test_host_entry, create_new_hosts_file, HOSTSFILE
 from nucleus.models import Souma, Starmap
+from nucleus.helpers import configure_app
 from synapse import Synapse
 from web_ui.helpers import host_kind, compile_less
 
+
 monkey.patch_all()
+
+""" parse arguments for config """
+# Parse command line arguments
+parser = argparse.ArgumentParser(description='Start Souma client')
+parser.add_argument('--no_ui',
+    default=False,
+    action="store_true",
+    help="skip starting the web ui server")
+
+parser.add_argument('-d',
+    '--debug',
+    default=False,
+    action="store_true",
+    help="display more log events, halt on exceptions")
+
+parser.add_argument('-r',
+    '--reset',
+    default=False,
+    action="store_true",
+    help="reset database and secret key (irreversible!)")
+
+parser.add_argument('-p',
+    '--port',
+    type=int,
+    help='run synapse on this port')
+
+parser.add_argument('-g',
+    '--glia',
+    default=app.config['LOGIN_SERVER'],
+    help="glia server url")
+
+args = parser.parse_args()
+configure_app(app, args)
 
 """ patch gevent for py2app """
 if getattr(sys, 'frozen', None) == 'macosx_app':
@@ -47,6 +81,7 @@ if getattr(sys, 'frozen', None) == 'macosx_app':
         __httplib__ = imp.load_module('__httplib__', *imp.find_module('httplib'))
         assert __httplib__ is httplib
 
+
 """ Initialize database """
 start = True
 local_souma = None
@@ -64,7 +99,7 @@ except OperationalError, e:
 if local_souma is None:
     # Make sure all models have been loaded before creating the database to
     # create all their tables
-    from astrolab import interestmodel
+    from astrolab import interestmodel, topicmodel
 
     app.logger.info("Setting up database")
     db.create_all()
@@ -115,18 +150,6 @@ if start:
 
         # Web UI
         if not app.config['NO_UI']:
-            if not test_host_entry():
-                app.logger.info("No hosts entry found. Will now enable access to local Souma service in your browser.")
-                app.logger.info("Please enter your Administrator password if prompted")
-                tempfile_path = os.path.join(app.config["USER_DATA"], "hosts.tmp")
-                create_new_hosts_file(tempfile_path)
-                # move temporary new hosts file to final location using administrator privileges
-                if platform == 'win32':
-                    os.system("runas /noprofile /user:Administrator move '{}' '{}'".format(tempfile_path, HOSTSFILE))
-                else:
-                    cmd = """osascript -e 'do shell script "mv \\"{}\\" \\"{}\\"" with administrator privileges'"""
-                    os.system(cmd.format(tempfile_path, HOSTSFILE))
-
             # Compile less when running from console
             if host_kind() == "":
                 compile_less()

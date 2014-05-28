@@ -1,5 +1,6 @@
 import os
 import logging
+import pytz
 
 from gevent import sleep
 
@@ -45,6 +46,19 @@ def reset_userdata():
             app.logger.warning("RESET: {} {} not found".format(fileid, app.config[fileid]))
         else:
             app.logger.warning("RESET: {} {} deleted".format(fileid, app.config[fileid]))
+
+
+def localtime(value, tzval="UTC"):
+    """Convert tz-naive UTC datetime into tz-naive local datetime
+
+    Args:
+        value (datetime): timezone naive UTC datetime
+        tz (sting): timezone e.g. 'Europe/Berlin' (see pytz references)
+    """
+    value = value.replace(tzinfo=pytz.utc)  # assuming value is utc time
+    value = value.astimezone(pytz.timezone(tzval))  # convert to local time (tz-aware)
+    value = value.replace(tzinfo=None)  # make tz-naive again
+    return value
 
 
 def compile_less(filenames=None):

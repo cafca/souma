@@ -4,10 +4,29 @@
 -->
 
 <form method="POST" action="{{url_for('create_star')}}" enctype="multipart/form-data">
-    <!-- Main text field -->
+    <!-- Title field -->
     <section class="textarea card {{ page.create_star_form[0].css_class }}">
         <div class="card-handle">
             <i class="fa fa-asterisk"></i>
+        </div>
+
+        <div class="sidenav">
+            {% if form.title.errors %}
+                {% for error in form.title.errors %}<small>{{ error }}</small>{% endfor %}
+            {% endif %}
+        </div>
+
+        <div class="fullsize-input">
+        {{ form.title(placeholder="Your message") }}
+        </div>
+        {{ form.csrf_token }}
+        {{ form.group_id }}
+    </section>
+
+    <!-- Main text field -->
+    <section class="textarea card {{ page.create_star_form[1].css_class }}">
+        <div class="card-handle">
+            <i class="fa fa-align-left"></i>
         </div>
 
         <div class="sidenav">
@@ -17,14 +36,14 @@
         </div>
 
         <div class="fullsize-input">
-        {{ form.text(placeholder="Enter your message") }}
+        {{ form.text(placeholder="Optional long text") }}
         </div>
         {{ form.csrf_token }}
         {{ form.group_id }}
     </section>
 
     <!-- Controls -->
-    <section class="{{ page.create_star_form[1].css_class }}">
+    <section class="{{ page.create_star_form[2].css_class }}">
         <span class="pull-right">
             <div class="btn-group">
                 <button type="submit" class="btn btn-default">
