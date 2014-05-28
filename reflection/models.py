@@ -1,3 +1,6 @@
+from nucleus.models import Persona, Oneup, Star, LinkPlanet
+from web_ui import db, app
+
 
 class ReflectionCatalogue(Serializable, db.Model):
     
