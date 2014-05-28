@@ -47,6 +47,11 @@ class ReflectionCatalogueQuestion(Serializable, db.Model):
 	id = db.Column(db.String(32), primary_key=True)
 	question_text=db.Column(db.Text)
 
+	catalogue_id = db.Column(db.Integer, db.ForeignKey('catalogue.id'))
+    catalogue = db.relationship('ReflectionCatalogue',
+        backref=db.backref('questions'))
+
+
 	type = Column(String(50))
 
 	def __init__(self,type):
@@ -103,6 +108,11 @@ class ReflectionCatalogueAnswer(Serializable, db.Model):
 	id = db.Column(db.String(32), primary_key=True)
 
 	answer_time=db.Column(db.DateTime)
+
+	question_id = db.Column(db.Integer, db.ForeignKey('question.id'))
+    question = db.relationship('ReflectionCatalogueQuestion',
+        backref=db.backref('answers', lazy='dynamic'))
+
 
 	type = Column(String(50))
 
