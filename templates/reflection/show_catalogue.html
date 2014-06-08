@@ -4,8 +4,22 @@
 
 <h2>{{catalogue.name}}</h2>
 
+<p>{{catalogue.description}}</p>
+
 
 <table class="table">
+
+    <th>Question Text</th>
+    <th>Type</th>
+    
+    {% for q in catalogue.questions %}
+        <tr>
+            <td>{{q.question_text}}</td>
+            {% if q.identifier=="catalogue_range_question" %}
+                <td>{{q.start_value}} {{q.range_text_values.split(',')[0]}} - {{q.end_value}} {{q.range_text_values.split(',')[-1]}}<td>
+            {% endif %}
+        </tr>
+    {% endfor %}
 	<!-- <th>Name</th>
 	<th>Description</th>
 	<th>Activation</th>

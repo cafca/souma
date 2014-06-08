@@ -15,4 +15,4 @@ def catalogue(id):
     catalogue = Catalogue.query.filter(Catalogue.id == id).first_or_404()
     #author = Persona.query.filter_by(id=id)
 
-    return render_template('show_catalogue.html', catalogue=catalogue)
+    return render_template('reflection/show_catalogue.html', catalogue=catalogue)
