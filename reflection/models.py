@@ -22,7 +22,7 @@ class Catalogue(Serializable, db.Model):
     activated = db.Column(db.Boolean)
 
     def __repr__(self):
-        return "ID: {}, Name: {}, Description: {}".format(self.id,self.name,self.description)
+        return "ID: {}, Name: {}".format(self.id,self.name)
 
     @staticmethod
     def readFromCSV():
@@ -43,14 +43,15 @@ class Catalogue(Serializable, db.Model):
                         catalogue_obj.id = uuid4().hex
                         catalogue_obj.name = row[1]
                     if line == 1:
-                        catalogue_obj.description = row[1]
+                        catalogue_obj.description = row[1].decode('utf-8')
                         db.session.add(catalogue_obj)
+                        #db.session.commit()
                     if line == 2:
                         range_start = row[1]
                     if line == 3:
                         range_end = row[1]
                     if line == 4:
-                        range_values = row[1]
+                        range_values = row[1].decode('utf-8')
 
                 if line >= 6:
                     if row[0] == "" and row[1] == "":
@@ -60,17 +61,18 @@ class Catalogue(Serializable, db.Model):
                         question = CatalogueRangeQuestion(range_start, range_end, range_values)
                         question.id = uuid4().hex
                         question.index = row[0]
-                        question.question_text = row[1]
-                        question.catalogue = catalogue_obj
-
+                        question.question_text = row[1].decode('utf-8')
+                        #print catalogue_obj.id
+                        question.catalogue_id = catalogue_obj.id
                         db.session.add(question)
-                        print question
+                        #db.session.commit()
+                        #print question
 
 
             print catalogue_obj
             db.session.commit()         
-              #print row[0]
-              #print ', '.join(row)
+            #print row[0]
+            #print ', '.join(row)
         
 
 class CatalogueQuestion(Serializable, db.Model):
@@ -80,20 +82,20 @@ class CatalogueQuestion(Serializable, db.Model):
     question_text=db.Column(db.Text)
     index = db.Column(db.Integer)
 
-    catalogue_id = db.Column(db.Integer, db.ForeignKey('catalogue.id'))
+    catalogue_id = db.Column(db.String(32), db.ForeignKey('catalogue.id'))
     answers = db.relationship('CatalogueAnswer',
         primaryjoin="CatalogueAnswer.question_id==CatalogueQuestion.id",
         backref=db.backref('question'))
 
 
-    type = db.Column(db.String(50))
+    identifier = db.Column(db.String(50))
 
-    def __init__(self,type):
-        self.type=type
+    def __init__(self,identifier):
+        self.type=identifier
 
     __mapper_args__ = {
         'polymorphic_identity':'catalogue_question',
-        'polymorphic_on':type
+        'polymorphic_on': identifier
     }
 
 
@@ -115,7 +117,7 @@ class CatalogueRangeQuestion(CatalogueQuestion):
         self.range_text_values = rangetextv
 
     def __repr__(self):
-        return "Index: {}, Text: {}, Start: {}, End: {}, RangeTextValues: {}".format(self.index,self.question_text,self.start_value,self.end_value,self.range_text_values)
+        return "Index: {}, Start: {}, End: {}".format(self.index,self.start_value,self.end_value)
 
     __mapper_args__ = {
         'polymorphic_identity':'catalogue_range_question'
@@ -144,7 +146,7 @@ class CatalogueAnswer(Serializable, db.Model):
 
     answer_time=db.Column(db.DateTime)
 
-    question_id = db.Column(db.Integer, db.ForeignKey('catalogue_question.id'))
+    question_id = db.Column(db.String(32), db.ForeignKey('catalogue_question.id'))
     
 
     type = db.Column(db.String(50))
