@@ -24,7 +24,15 @@
     			</form>
     		</td>
     		<td>
-    			<a href="/answer_catalogue/{{cat.id}}"> Answer Questions </a>
+                {% if cat.questions[0].identifier == "catalogue_range_question" %}
+                    <a href="{{url_for('answer_range_question', id=cat.questions[0].id)}}"> Answer Questions </a>
+                {% endif %}
+
+                {% if cat.questions[0].identifier =="catalogue_text_question" %}
+                    <a href="{{url_for('answer_text_question', id=cat.questions[0].id)}}"> Answer Questions </a>
+                {% endif %}
+                
+                
     		</td>
     	</tr>
     {% endfor %}
