@@ -20,6 +20,8 @@ from nucleus.helpers import configure_app
 from synapse import Synapse
 from web_ui.helpers import host_kind, compile_less
 
+from reflection import models
+
 
 monkey.patch_all()
 
