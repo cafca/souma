@@ -2,8 +2,14 @@
 
 {% block content %}
 
-<section class="col1 row1 w6 h2">
-    <h2>Hallo Mona!</h2>
-</section>
+<h2>Hallo Mona!</h2>
+
+
+<ul>
+    {% for cat in catalogues %}
+
+    	<li>{{cat.name}}</li>
+    {% endfor %}
+</ul>
 
 {% endblock %}

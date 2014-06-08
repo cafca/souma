@@ -51,6 +51,7 @@ hgroup,
 nav,
 section {
   display: block;
+  overflow: hidden;
 }
 
 audio,
