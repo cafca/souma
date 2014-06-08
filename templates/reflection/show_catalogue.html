@@ -16,29 +16,12 @@
         <tr>
             <td>{{q.question_text}}</td>
             {% if q.identifier=="catalogue_range_question" %}
-                <td>{{q.start_value}} {{q.range_text_values.split(',')[0]}} - {{q.end_value}} {{q.range_text_values.split(',')[-1]}}<td>
+                <td>{{q.start_value}} {{q.range_text_values.split(',')[0]}} - {{q.end_value}} {{q.range_text_values.split(',')[-1]}}</td>
+            {% else: %}
+                <td>TextQuestion</td>  
             {% endif %}
         </tr>
     {% endfor %}
-	<!-- <th>Name</th>
-	<th>Description</th>
-	<th>Activation</th>
-    {% for cat in catalogues %}
-
-    	{% if cat.activated %}
-    		<tr class="success">
-    	{% else %}
-    		<tr>
-    	{% endif %}
-    		<td><a href="/catalogue/{{cat.id}}" >{{cat.name}}</a></td>
-    		<td style="width: 50%;">{{cat.description}}</td>
-    		<td>
-    			<form>
-    				<button type="button" class="btn btn-primary">Activated</button>
-    			</form>
-    		</td>
-    	</tr>
-    {% endfor %} -->
 </table>
 
 {% endblock %}

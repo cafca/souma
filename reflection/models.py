@@ -2,7 +2,7 @@ from nucleus.models import Serializable, Persona, Oneup, Star, LinkPlanet
 from web_ui import db, app
 from uuid import uuid4
 import os
-
+import csv
 
 class Catalogue(Serializable, db.Model):
     
@@ -12,8 +12,14 @@ class Catalogue(Serializable, db.Model):
     name = db.Column(db.String(100))
     description = db.Column(db.String(500))
 
-    author_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
-    author = db.relationship('Persona',primaryjoin="Persona.id==Catalogue.author_id")
+    system_name = db.Column(db.String(50), unique=True)
+    ask_for_all = db.Column(db.Boolean)
+
+    interval = db.Column(db.Integer)
+    last_used =db.Column(db.DateTime)
+
+    #author_id = db.Column(db.String(32), db.ForeignKey('persona.id'))
+    #author = db.relationship('Persona',primaryjoin="Persona.id==Catalogue.author_id")
     
     questions = db.relationship('CatalogueQuestion',
         primaryjoin="CatalogueQuestion.catalogue_id==Catalogue.id",
@@ -27,52 +33,72 @@ class Catalogue(Serializable, db.Model):
     @staticmethod
     def readFromCSV():
 
-        catalogue_obj = Catalogue()
-        range_start = 0;
-        range_end = 0;
-        range_values = ""
-        results = False
-        resultEndLine=0
 
-        import csv
-        with open(os.path.join(app.config["USER_DATA"], "eggs.csv"), 'rb') as csvfile:
-            spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
-            for line, row in enumerate(spamreader):
-                if line <= 4:
-                    if line == 0:
-                        catalogue_obj.id = uuid4().hex
-                        catalogue_obj.name = row[1]
-                    if line == 1:
-                        catalogue_obj.description = row[1].decode('utf-8')
-                        db.session.add(catalogue_obj)
-                        #db.session.commit()
-                    if line == 2:
-                        range_start = row[1]
-                    if line == 3:
-                        range_end = row[1]
-                    if line == 4:
-                        range_values = row[1].decode('utf-8')
+        questionnaire_list = ["eggs.csv","eggs2.csv","eggs3.csv"]
 
-                if line >= 6:
-                    if row[0] == "" and row[1] == "":
-                        results= True
-                        resultEndLine = line 
-                if results and line > resultEndLine:
-                        question = CatalogueRangeQuestion(range_start, range_end, range_values)
-                        question.id = uuid4().hex
-                        question.index = row[0]
-                        question.question_text = row[1].decode('utf-8')
-                        #print catalogue_obj.id
-                        question.catalogue_id = catalogue_obj.id
-                        db.session.add(question)
-                        #db.session.commit()
-                        #print question
+        for questionnaire_item in questionnaire_list:
+
+            catalogue_obj = Catalogue()
+            range_start = 0;
+            range_end = 0;
+            range_values = ""
+            results = False
+            resultEndLine=0
+
+            with open(os.path.join(app.config["USER_DATA"], questionnaire_item), 'rb') as csvfile:
+                spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
+                for line, row in enumerate(spamreader):
+                    if line <= 7:
+                        if line == 0:
+                            catalogue_obj.id = uuid4().hex
+                            catalogue_obj.name = row[1]
+                        if line == 1:
+                            catalogue_obj.description = row[1].decode('utf-8')
+                            
+                        if line == 2:
+                            range_start = row[1]
+                        if line == 3:
+                            range_end = row[1]
+                        if line == 4:
+                            range_values = row[1].decode('utf-8')
+                        if line == 5 :
+                            catalogue_obj.system_name= row[1]
+                        if line == 6:
+                            if row[1] == 0:
+                                catalogue_obj.ask_for_all = True
+                            else:
+                                catalogue_obj.ask_for_all = False
+                        if line == 7:
+                            catalogue_obj.interval = row[1]
+                            
+                            db.session.add(catalogue_obj)
+                            #db.session.commit()
+
+                    if line >= 9:
+                        if row[0] == "" and row[1] == "":
+                            results= True
+                            resultEndLine = line 
+                    if results and line > resultEndLine:
+
+                            if row[2]=="range":
+                                question = CatalogueRangeQuestion(range_start, range_end, range_values)
+                            if row[2]=="text":
+                                question= CatalogueTextQuestion(False)
+
+                            question.id = uuid4().hex
+                            question.index = row[0]
+                            question.question_text = row[1].decode('utf-8')
+                            #print catalogue_obj.id
+                            question.catalogue_id = catalogue_obj.id
+                            db.session.add(question)
+                            #db.session.commit()
+                            #print question
 
 
-            print catalogue_obj
-            db.session.commit()         
-            #print row[0]
-            #print ', '.join(row)
+                print catalogue_obj
+                db.session.commit()         
+                #print row[0]
+                #print ', '.join(row)
         
 
 class CatalogueQuestion(Serializable, db.Model):
@@ -81,6 +107,7 @@ class CatalogueQuestion(Serializable, db.Model):
     id = db.Column(db.String(32), primary_key=True)
     question_text=db.Column(db.Text)
     index = db.Column(db.Integer)
+
 
     catalogue_id = db.Column(db.String(32), db.ForeignKey('catalogue.id'))
     answers = db.relationship('CatalogueAnswer',
@@ -148,15 +175,17 @@ class CatalogueAnswer(Serializable, db.Model):
 
     question_id = db.Column(db.String(32), db.ForeignKey('catalogue_question.id'))
     
+    #to identify two answers given together 
+    run_id = db.Column(db.String(32))
 
-    type = db.Column(db.String(50))
+    identifier= db.Column(db.String(50))
 
-    def __init__(self,type):
-        self.type=type
+    def __init__(self,identifier):
+        self.type=identifier
 
     __mapper_args__ = {
         'polymorphic_identity':'catalogue_answer',
-        'polymorphic_on':type
+        'polymorphic_on': identifier
     }
 
 class CatalogueRangeAnswer(CatalogueAnswer):
