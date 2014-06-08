@@ -2,7 +2,7 @@
 
 {% block content %}
 
-<h2>Hallo Mona!</h2>
+<h2>Reflection System</h2>
 
 
 <table class="table">
@@ -19,10 +19,13 @@
     		<td><a href="/catalogue/{{cat.id}}" >{{cat.name}}</a></td>
     		<td style="width: 50%;">{{cat.description}}</td>
     		<td>
-    			<form>
-    				<button type="button" class="btn btn-primary">Activated</button>
-    			</form>
-    		</td>
+                {% if cat.activated %}
+                    <a href="{{url_for('deactivate_catalogue', id=cat.id)}}" class="btn btn-danger">Deactivate</a>
+                {% else %}
+                    <a href="{{url_for('activate_catalogue', id=cat.id)}}" class="btn btn-primary">Activate</a>
+                {% endif %}
+    		
+        	</td>
     		<td>
                 <!--ToDo: Herausfinden welches die letzte Frage war: route "answer catalogue" dann catalogue finden und die zuletzt beantwortete Frage finden und mit der nächsten Weitermachen -->
                 {% if cat.questions[0].identifier == "catalogue_range_question" %}

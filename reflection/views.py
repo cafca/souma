@@ -21,6 +21,28 @@ def catalogue(id):
 
     return render_template('reflection/show_catalogue.html', catalogue=catalogue)
 
+
+
+@app.route('/activate_catalogue/<id>/', methods=['GET'])
+def activate_catalogue(id):
+
+    catalogue = Catalogue.query.filter(Catalogue.id == id).first_or_404()
+    catalogue.activated = True
+    db.session.commit()
+
+    return redirect(url_for('catalogue_overview'))
+
+@app.route('/deactivate_catalogue/<id>/', methods=['GET'])
+def deactivate_catalogue(id):
+
+    catalogue = Catalogue.query.filter(Catalogue.id == id).first_or_404()
+    catalogue.activated = False
+    db.session.commit()
+
+    return redirect(url_for('catalogue_overview'))
+
+
+
 @app.route('/answer_text_question/<id>/', methods=['GET','POST'])
 def answer_text_question(id):
     """ Display a form to answer catalogue """

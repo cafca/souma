@@ -1,0 +1,53 @@
+.rotate (@deg) {
+	-webkit-transform: rotate(@deg);
+	-moz-transform: 	 rotate(@deg);
+	-ms-transform: 		 rotate(@deg);
+	-o-transform: 		 rotate(@deg);
+}
+
+.horizontal-gradient (@startColor: #EDEDED, @endColor: #818281) {
+ 	background-color: @startColor;
+	background-image: -webkit-gradient(linear, left top, right top, from(@startColor), to(@endColor));
+	background-image: -webkit-linear-gradient(left, @startColor, @endColor);
+	background-image: -moz-linear-gradient(left, @startColor, @endColor);
+	background-image: -ms-linear-gradient(left, @startColor, @endColor);
+	background-image: -o-linear-gradient(left, @startColor, @endColor);
+}
+
+.clear{
+	clear: both;
+}
+.answer_range_radios{
+	height: 30px;
+	width: 500px;
+	.horizontal-gradient()
+}
+
+.answer_questions input[type="radio"]{
+	width: 75px;
+
+}
+.answer_range_radios label{
+	.rotate(45deg);
+	display: block;
+	height: 150px;
+	width: 50px;
+}
+.answer_questions li{
+	float: left;
+	width: 70px;
+	list-style: none;
+}
+
+.questionnaire_title{
+	font-size: 18px;
+	color: #8C8F8C;
+	font-variant: small-caps;
+}
+
+.questionnaire_question{
+	font-size: 20px;
+	color: black;
+	font-weight: bold;
+	margin: 20px 0px;
+}

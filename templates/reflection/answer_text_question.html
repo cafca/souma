@@ -3,26 +3,26 @@
 {% block content %}
 
 {% if question.ask_for_all %}
-<h2>{{question.catalogue.name}} {{time.strftime("%H:%M:%S")}}</h2>
+<p class="questionnaire_title">{{question.catalogue.name}} {{time.strftime("%H:%M:%S")}}</p>
 {% else: %}
-<h2>{{question.catalogue.name}}</h2>
+<p class="questionnaire_title">{{question.catalogue.name}}</p>
 {% endif %}
 
 
+<div class="answer_questions">
+     <form method="POST" role="form" action="{{url_for('answer_text_question', id=question.id)}}">
 
- <form method="POST" action="{{url_for('answer_text_question', id=question.id)}}">
+        <div class="form-group">
+            <label for="text" class="questionnaire_question">{{question.question_text}}</label>
+            {{ form.text(placeholder="Text")}}
+        </div>       
 
-    <!-- TEST QUESTION -->
-    {% if question.identifier == "catalogue_text_question" %}
 
-        <p>Text Question:  {{question.question_text}}</p> 
-        {{ form.text(placeholder="Text")}}
-    {% endif %}
-
-    {{ form.csrf_token }}
-    <div class="controls">
-        <button type="submit" class="btn">Answer</button>
-    </div>
-</form>
+        {{ form.csrf_token }}
+        <div class="controls">
+            <button type="submit" class="btn btn-primary">Answer</button>
+        </div>
+    </form>
+</div>
 
 {% endblock %}

@@ -1,0 +1,41 @@
+.clear {
+  clear: both;
+}
+.answer_range_radios {
+  height: 30px;
+  width: 500px;
+  background-color: #ededed;
+  background-image: -webkit-gradient(linear,left top,right top,from(#ededed),to(#818281));
+  background-image: -webkit-linear-gradient(left,#ededed,#818281);
+  background-image: -moz-linear-gradient(left,#ededed,#818281);
+  background-image: -ms-linear-gradient(left,#ededed,#818281);
+  background-image: -o-linear-gradient(left,#ededed,#818281);
+}
+.answer_questions input[type="radio"] {
+  width: 75px;
+}
+.answer_range_radios label {
+  -webkit-transform: rotate(45deg);
+  -moz-transform: rotate(45deg);
+  -ms-transform: rotate(45deg);
+  -o-transform: rotate(45deg);
+  display: block;
+  height: 150px;
+  width: 50px;
+}
+.answer_questions li {
+  float: left;
+  width: 70px;
+  list-style: none;
+}
+.questionnaire_title {
+  font-size: 18px;
+  color: #8c8f8c;
+  font-variant: small-caps;
+}
+.questionnaire_question {
+  font-size: 20px;
+  color: black;
+  font-weight: bold;
+  margin: 20px 0px;
+}

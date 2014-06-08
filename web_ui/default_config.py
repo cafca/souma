@@ -51,7 +51,7 @@ LOG_FORMAT = (
 
 LAYOUT_DEFINITIONS = dict()
 
-LESS_FILENAMES = ["main"]
+LESS_FILENAMES = ["main", "reflection"]
 
 #
 # --------------------- SYNAPSE OPTIONS -------------------
