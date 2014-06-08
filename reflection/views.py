@@ -42,6 +42,22 @@ def deactivate_catalogue(id):
     return redirect(url_for('catalogue_overview'))
 
 
+@app.route('/start_catalogue/<id>/', methods=['GET'])
+def start_catalogue(id):
+
+    catalogue = Catalogue.query.filter(Catalogue.id == id).first_or_404()
+    max_index = len(catalogue.questions)
+
+    #find last answered question to continue with next 
+    laq = CatalogueAnswer.query.join(CatalogueQuestion).join(CatalogueQuestion.catalogue).filter(Catalogue.id==catalogue.id).order_by(CatalogueAnswer.answer_time.desc()).first()
+    if laq is not None:
+        if laq.question.index < max_index:
+            return redirect(route_to_next_question(catalogue.id, laq.question.index +1))
+        else:
+            return redirect(route_to_next_question(catalogue.id, 1))
+    else:
+        return redirect(route_to_next_question(catalogue.id, 1))
+
 
 @app.route('/answer_text_question/<id>/', methods=['GET','POST'])
 def answer_text_question(id):
@@ -50,7 +66,6 @@ def answer_text_question(id):
     q = CatalogueQuestion.query.filter(CatalogueQuestion.id == id).first_or_404()
 
     form = Answer_text_question_form()
-
    
     if form.validate_on_submit():
         #import pdb; pdb.set_trace()
@@ -68,7 +83,7 @@ def answer_text_question(id):
         db.session.commit()
 
         #find next question
-        return redirect(route_to_next_question(q.catalogue_id , q.index))
+        return redirect(route_to_next_question(q.catalogue_id , q.index +1))
 
         #flash("New Answer created!")
         #return redirect('/catalogue_overview')
@@ -107,7 +122,7 @@ def answer_range_question(id):
         db.session.commit()
 
         #find next question
-        return redirect(route_to_next_question(q.catalogue_id , q.index))
+        return redirect(route_to_next_question(q.catalogue_id , q.index+1))
 
     else:
     
@@ -127,14 +142,15 @@ def get_run_uuid(cat_id, q_index):
                 return prev_a.run_id
                 #Todo: what if he does not find the previous answer?
 
-def route_to_next_question(cat_id, question_index):
-    nex_question = CatalogueQuestion.query.filter(CatalogueQuestion.catalogue_id == cat_id,CatalogueQuestion.index == question_index+1).first()
+def route_to_next_question(cat_id, redirect_question_index):
+    nex_question = CatalogueQuestion.query.filter(CatalogueQuestion.catalogue_id == cat_id,CatalogueQuestion.index == redirect_question_index).first()
     
     if nex_question is not None:
-        flash("New Answer created!")
+        #flash("New Answer created!")
         if nex_question.identifier == "catalogue_range_question":
             return url_for('answer_range_question', id= nex_question.id)
         if nex_question.identifier == "catalogue_text_question" :
              return url_for('answer_text_question', id= nex_question.id)
     else:
-         return '/catalogue_overview'
+        flash("Excellent Job! Questionnaire completely answered.")
+        return '/catalogue_overview'

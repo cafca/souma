@@ -65,9 +65,9 @@ class Catalogue(Serializable, db.Model):
                             catalogue_obj.system_name= row[1]
                         if line == 6:
                             if row[1] == 0:
-                                catalogue_obj.ask_for_all = True
-                            else:
                                 catalogue_obj.ask_for_all = False
+                            else:
+                                catalogue_obj.ask_for_all = True
                         if line == 7:
                             catalogue_obj.interval = row[1]
                             
