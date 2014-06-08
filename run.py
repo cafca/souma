@@ -150,6 +150,21 @@ if start:
             except Exception, e:
                 app.logger.error(e)
 
+        import werkzeug.serving
+        @werkzeug.serving.run_with_reloader
+        def run_server():
+            if not app.config['NO_UI']:
+                # Compile less when running from console
+                if host_kind() == "":
+                    compile_less()
+
+                app.logger.info("Starting Web-UI")
+                local_server = WSGIServer(('', app.config['LOCAL_PORT']), app)
+                local_server.start()
+                webbrowser.open("http://{}/".format(app.config["LOCAL_ADDRESS"]))
+
+        run_server()
+
         # Web UI
         if not app.config['NO_UI']:
             # Compile less when running from console

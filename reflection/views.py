@@ -1,7 +1,10 @@
-from flask import abort, flash, redirect, render_template, request, session, url_for
+from flask import abort, escape, flash, redirect, render_template, request, session, url_for
 from web_ui import app, db, logged_in
-from reflection.models import Catalogue, CatalogueQuestion
+from uuid import uuid4
+import datetime
+from reflection.models import *
 from reflection.forms import *
+from sqlalchemy import desc
 
 # reflection views
 @app.route('/catalogue_overview')
@@ -28,11 +31,27 @@ def answer_text_question(id):
 
    
     if form.validate_on_submit():
-        import pdb; pdb.set_trace()
-        return redirect('/catalogue_overview')
-    
-    
-    return render_template('reflection/answer_text_question.html', question=q, form=form)
+        #import pdb; pdb.set_trace()
+
+        run_uuid = get_run_uuid(q.catalogue_id, q.index)
+      
+        #neue Antwort anlegen
+        answer = CatalogueTextAnswer()
+        answer.id=uuid4().hex
+        answer.answer_text = request.form['text']
+        answer.answer_time = datetime.datetime.utcnow()
+        answer.question_id = q.id
+        answer.run_id = run_uuid
+        db.session.add(answer)
+        db.session.commit()
+
+        #find next question
+        return redirect(route_to_next_question(q.catalogue_id , q.index))
+
+        #flash("New Answer created!")
+        #return redirect('/catalogue_overview')
+    else:
+        return render_template('reflection/answer_text_question.html', question=q, form=form)
 
 
 @app.route('/answer_range_question/<id>/', methods=['GET','POST'])
@@ -52,9 +71,48 @@ def answer_range_question(id):
 
     
     if form.validate_on_submit():
-      #import pdb; pdb.set_trace()
-      flash("New Answer created!")
-      return redirect('/catalogue_overview')
+     
+        run_uuid = get_run_uuid(q.catalogue_id, q.index)
+      
+        #neue Antwort anlegen
+        answer = CatalogueRangeAnswer()
+        answer.id=uuid4().hex
+        answer.range_value = request.form['range_value']
+        answer.answer_time = datetime.datetime.utcnow()
+        answer.question_id = q.id
+        answer.run_id = run_uuid
+        db.session.add(answer)
+        db.session.commit()
+
+        #find next question
+        return redirect(route_to_next_question(q.catalogue_id , q.index))
+
+    else:
     
+        return render_template('reflection/answer_range_question.html', question=q, form=form)
+
+
+def get_run_uuid(cat_id, q_index):
+
+    #vorgaenger Antwort finden
+    if q_index == 1:
+        return uuid4().hex
+    else:
+        prev_q= CatalogueQuestion.query.filter(CatalogueQuestion.catalogue_id == cat_id, CatalogueQuestion.index == q_index-1).first()
+        if prev_q is not None:
+            prev_a = CatalogueAnswer.query.filter(CatalogueAnswer.question_id==prev_q.id).order_by(CatalogueAnswer.answer_time.desc()).first()
+            if prev_a is not None:
+                return prev_a.run_id
+                #Todo: what if he does not find the previous answer?
+
+def route_to_next_question(cat_id, question_index):
+    nex_question = CatalogueQuestion.query.filter(CatalogueQuestion.catalogue_id == cat_id,CatalogueQuestion.index == question_index+1).first()
     
-    return render_template('reflection/answer_range_question.html', question=q, form=form)
+    if nex_question is not None:
+        flash("New Answer created!")
+        if nex_question.identifier == "catalogue_range_question":
+            return url_for('answer_range_question', id= nex_question.id)
+        if nex_question.identifier == "catalogue_text_question" :
+             return url_for('answer_text_question', id= nex_question.id)
+    else:
+         return '/catalogue_overview'

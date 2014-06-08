@@ -24,6 +24,7 @@
     			</form>
     		</td>
     		<td>
+                <!--ToDo: Herausfinden welches die letzte Frage war: route "answer catalogue" dann catalogue finden und die zuletzt beantwortete Frage finden und mit der nächsten Weitermachen -->
                 {% if cat.questions[0].identifier == "catalogue_range_question" %}
                     <a href="{{url_for('answer_range_question', id=cat.questions[0].id)}}"> Answer Questions </a>
                 {% endif %}

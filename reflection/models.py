@@ -195,6 +195,10 @@ class CatalogueRangeAnswer(CatalogueAnswer):
 
     range_value= db.Column(db.Integer)
 
+
+    def __init__(self):
+        CatalogueAnswer.__init__(self,type)
+
     __mapper_args__ = {
         'polymorphic_identity':'catalogue_range_answer'
     }
@@ -207,6 +211,9 @@ class CatalogueTextAnswer(CatalogueAnswer):
     id = db.Column(db.String, db.ForeignKey('catalogue_answer.id'), primary_key=True)
 
     answer_text= db.Column(db.Text)
+
+    def __init__(self):
+        CatalogueAnswer.__init__(self,type)
 
     __mapper_args__ = {
         'polymorphic_identity':'catalogue_text_answer'
