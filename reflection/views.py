@@ -6,4 +6,13 @@ from reflection.models import Catalogue
 @app.route('/catalogue_overview')
 def catalogue_overview():
 	cs = Catalogue.query
-	return render_template('reflection/view_catalogue.html', catalogues = cs)
+	return render_template('reflection/view_catalogues.html', catalogues = cs)
+
+
+@app.route('/catalogue/<id>/', methods=['GET'])
+def catalogue(id):
+    """ Display a catalogue """
+    catalogue = Catalogue.query.filter(Catalogue.id == id).first_or_404()
+    #author = Persona.query.filter_by(id=id)
+
+    return render_template('show_catalogue.html', catalogue=catalogue)

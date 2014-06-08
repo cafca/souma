@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2>{{catalogue.name}}</h2>
+
+
+<table class="table">
+	<!-- <th>Name</th>
+	<th>Description</th>
+	<th>Activation</th>
+    {% for cat in catalogues %}
+
+    	{% if cat.activated %}
+    		<tr class="success">
+    	{% else %}
+    		<tr>
+    	{% endif %}
+    		<td><a href="/catalogue/{{cat.id}}" >{{cat.name}}</a></td>
+    		<td style="width: 50%;">{{cat.description}}</td>
+    		<td>
+    			<form>
+    				<button type="button" class="btn btn-primary">Activated</button>
+    			</form>
+    		</td>
+    	</tr>
+    {% endfor %} -->
+</table>
+
+{% endblock %}
