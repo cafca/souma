@@ -165,3 +165,4 @@ if start:
         Greenlet.spawn(setup_astrolab)
 
         shutdown.wait()
+        sys.exit()
