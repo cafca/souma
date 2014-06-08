@@ -74,3 +74,4 @@ def logged_in():
 
 # Views need to be imported at the bottom to avoid circular import (see Flask docs)
 import web_ui.views
+import reflection.views
