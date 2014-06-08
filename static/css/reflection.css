@@ -39,3 +39,18 @@
   font-weight: bold;
   margin: 20px 0px;
 }
+#progress {
+  width: 200px;
+  border: none;
+  position: relative;
+  padding: 3px;
+  margin: 10px 0px;
+}
+#percent {
+  position: absolute;
+  left: 50%;
+}
+#bar {
+  height: 20px;
+  background-color: #cdfacd;
+}

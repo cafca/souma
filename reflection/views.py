@@ -66,6 +66,8 @@ def answer_text_question(id):
     q = CatalogueQuestion.query.filter(CatalogueQuestion.id == id).first_or_404()
 
     form = Answer_text_question_form()
+
+    percentage = get_progress_bar_percent(q.catalogue_id, q.index)
    
     if form.validate_on_submit():
         #import pdb; pdb.set_trace()
@@ -88,7 +90,7 @@ def answer_text_question(id):
         #flash("New Answer created!")
         #return redirect('/catalogue_overview')
     else:
-        return render_template('reflection/answer_text_question.html', question=q, form=form)
+        return render_template('reflection/answer_text_question.html', question=q, form=form, percentage=percentage)
 
 
 @app.route('/answer_range_question/<id>/', methods=['GET','POST'])
@@ -98,7 +100,7 @@ def answer_range_question(id):
     q = CatalogueQuestion.query.filter(CatalogueQuestion.id == id).first_or_404()
       
     form=Answer_range_question_form()
-
+    percentage = get_progress_bar_percent(q.catalogue_id, q.index)
     #Choices
     range_choices=[]
     split_text_values=q.range_text_values.split(',')
@@ -126,7 +128,7 @@ def answer_range_question(id):
 
     else:
     
-        return render_template('reflection/answer_range_question.html', question=q, form=form)
+        return render_template('reflection/answer_range_question.html', question=q, form=form, percentage=percentage)
 
 
 def get_run_uuid(cat_id, q_index):
@@ -141,6 +143,12 @@ def get_run_uuid(cat_id, q_index):
             if prev_a is not None:
                 return prev_a.run_id
                 #Todo: what if he does not find the previous answer?
+
+
+def get_progress_bar_percent(cat_id, question_index):
+    nex_question = CatalogueQuestion.query.filter(CatalogueQuestion.catalogue_id == cat_id,CatalogueQuestion.index == question_index).first()  
+    max_index = len(nex_question.catalogue.questions)
+    return round(100 * float(question_index)/float(max_index+1),2)
 
 def route_to_next_question(cat_id, redirect_question_index):
     nex_question = CatalogueQuestion.query.filter(CatalogueQuestion.catalogue_id == cat_id,CatalogueQuestion.index == redirect_question_index).first()
