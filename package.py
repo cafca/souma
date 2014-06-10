@@ -309,7 +309,7 @@ elif sys.platform == 'win32':
         flaskext_init = open(flaskext.__path__[0] + '\\__init__.py', 'w')
         flaskext_init.close()
 
-    with open('requirements_win') as f:
+    with open('requirements_win.txt') as f:
         install_requires = [req.strip() for req in f.readlines()]
 else:
     extra_options = dict(
