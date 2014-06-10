@@ -92,7 +92,7 @@ local_souma = None
 from nucleus.database import initialize_database
 
 try:
-    initialize_database(app)
+    initialize_database(app, db)
 except OperationalError, e:
     app.logger.error("An operational error occured while updating the local database. " +
         "If you do already have data in it you should make a backup and then" +

@@ -1,7 +1,7 @@
 from sqlalchemy.exc import OperationalError
 
 
-def initialize_database(app):
+def initialize_database(app, db):
     """Inspect and create/update database
 
     This method uses Alembic to upgrade the database to the latest revision. If
@@ -17,4 +17,14 @@ def initialize_database(app):
     Raises:
         OperationalError: An error occurred updating the database
     """
-    pass
+
+    # Import all models to namespace
+    from nucleus.models import *
+    from astrolab import interestmodel, topicmodel
+
+    # Create database if access fails
+    try:
+        Souma.query.get(app.config["SOUMA_ID"])
+    except OperationalError:
+        app.logger.info("Setting up database")
+        db.create_all()
