@@ -18,3 +18,6 @@ easy_install "https://pypi.python.org/packages/2.7/s/scikit-learn/scikit-learn-0
 easy_install "https://pypi.python.org/packages/2.7/u/umemcache/umemcache-1.6.3.win32-py2.7.exe#md5=6fa154ee836e95576aa42f06690f6ac6" || exit /b
 
 pip install -r requirements_win.txt || exit /b
+
+:: py2exe
+pip install http://sourceforge.net/projects/py2exe/files/latest/download?source=files

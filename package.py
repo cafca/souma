@@ -289,14 +289,13 @@ elif sys.platform == 'win32':
 
     extra_options = dict(
         setup_requires=['py2exe'],
-        console=[{'script': "run.py"}],
         options=dict(
             bdist_esky=dict(
                 freezer_module="py2exe",
                 freezer_options=WIN_OPTIONS
             )
         ),
-        scripts=APP,
+        scripts=[exe, ],
         zipfile=None
     )
 
@@ -310,12 +309,8 @@ elif sys.platform == 'win32':
         flaskext_init = open(flaskext.__path__[0] + '\\__init__.py', 'w')
         flaskext_init.close()
 
-    install_requires = open('requirements_win.txt').read()
-
-    data_files_tmp = DATA_FILES
-    DATA_FILES = []
-    for data_file in data_files_tmp:
-        DATA_FILES.extend(find_data_files(data_file, data_file, '*'))
+    with open('requirements_win') as f:
+        install_requires = [req.strip() for req in f.readlines()]
 else:
     extra_options = dict(
         scripts=APP)
