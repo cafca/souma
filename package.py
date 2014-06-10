@@ -172,7 +172,7 @@ WIN_OPTIONS = {
     "dist_dir": "../dist",
     "includes": INCLUDES,
     "iconfile": "static/images/icon_win.ico",
-    "packages": ["nucleus", "web_ui", "synapse", "astrolab"],
+    "packages": ["nucleus", "web_ui", "synapse", "astrolab", "requests"],
     "dll_excludes": [],
     'bundle_files': 1
 }
@@ -183,7 +183,7 @@ DARWIN_OPTIONS = {
     "dist_dir": "../dist",
     "iconfile": "static/images/icon_osx.icns",
     "includes": INCLUDES,
-    "packages": ["nucleus", "web_ui", "synapse", "astrolab"],
+    "packages": ["nucleus", "web_ui", "synapse", "astrolab", "requests"],
     "site_packages": True,
     "plist": {
         "CFBundleVersion": VERSION,
