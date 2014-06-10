@@ -51,6 +51,7 @@ INCLUDES = [
     "flask.ext",
     "flaskext",
     "flaskext.uploads",
+    "flask_migrate",
     "flask_misaka",
     "flask_wtf",
     "sqlalchemy.orm",
@@ -191,42 +192,6 @@ DARWIN_OPTIONS = {
         "LSUIElement": True
     },
 }
-
-
-def find_data_files(source, target, patterns):
-    """Locates the specified data-files and returns the matches
-    in a data_files compatible format.
-
-    Parameters:
-        source(String): Root of the source data tree.
-            Use '' or '.' for current directory.
-        target(String): Root of the target data tree.
-            Use '' or '.' for the distribution directory.
-        patterns(Iterable):  Sequence of glob-patterns for the
-            files you want to copy.
-
-    Returns:
-        dict:
-    """
-    import os
-    import glob
-
-    if glob.has_magic(source) or glob.has_magic(target):
-        raise ValueError("Magic not allowed in src, target")
-    ret = {}
-    more = []
-    for pattern in patterns:
-        pattern = os.path.join(source, pattern)
-        for filename in glob.glob(pattern):
-            if os.path.isfile(filename):
-                targetpath = os.path.join(target, os.path.relpath(filename, source))
-                path = os.path.dirname(targetpath)
-                ret.setdefault(path, []).append(filename)
-            elif os.path.isdir(filename):
-                more.extend(find_data_files(filename, filename, '*'))
-    ret = sorted(ret.items())
-    ret.extend(more)
-    return ret
 
 """ Platform specific options """
 if sys.platform == 'darwin':
