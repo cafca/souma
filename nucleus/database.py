@@ -1,7 +1,10 @@
+import logging
+
 from flask.ext.migrate import Migrate, upgrade
 from sqlalchemy.exc import OperationalError
 
-from nucleus.models import Souma
+from nucleus.models import *
+from astrolab import interestmodel, topicmodel
 
 
 def initialize_database(app, db):
@@ -26,9 +29,6 @@ def initialize_database(app, db):
         Souma.query.get(app.config["SOUMA_ID"])
     except OperationalError:
         app.logger.info("Setting up database")
-
-        from nucleus.models import *
-        from astrolab import interestmodel, topicmodel
         db.create_all()
 
     Migrate(app, db)
