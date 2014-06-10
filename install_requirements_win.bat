@@ -1,5 +1,7 @@
+call "C:\Program Files\Microsoft Visual Studio 9.0\Common7\Tools\vsvars32.bat"
+
 IF "%VS100COMNTOOLS%" NEQ "" (
-	SET VS90COMNTOOLS="%VS100COMNTOOLS%"
+	SET VS90COMNTOOLS=%VS100COMNTOOLS%
 )
 
 ::numpy 1.8.1

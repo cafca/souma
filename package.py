@@ -23,13 +23,6 @@ APP = ['run.py', ]
 with open("__init__.py", 'rb') as f:
     VERSION = f.readline().split("=")[1].strip().replace('"', '')
 
-""" Compile .less files """
-filenames = ["main", ]
-for fn in filenames:
-    rv = os.system("touch ./static/css/{}.css".format(fn))
-    rv += os.system("lesscpy ./static/css/{fn}.less > ./static/css/{fn}.css".format(fn=fn))
-
-
 """ Compile list of static files """
 with open(".gitignore") as f:
     ignorefiles = [l.strip() for l in f.readlines()]
@@ -57,6 +50,7 @@ INCLUDES = [
     "flask.ext",
     "flaskext",
     "flaskext.uploads",
+    "flask_misaka",
     "flask_wtf",
     "sqlalchemy.orm",
     "sqlalchemy.event",
@@ -235,6 +229,12 @@ def find_data_files(source, target, patterns):
 
 """ Platform specific options """
 if sys.platform == 'darwin':
+    # Compile .less files
+    filenames = ["main", ]
+    for fn in filenames:
+        rv = os.system("touch ./static/css/{}.css".format(fn))
+        rv += os.system("lesscpy ./static/css/{fn}.less > ./static/css/{fn}.css".format(fn=fn))
+
     class SklearnRecipe(object):
         """ Recipe for using sklearn in py2app """
         def check(self, dist, mf):
