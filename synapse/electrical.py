@@ -73,7 +73,7 @@ class ElectricalSynapse(object):
             server_info, errors = self._request_resource("GET", [])
         except requests.ConnectionError, e:
             self.logger.error("Could not establish connection to glia server\n* {}".format(e))
-            quit()
+            raise
 
         # Register souma if neccessary
         if errors:
@@ -83,10 +83,10 @@ class ElectricalSynapse(object):
                     server_info, errors = self._request_resource("GET", [])
                 else:
                     self._log_errors("Error registering Souma", errors)
-                    quit()
+                    raise requests.ConnectionError()
             else:
                 self._log_errors("Error connecting to Glia", errors)
-                quit()
+                raise requests.ConnectionError()
 
         try:
             self.logger.info(
