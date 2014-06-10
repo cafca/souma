@@ -1,12 +1,17 @@
 import os
 import sys
-from humanize import naturaltime
-from werkzeug.contrib.cache import SimpleCache
+import logging
+
+from logging.handlers import RotatingFileHandler
 from flask import Flask
 from flask.ext import uploads
-import logging
-from logging.handlers import RotatingFileHandler
+from flask.ext.misaka import Misaka
 from flask.ext.sqlalchemy import SQLAlchemy
+from humanize import naturaltime
+from werkzeug.contrib.cache import SimpleCache
+
+from web_ui.helpers import localtime
+
 
 # Initialize Flask app
 app = Flask('souma')
@@ -18,6 +23,10 @@ app.config.from_object("web_ui.default_config")
 app.config.from_object('astrolab.config')
 
 app.jinja_env.filters['naturaltime'] = naturaltime
+app.jinja_env.filters['localtime'] = lambda value: localtime(value, tzval=app.config["TIMEZONE"])
+
+# Register markdown filters
+Misaka(app)
 
 # Create application data folder
 if not os.path.exists(app.config["USER_DATA"]):

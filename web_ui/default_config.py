@@ -24,11 +24,13 @@ UPDATE_CHECK_INTERVAL = 15 * 60
 #
 
 LOCAL_PORT = 5000
-LOCAL_HOSTNAME = 'app.souma'
+LOCAL_HOSTNAME = 'app.souma.io'
 LOCAL_ADDRESS = "{}:{}".format(LOCAL_HOSTNAME, LOCAL_PORT)
 
 DEBUG = False
 USE_DEBUG_SERVER = False
+
+TIMEZONE = 'Europe/Berlin'
 
 SECRET_KEY_FILE = os.path.join(USER_DATA, "secret_key_{}.dat".format(LOCAL_PORT))
 PASSWORD_HASH_FILE = os.path.join(USER_DATA, "pw_hash_{}.dat".format(LOCAL_PORT))
@@ -65,9 +67,13 @@ LESS_FILENAMES = ["main"]
 
 SYNAPSE_PORT = LOCAL_PORT + 2000
 
-LOGIN_SERVER = "app.souma:24500"
-# Uncomment this to use Heroku server
+# A: Use local test server
+# LOGIN_SERVER = "app.souma.io:24500"
+# LOGIN_SERVER_SSL = False
+
+# B: Use Heroku server
 LOGIN_SERVER = "glia.herokuapp.com"
+LOGIN_SERVER_SSL = True
 
 # Setting this to True will automatically upload all vesicles to Myelin, and
 # enable periodic polling of the Myelin for new Vesicles sent to one of the

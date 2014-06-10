@@ -226,8 +226,17 @@ class PageManager(object):
             # Add create_star form to page
             section = 'create_star_form'
 
-            for cell in best_layout[section]:
-                page.add_to_section(section, cell, None)
+            # Fix
+            if len(best_layout[section]) == 2:
+                page.add_to_section(section, best_layout[section][0], None)
+                page.add_to_section(section, None, None)
+                page.add_to_section(section, best_layout[section][1], None)
+            elif len(best_layout[section]) == 3:
+                page.add_to_section(section, best_layout[section][0], None)
+                page.add_to_section(section, best_layout[section][1], None)
+                page.add_to_section(section, best_layout[section][2], None)
+            else:
+                raise ValueError("Layout cell for create star form needs 2 or 3 sections")
 
             section = 'stars_with_images'
             if section in best_layout:
@@ -467,11 +476,14 @@ class Page(object):
                 css_class (String): CSS classname of the entry
                 content (object): Object containing page contents
         """
-        css_class = "col{} row{} w{} h{}".format(
-            cell[0],
-            cell[1],
-            cell[2],
-            cell[3])
+        if cell:
+            css_class = "col{} row{} w{} h{}".format(
+                cell[0],
+                cell[1],
+                cell[2],
+                cell[3])
+        else:
+            css_class = "hidden"
 
         return {'css_class': css_class, 'content': content}
 
@@ -486,6 +498,8 @@ class Page(object):
                 1 (int) -- row at which it begins
                 2 (int) -- width of the container
                 3 (int) -- height of the container
+
+                If entry is None, the cell is not displayed
             content (object): Object containing entry contents
         """
 

@@ -35,6 +35,7 @@ for datadir in ['templates', 'static']:
 """ Modules imported using import() need to be manually specified here """
 INCLUDES = [
     "web_ui",
+    "argparse",
     "jinja2.ext",
     "sklearn",
     "sklearn.utils",

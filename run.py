@@ -12,11 +12,9 @@ from gevent import Greenlet, monkey
 from gevent.wsgi import WSGIServer
 from gevent.event import Event
 from sqlalchemy.exc import OperationalError
-from sys import platform
 from uuid import uuid4
 
 from astrolab.helpers import setup_astrolab
-from nucleus.set_hosts import test_host_entry, create_new_hosts_file, HOSTSFILE
 from nucleus.models import Souma, Starmap
 from nucleus.update import timed_update_check
 from nucleus.helpers import configure_app
@@ -130,18 +128,6 @@ if start:
 
         # Web UI
         if not app.config['NO_UI']:
-            if not test_host_entry():
-                app.logger.info("No hosts entry found. Will now enable access to local Souma service in your browser.")
-                app.logger.info("Please enter your Administrator password if prompted")
-                tempfile_path = os.path.join(app.config["USER_DATA"], "hosts.tmp")
-                create_new_hosts_file(tempfile_path)
-                # move temporary new hosts file to final location using administrator privileges
-                if platform == 'win32':
-                    os.system("runas /noprofile /user:Administrator move '{}' '{}'".format(tempfile_path, HOSTSFILE))
-                else:
-                    cmd = """osascript -e 'do shell script "mv \\"{}\\" \\"{}\\"" with administrator privileges'"""
-                    os.system(cmd.format(tempfile_path, HOSTSFILE))
-
             # Compile less when running from console
             if host_kind() == "":
                 compile_less()

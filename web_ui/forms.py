@@ -15,7 +15,8 @@ class Create_star_form(Form):
     # Choices of the author field need to be set before displaying the form
     # TODO: Validate author selection
     author = SelectField('Author', validators=[DataRequired(), ])
-    text = TextAreaField('Content', validators=[DataRequired(), ])
+    title = TextAreaField('Title', validators=[DataRequired(), ])
+    text = TextAreaField('Content', validators=[])
     # picture = FileField('Picture')
     linkedpicture = URLField('Picture')
     link = URLField('Link')
