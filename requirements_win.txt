@@ -37,10 +37,6 @@ semantic-version==2.3.0
 six==1.5.2
 smmap==0.8.2
 wsgiref==0.1.2
-<<<<<<< HEAD
-alembic==0.6.5
-=======
->>>>>>> auto-update
 Flask-Misaka==0.3.0
 Mako==0.9.1
 argparse==1.2.1
