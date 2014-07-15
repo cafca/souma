@@ -34,7 +34,7 @@ def _configure_from_args(app, args):
     app.config['NO_UI'] = args.no_ui
     app.config['LOGIN_SERVER'] = args.glia
 
-    if args.debug is True:
+    if True:
         app.config["LOG_LEVEL"] = logging.DEBUG
         app.config["DEBUG"] = True
         app.logger.debug("Verbose logs active")

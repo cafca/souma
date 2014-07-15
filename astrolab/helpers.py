@@ -1,5 +1,6 @@
 import lxml.html
 import requests
+import os
 
 from gensim import utils
 from gevent import spawn_later, sleep
@@ -44,12 +45,15 @@ def setup_astrolab():
     model_url = app.config["ASTROLAB_UPDATE"]
     word_ids_url = app.config["ASTROLAB_IDS_UPDATE"]
 
+    # Dropbox's SSL cert is bundled with Souma
+    cert = os.path.join(app.config["RUNTIME_DIR"], "static", "dropbox.pem")
+
     try:
         with open(word_ids_filename):
             logger.debug("Model word ids found")
     except IOError:
         logger.info("Now downloading model data ids")
-        r = requests.get(word_ids_url, stream=True)
+        r = requests.get(word_ids_url, stream=True, verify=cert)
         with open(word_ids_filename, 'wb') as f:
             for chunk in r.iter_content(chunk_size=1024):
                 if chunk:
@@ -62,7 +66,7 @@ def setup_astrolab():
             logger.debug("Model data found")
     except IOError:
         logger.info("Downloading model data")
-        r = requests.get(model_url, stream=True)
+        r = requests.get(model_url, stream=True, verify=cert)
         with open(model_filename, 'wb') as f:
             i = 0
             for chunk in r.iter_content(chunk_size=1024):
