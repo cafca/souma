@@ -3,6 +3,7 @@ import json
 import logging
 import requests
 import iso8601
+import os
 
 from base64 import b64encode
 from Crypto import Random
@@ -20,51 +21,50 @@ API_VERSION = 0
 API_VERSION_LONG = 0.1
 
 
-class GliaAuth(requests.auth.AuthBase):
-    """Attaches HTTP Glia Authentication to the given Request object."""
-    def __init__(self, souma, payload=None):
-        self.souma = souma
-        self.payload = payload if payload is not None else str()
-        self.rng = Random.new()
-
-    def __call__(self, r):
-        # modify and return the request
-        rand = self.rng.read(16)
-
-        # app.logger.debug("Authenticating {}\nID: {}\nRand: {}\nPath: {}\nPayload: {}".format(
-        #    r, str(self.souma.id), rand, r.url, self.payload))
-
-        r.headers['Glia-Souma'] = self.souma.id
-        r.headers['Glia-Rand'] = b64encode(rand)
-        r.headers['Glia-Auth'] = self.souma.sign("".join([
-            str(self.souma.id),
-            rand,
-            r.url,
-            self.payload
-        ]))
-        return r
-
-
 class ElectricalSynapse(object):
     """
-    Handle connection to HTTP endpoints
+    Handle connection to HTTP endpoints, specifically the Glia web service (Singleton)
 
     Parameters:
-        parent (Synapse) A Synapse object to which received Vesicles will be passed
         host (String) The IP address of a Glia server to connect to
     """
+    _instance = None
 
-    def __init__(self, parent, host=app.config['LOGIN_SERVER']):
+    def __new__(cls, *args, **kwargs):
+        """Singleton pattern"""
+        if not cls._instance:
+            app.logger.error("Creating new ElectricalSynapse Singleton")
+            cls._instance = super(ElectricalSynapse, cls).__new__(cls, *args, **kwargs)
+            cls._instance._fresh = True
+        else:
+            cls._instance._fresh = False
+        return cls._instance
+
+    def __init__(self, parent=None, host=None):
+        from synapse import Synapse
         self.logger = logging.getLogger('e-synapse')
         self.logger.setLevel(app.config['LOG_LEVEL'])
 
+        if host is None:
+            host = app.config['LOGIN_SERVER']
+
+        if app.config["LOGIN_SERVER_SSL"] is True:
+            protocol = "https"
+        else:
+            protocol = "http"
+
+        self.host = "{proto}://{host}".format(proto=protocol, host=host)
+
         # Core setup
-        self.synapse = parent
+        if parent:
+            self.synapse = parent
+        else:
+            self.synapse = Synapse()
         self.souma = Souma.query.get(app.config["SOUMA_ID"])  # The Souma which hosts this Synapse
-        self.host = "http://{host}".format(host=host)  # The Glia server to connect to
         self.session = requests.Session()  # Session object to use for requests
         self._peers = dict()
         self._sessions = dict()  # Holds session info for owned Personas (see _get_session(), _set_session()
+        self.rng = Random.new()
 
         # Setup signals
         notification_signals.signal('local-model-changed').connect(self.on_local_model_changed)
@@ -74,20 +74,20 @@ class ElectricalSynapse(object):
             server_info, errors = self._request_resource("GET", [])
         except requests.ConnectionError, e:
             self.logger.error("Could not establish connection to glia server\n* {}".format(e))
-            quit()
+            raise
 
         # Register souma if neccessary
         if errors:
             # Check for SOUMA_NOT_FOUND error code in server response
-            if ERROR["SOUMA_NOT_FOUND"](None)[0] in map(itemgetter(0), server_info["meta"]["errors"]):
+            if server_info and ERROR["SOUMA_NOT_FOUND"](None)[0] in map(itemgetter(0), server_info["meta"]["errors"]):
                 if self.souma_register():
                     server_info, errors = self._request_resource("GET", [])
                 else:
                     self._log_errors("Error registering Souma", errors)
-                    quit()
+                    raise requests.ConnectionError()
             else:
                 self._log_errors("Error connecting to Glia", errors)
-                quit()
+                raise requests.ConnectionError()
 
         try:
             self.logger.info(
@@ -197,6 +197,29 @@ class ElectricalSynapse(object):
         ping = Greenlet(self._keepalive, persona)
         ping.start_later(remaining)
 
+    def _glia_auth(self, url, payload=None):
+        """Returns headers with HTTP Glia Authentication for given request data
+
+        Args:
+            url: Requested URL
+            payload: Payload of the request if any
+        """
+        if payload is None:
+            payload = str()
+
+        rand = self.rng.read(16)
+
+        headers = dict()
+        headers['Glia-Souma'] = self.souma.id
+        headers['Glia-Rand'] = b64encode(rand)
+        headers['Glia-Auth'] = self.souma.sign("".join([
+            str(self.souma.id),
+            rand,
+            str(url),
+            payload
+        ]))
+        return headers
+
     def _request_resource(self, method, endpoint, params=None, payload=None):
         """
         Request a resource from the server
@@ -234,21 +257,26 @@ class ElectricalSynapse(object):
         url_elems.extend(endpoint)
         url = "/".join(url_elems) + "/"
 
+        # Heroku's SSL cert is bundled with Souma
+        cert = os.path.join(app.config["RUNTIME_DIR"], "static", "herokuapp.com.pem")
+
         # Make request
-        headers = dict()
         errors = list()
         parsing_failed = False
+
+        # Authenticate request
+        headers = self._glia_auth(url, payload_json)
 
         call = getattr(self.session, method.lower())
         try:
             if method in HTTP_METHODS_1:
                 self.logger.debug("{} {}".format(method, url))
-                r = call(url, headers=headers, params=params, auth=GliaAuth(souma=self.souma))
+
+                r = call(url, headers=headers, params=params, verify=cert)
             else:
                 self.logger.debug("{} {}\n{}".format(method, url, payload_json))
                 headers['Content-Type'] = "application/json"
-                r = call(url, payload_json,
-                    headers=headers, params=params, auth=GliaAuth(souma=self.souma, payload=payload_json))
+                r = call(url, payload_json, headers=headers, params=params, verify=cert)
             r.raise_for_status()
         except requests.exceptions.RequestException, e:
             errors.append(e)

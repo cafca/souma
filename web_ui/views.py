@@ -1,15 +1,16 @@
-import os
 import datetime
 
 from flask import abort, flash, redirect, render_template, request, session, url_for, jsonify as json_response
+from flask.helpers import send_from_directory
 from hashlib import sha256
 
-from web_ui import app, cache, db, logged_in, attachments
+from web_ui import app, cache, db, logged_in
 from web_ui import pagemanager
 from web_ui.forms import *
-from web_ui.helpers import get_active_persona
+from web_ui.helpers import get_active_persona, find_links
 from nucleus import notification_signals, PersonaNotFoundError
-from nucleus.models import Persona, Star, Planet, PicturePlanet, LinkPlanet, Group, Starmap
+from nucleus.models import Persona, Group
+from nucleus.models import Star, Planet, PlanetAssociation, LinkPlanet, Starmap, LinkedPicturePlanet, TextPlanet
 
 # Create blinker signal namespace
 local_model_changed = notification_signals.signal('local-model-changed')
@@ -33,18 +34,18 @@ def persona_context():
 def before_request():
     """Preprocess requests"""
 
-    allowed_paths = [
-        '/setup',
-        '/login']
-
     session['active_persona'] = get_active_persona()
 
-    if app.config['PASSWORD_HASH'] is None and request.path not in allowed_paths and request.path[1:7] != 'static':
-        app.logger.info("Redirecting to Setup")
-        return redirect(url_for('setup', _external=True))
+    def pass_thru(path):
+        """Return True if no auth required for path"""
+        allowed_paths = [
+            '/setup',
+            '/login'
+        ]
+        return path in allowed_paths or request.path[1:7] == 'static'
 
-    if request.path not in allowed_paths and not logged_in() and request.path[1:7] != 'static':
-        app.logger.info("Redirecting to Login")
+    if not pass_thru(request.path) and not logged_in():
+        app.logger.info("Not logged in: Redirecting to Login")
         return redirect(url_for('login', _external=True))
 
 
@@ -56,8 +57,15 @@ def teardown_request(exception):
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Display a login form and create a session if the correct pw is submitted"""
+    """Display a login form and create a session if the correct pw is submitted. Redirect to /setup if no pw hash."""
     from Crypto.Protocol.KDF import PBKDF2
+
+    try:
+        with open(app.config["PASSWORD_HASH_FILE"], "r") as f:
+            password_hash = f.read()
+    except IOError:
+        app.logger.info("No password hash found: Redirecting to Setup")
+        return redirect(url_for('setup', _external=True))
 
     error = None
     if request.method == 'POST':
@@ -65,7 +73,7 @@ def login():
         salt = app.config['SECRET_KEY']
         pw_submitted = PBKDF2(request.form['password'], salt)
 
-        if sha256(pw_submitted).hexdigest() != app.config['PASSWORD_HASH']:
+        if sha256(pw_submitted).hexdigest() != password_hash:
             error = 'Invalid password'
         else:
             cache.set('password', pw_submitted, 3600)
@@ -96,35 +104,33 @@ def setup():
             password = PBKDF2(request.form['password'], salt)
             password_hash = sha256(password).hexdigest()
 
-            app.config['PASSWORD_HASH'] = password_hash
-            os.environ['SOUMA_PASSWORD_HASH_{}'.format(app.config['LOCAL_PORT'])] = password_hash
+            with open(app.config["PASSWORD_HASH_FILE"], "w") as f:
+                f.write(password_hash)
+
             cache.set('password', password, 3600)
             return redirect(url_for('universe'))
     return render_template('setup.html', error=error)
 
 
-@app.route('/p/<id>/')
-def persona(id):
+@app.route('/attachments/<path:filename>')
+def attachment(filename):
+    return send_from_directory(app.config["USER_DATA"], filename)
+
+
+@app.route('/p/<id>/', defaults={'current_page': 1}, methods=["GET"])
+@app.route('/p/<id>/page/<int:current_page>', methods=["GET"])
+def persona(id, current_page=1):
     """ Render home view of a persona """
 
     persona = Persona.query.filter_by(id=id).first_or_404()
-    stars = Star.query.filter(
-        Star.author_id == id,
-        Star.state >= 0)[:4]
 
-    # TODO: Use new layout system
-    vizier = Vizier([
-        [1, 5, 6, 2],
-        [1, 1, 6, 4],
-        [7, 1, 2, 2],
-        [7, 3, 2, 2],
-        [7, 5, 2, 2]])
+    chapter = pagemanager.persona_layout(persona, current_page=current_page)
+
 
     return render_template(
         'persona.html',
         layout="persona",
-        vizier=vizier,
-        stars=stars,
+        chapter=chapter,
         persona=persona)
 
 
@@ -233,6 +239,9 @@ def create_star():
     if form.context.data is None:
         form.context.data = Persona.query.get(form.author.data).profile.id
 
+    # TODO: Find way to get CSRF into star-macro, so we can enable it
+    # here
+    form.csrf_enabled = False
     if form.validate_on_submit():
         uuid = uuid4().hex
 
@@ -245,11 +254,19 @@ def create_star():
         new_star_created = datetime.datetime.utcnow()
         new_star = Star(
             id=uuid,
-            text=request.form['text'],
+            text=request.form['title'],
             author=author,
             created=new_star_created,
             modified=new_star_created
         )
+
+        if 'parent_id' in request.values:
+            new_star.parent_id = request.values.get('parent_id')
+
+        # Find links
+        links, new_text = find_links(new_star.text)
+        new_star.text = new_text
+
         db.session.add(new_star)
         db.session.commit()
 
@@ -257,41 +274,50 @@ def create_star():
         app.logger.info('Created new {}'.format(new_star))
         model_change_messages = list()
 
-        if 'picture' in request.files and request.files['picture'].filename != "":
-            # compute hash
-            picture_hash = sha256(request.files['picture'].stream.read()).hexdigest()
-            request.files['picture'].stream.seek(0)
+        for link in links:
+            if "content-type" in link.headers and link.headers["content-type"][:5] == "image":
+                # "linkedpicture" is added to the hash so that two people can
+                # attach the same link as a linked picture and as a regular link
+                # without causing a clash because of their ids.
+                # https://github.com/ciex/souma/issues/155
+                picture_hash = sha256("linkedpicture" + link.url).hexdigest()[:32]
+                planet = LinkedPicturePlanet.query.filter_by(id=picture_hash).first()
+                if not planet:
+                    app.logger.info("Storing new linked Picture")
+                    planet = LinkedPicturePlanet(
+                        id=picture_hash,
+                        url=link.url)
+                    db.session.add(planet)
 
-            # create or get planet
-            planet = Planet.query.filter_by(id=picture_hash[:32]).first()
-            if not planet:
-                app.logger.info("Creating new planet for submitted file")
-                filename = attachments.save(request.files['picture'],
-                    folder=picture_hash[:2], name=picture_hash[2:] + ".")
-                planet = PicturePlanet(
-                    id=picture_hash[:32],
-                    filename=os.path.join(attachments.name, filename))
-                db.session.add(planet)
+                # attach to star
+                assoc = PlanetAssociation(star=new_star, planet=planet, author=author)
+                new_star.planet_assocs.append(assoc)
 
-            # attach to star
-            new_star.planets.append(planet)
+                # commit
+                db.session.add(new_star)
+                db.session.commit()
+                app.logger.info("Attached {} to new {}".format(planet, new_star))
+            else:
+                link_hash = sha256(link.url).hexdigest()[:32]
+                planet = LinkPlanet.query.filter_by(id=link_hash).first()
+                if not planet:
+                    app.logger.info("Storing new Link")
+                    planet = LinkPlanet(
+                        id=link_hash,
+                        url=link.url)
+                    db.session.add(planet)
 
-            # commit
-            db.session.add(new_star)
-            db.session.commit()
-            app.logger.info("Attached {} to new {}".format(planet, new_star))
+                assoc = PlanetAssociation(star=new_star, planet=planet, author=author)
+                new_star.planet_assocs.append(assoc)
+                db.session.add(new_star)
+                db.session.commit()
+                app.logger.info("Attached {} to new {}".format(planet, new_star))
 
-        if 'link' in request.form and request.form['link'] != "":
-            link_hash = sha256(request.form['link']).hexdigest()[:32]
-            planet = Planet.query.filter_by(id=link_hash).first()
-            if not planet:
-                app.logger.info("Storing new Link")
-                planet = LinkPlanet(
-                    id=link_hash,
-                    url=request.form['link'])
-                db.session.add(planet)
-
-            new_star.planets.append(planet)
+        # Add longform text field as attachment
+        if 'text' in request.values and len(request.form["text"]) > 0:
+            planet = TextPlanet.get_or_create(request.form['text'])
+            assoc = PlanetAssociation(star=new_star, planet=planet, author=author)
+            new_star.planet_assocs.append(assoc)
             db.session.add(new_star)
             db.session.commit()
             app.logger.info("Attached {} to new {}".format(planet, new_star))
@@ -323,7 +349,9 @@ def create_star():
         for m in model_change_messages:
             local_model_changed.send(create_star, message=m)
 
-        # if new star belongs to a group, show group page
+        # if new star belongs to a starmap, show starmap page
+        if new_star.parent_id:
+            return redirect(url_for('star', id=new_star.parent_id))
         if starmap is None:
             return redirect(url_for('star', id=uuid))
         else:
@@ -336,11 +364,9 @@ def create_star():
                            page=page)
 
 
-@app.route('/s/<id>/delete', methods=["GET"])
+@app.route('/s/<id>/delete', methods=["POST"])
 def delete_star(id):
     """ Delete a star """
-    # TODO: Should only accept POST instead of GET
-
     # Load instance and author persona
     s = Star.query.get(id)
     if s is None:
@@ -367,31 +393,30 @@ def delete_star(id):
             }
 
             local_model_changed.send(delete_star, message=message_delete)
+            flash("Unpublished and requested deletion of {}".format(s))
 
             app.logger.info("Deleted star {}".format(id))
-        return redirect(url_for('debug'))
+        return redirect(url_for('universe'))
 
 
-@app.route('/')
-def universe():
+@app.route('/', defaults={'current_page': 1})
+@app.route('/page/<int:current_page>')
+def universe(current_page=1):
     """ Render the landing page """
-    # return only stars that are not in a group context
-    stars = Star.query.filter(Star.state >= 0).all()
-    page = pagemanager.star_layout(stars)
+
+    stars = Star.query.filter(Star.parent_id == None, Star.state >= 0)
+    chapter = pagemanager.star_layout(stars, current_page=current_page)
 
     if len(persona_context()['controlled_personas'].all()) == 0:
         return redirect(url_for('create_persona'))
 
-    if len(stars) == 0:
-        return redirect(url_for('create_star'))
-
-    return render_template('universe.html', page=page)
+    return render_template('universe.html', chapter=chapter)
 
 
 @app.route('/s/<id>/', methods=['GET'])
 def star(id):
     """ Display a single star """
-    star = Star.query.filter(Star.id==id, Star.state>=0).first_or_404()
+    star = Star.query.filter(Star.id == id, Star.state >= 0).first_or_404()
     author = Persona.query.filter_by(id=id)
 
     return render_template('star.html', layout="star", star=star, author=author)
@@ -432,6 +457,16 @@ def oneup(star_id):
                 "state_name": oneup.get_state()
             }]
         }
+
+        message_oneup = {
+            "author_id": oneup.author.id,
+            "action": "insert" if len(oneup.vesicles)==0 else "update",
+            "object_id": oneup.id,
+            "object_type": "Oneup",
+            "recipients": star.author.contacts.all() + [star.author, ]
+        }
+
+        local_model_changed.send(oneup, message=message_oneup)
     return json_response(resp)
 
 
@@ -469,7 +504,7 @@ def find_people():
         address = request.form['email']
 
         # Create a temporary electrical synapse to make a synchronous glia request
-        electrical = ElectricalSynapse(None)
+        electrical = ElectricalSynapse()
         resp, errors = electrical.find_persona(address)
 
         # TODO: This should flash an error message. It doesn't.
@@ -503,7 +538,7 @@ def find_people():
                         "username": p["username"],
                         "incoming": None,
                         "outgoing": None
-                        })
+                    })
                 else:
                     found_processed.append({
                         "id": p["id"],
@@ -556,11 +591,13 @@ def add_contact(persona_id):
     return render_template('add_contact.html', form=form, persona=persona)
 
 
-@app.route('/g/<id>/', methods=['GET'])
-def group(id):
+@app.route('/g/<id>/', defaults={'current_page': 1}, methods=['GET'])
+@app.route('/g/<id>/page/<int:current_page>', methods=['GET'])
+def group(id, current_page=1):
     """ Render home view of a group """
 
     group = Group.query.filter_by(id=id).first_or_404()
+    stars = group.profile.index.filter(Star.state >= 0)
 
     form = Create_star_form(default_author=get_active_persona())
     form.author.choices = [(p.id, p.username) for p in Persona.list_controlled()]
@@ -569,12 +606,12 @@ def group(id):
     form.context.data = group.profile.id
 
     # create layouted page for group
-    page = pagemanager.group_layout(group.profile.index.filter(Star.state >= 0))
+    chapter = pagemanager.group_layout(stars, current_page=current_page)
 
     return render_template(
         'group.html',
         group=group,
-        page=page,
+        chapter=chapter,
         form=form)
 
 
@@ -585,27 +622,28 @@ def create_group():
     from uuid import uuid4
 
     form = Create_group_form()
-    form.author.choices = [(p.id, p.username) for p in Persona.list_controlled()]
-    form.author.data = get_active_persona()
+    form.admin.choices = [(p.id, p.username) for p in Persona.list_controlled()]
+    form.admin.data = get_active_persona()
 
     if form.validate_on_submit():
         # create ID to identify the group across all contexts
         uuid = uuid4().hex
         created_dt = datetime.datetime.utcnow()
 
-        author = Persona.query.get(request.form["author"])
-        if not author.controlled():
-            app.logger.error("Can't create Group with foreign Persona {}".format(author))
-            flash("Can't create Group with foreign Persona {}".format(author))
+        admin = Persona.query.get(request.form["admin"])
+        if not admin.controlled():
+            app.logger.error("Can't create Group with foreign Persona {} as admin".format(admin))
+            flash("Can't create Group with foreign Persona {} as admin".format(admin))
             return redirect(url_for('create_group')), 401
 
         # Create group and add to DB
         g = Group(
             id=uuid,
-            author=author,
+            admin=admin,
             modified=created_dt,
-            groupname=request.form['groupname'],
-            description=request.form['description']
+            username=request.form['username'],
+            description=request.form['description'],
+            members=[admin, ]
         )
 
         db.session.add(g)
@@ -613,7 +651,7 @@ def create_group():
 
         index = Starmap(
             id=uuid4().hex,
-            author=author,
+            author=admin,
             kind="group_profile",
             modified=created_dt
         )
@@ -621,21 +659,28 @@ def create_group():
         db.session.add(index)
         db.session.commit()
 
-        flash("New group {} created!".format(g.groupname))
+        flash("New group {} created!".format(g.username))
         app.logger.info("Created {} with {}".format(g, g.profile))
 
         local_model_changed.send(create_group, message={
-            "author_id": author.id,
+            "author_id": admin.id,
             "action": "insert",
             "object_id": g.id,
             "object_type": "Group",
         })
 
         local_model_changed.send(create_group, message={
-            "author_id": author.id,
+            "author_id": admin.id,
             "action": "insert",
             "object_id": g.profile.id,
             "object_type": "Starmap",
+        })
+
+        local_model_changed.send(create_group, message={
+            "author_id": admin.id,
+            "action": "update",
+            "object_id": admin.id,
+            "object_type": "Persona",
         })
 
         return redirect(url_for('group', id=g.id))

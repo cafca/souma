@@ -80,38 +80,37 @@ function OnImageLoad(evt, scale) {
     <header>
         <div class="logo">
             <a href="{{ url_for('universe') }}">
-                <img src="/static/logo_2X.png" alt="Souma"   >
+                <img src="/static/images/logo_2X.png" alt="Souma"   >
             </a>
         </div>
 
         <ul>
             {% for persona in controlled_personas %}
-            <li>
-                {% if persona.id == session.active_persona %}
-                <a href="{{ url_for('universe') }}" class="active">
-                    <p><i class="fa fa-circle fa-2xd"></i> <span class="caption">{{persona.username}}</span></p>
-                </a>
-                <ul>
-                    <li><a href="{{ url_for('persona', id=persona.id) }}">
-                    <p><i class="fa fa-user"></i> <span class="caption">Your stuff</span></p></a></li>
-                    <li><a href="{{url_for('create_star')}}">
-                    <p><i class="fa fa-star"></i> <span class="caption">Create star</span></p></a></li>
-                    <li><a href="{{url_for('create_group')}}">
-                    <p><i class="fa fa-magic"></i> <span class="caption">Create group</span></p></a></li>
-                    <li><a href="{{url_for('find_people')}}">
-                    <p><i class="fa fa-search"></i> <span class="caption">Find people</span></p></a></li>
-                    <li><a href="{{url_for('groups')}}">
-                    <p><i class="fa fa-group"></i> <span class="caption">Show Groups</span></p></a></li>
-                </ul>
-                {% else %}
-                <a href="{{ url_for('activate_persona', id=persona.id) }}">
-                    <p><i class="fa fa-circle-blank fa-2xd"></i> <span class="caption">{{persona.username}}</span></p>
-                </a>
-                {% endif %}
-            </li>
+                <li>
+                    {% if persona.id == session.active_persona %}
+                    <a href="{{ url_for('persona', id=persona.id) }}" class="active">
+                        <p><i class="fa fa-circle fa-2xd"></i> <span class="caption"><strong>{{persona.username}}</strong></span></p>
+                    </a>
+
+                    {% else %}
+                    <a href="{{ url_for('activate_persona', id=persona.id) }}">
+                        <p><i class="fa fa-circle-blank fa-2xd"></i> <span class="caption"><strong>{{persona.username}}</strong></span></p>
+                    </a>
+                    {% endif %}
+                </li>
             {% endfor %}
+        </ul>
+
+        <ul>
+            <li><a href="{{url_for('create_star')}}">
+            <p><i class="fa fa-star"></i> <span class="caption">Create star</span></p></a></li>
+            <li><a href="{{url_for('groups')}}">
+            <p><i class="fa fa-group"></i> <span class="caption">Groups</span></p></a></li>
+            <li><a href="{{url_for('find_people')}}">
+            <p><i class="fa fa-search"></i> <span class="caption">Find people</span></p></a></li>
+
             <a href="{{ url_for('create_persona') }}"><li>
-                <p><i class="fa fa-plus-circle fa-2xd"></i> <span class="caption">New</span></p>
+                <p><i class="fa fa-plus-circle fa-2xd"></i> <span class="caption">New Persona</span></p>
             </li></a>
         </ul>
 

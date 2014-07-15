@@ -102,7 +102,7 @@ article {
     section {
         position: absolute;
         margin-bottom: 1em;
-        // overflow: hidden;
+        overflow: scroll;
 
         &.card {
             border-radius: 3px;
@@ -125,17 +125,38 @@ article {
             }
 
             .content img {display: none;}
+
+            .comment {
+                display: none;
+            }
         }
 
-        &.w5, &.w6, &.w7, &.w8 {
+        &.w5, &.w6, &.w7, &.w8, &.w9, &.w10, &.w11, &.w12 {
             .content {
-                font-size: (@font-size * 2.5)/16*1em;
+                font-size: (@font-size * 2)/16*1em;
                 line-height: 1em;
+            }
+
+            .text.content {
+                font-size: (@font-size)/16*1em;
+                line-height: ((@font-size) * 1.5)/16*1em;
+
+                p {
+                    margin-bottom: ((@font-size) * 1.5)/16*1em;
+                }
+
+                h1,h2,h3 {
+                    margin: .7em 0 .3em;
+                }
             }
         }
 
         &.framed {
             border: 1px solid darken(white, 20%);
+        }
+
+        .comment {
+            margin-top: .5em;
         }
 
         .content {
@@ -165,13 +186,20 @@ article {
             }
         }
 
-        .fullsize-input > textarea, .fullsize-input > input {
-            width: (22.8em);
-            height: 3em;
-            border: none;
-            resize: none;
-            box-shadow: none;
-            font-size: 1em;
+        .fullsize-input {
+            width: 95%;
+            height: 95%;
+            margin: 1% auto;
+
+            textarea, input {
+                width: 100%;
+                height: 100%;
+                border: none;
+                resize: none;
+                box-shadow: none;
+                font-size: 1em;
+                padding: 0;
+            }
         }
 
         .card-handle {
@@ -203,17 +231,49 @@ article {
     }
 }
 
-.w3, .w4, .w5, .w6, .w7, .w8, .w9, .w10, .w11, .w12, .w13, .w14, .w15, .w16 {
+.comment-modal {
+    color: lighten(black, 20%);
+
+    ul > li {
+        list-style: none;
+    }
+
+    .caption, a {
+        color: lighten(black, 50%);
+    }
+}
+
+.star_list {
+    list-style: none;
+
+    li .content.imagewrap {
+        padding: 0;
+    }
+}
+
+.rel-blend {
+    position: relative;
+}
+
+.w3, .w4, .w5, .w6, .w7, .w8, .w9, .w10, .w11, .w12, .w13, .w14, .w15, .w16, .rel-blend {
 &.image-overlay {
-    background-color: none);
+    background-color: none;
     color: white;
-    transition: 1s;
+    transition: .25s;
 
     &:hover {
         background-color: rgba(0,0,0,0.15);
 
+        .title a {
+            color: white;
+        }
+
         .meta a {
             color: white;
+        }
+
+        input {
+            opacity: 1;
         }
     }
 
@@ -222,23 +282,44 @@ article {
         color: #333;
     }
 
+    .meta > span {
+        margin-top: 3px;
+    }
+
     // i + span:after { content:"\A"; white-space:pre; }
 
-    .attribute {
-        display: block;
-        // font-size: 200%;
-        margin: 0 0 0 6px;
+    &.h3, &.h4, &.h5, &.h6, &.h7, &.h8 {
+        .attribute {
+            display: block;
+            margin: 0 0 5px 6px;
+        }
     }
 
-    .content {
-        padding: 6px 6px 0;
+    .comment {
+        margin: -1em 6px;
     }
+
     .meta {
         padding: 0 6px;
     }
 
+    input.input-overlay {
+        opacity: 0;
+        transition: opacity .25s ease-in-out;
+        -moz-transition: opacity .25s ease-in-out;
+        -webkit-transition: opacity .25s ease-in-out;
+    }
+
     .inline-semantic {
         display: none;
+    }
+
+    .title {
+        padding: 6px 6px 0;
+    }
+
+    .title a {
+        color: darken(white, 10%);
     }
 }
 }
@@ -248,12 +329,32 @@ article {
     overflow: hidden;
     width: 100%;
     height: 100%;
+    padding: 0;
 
     img {
         position: absolute;
     }
 }
 
+.imagewrap-outer {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: -10;
+}
+
 .link {
     margin-top: 3em;
+}
+
+#souma-pagination {
+    position: absolute;
+    bottom: 0;
+    margin-left: 50%;
+
+    ul {
+        margin-left: -66%;
+    }
 }

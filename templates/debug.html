@@ -11,6 +11,7 @@
             <th>Modified</th>
             <th>Created</th>
             <th>State</th>
+            <th>Parent</th>
             <th>Vesicles</th>
             <th></th>
         </tr>
@@ -21,12 +22,15 @@
         <td>{{ star.id }}</td>
         <td>{{ star.text }}</td>
         <td>{{ star.author.username}}</td>
-        <td>{{ star.modified | naturaltime }}</td>
-        <td>{{ star.created | naturaltime}} </td>
+        <td>{{ star.modified | localtime|naturaltime }}</td>
+        <td>{{ star.created | localtime|naturaltime}} </td>
         <td>{{ star.get_state()}}</td>
+        <td>{{ star.parent_id }}</td>
         <td>{{ star.vesicles | length }}</td>
         {% if star.get_state() >= 0 and star.author.controlled() %}
-            <td><a class="btn" href="{{ url_for('delete_star', id=star.id) }}">Delete</a></td>
+            <td><form action="{{url_for('delete_star', id=star.id)}}" method="POST">
+                <button class="btn" type="submit">Delete</a>
+            </form></td>
         {% else %}
             <td>&nbsp;</td>
         {% endif %}
@@ -54,7 +58,7 @@
         <td>{{ starmap.id }}</td>
         <td>{{ starmap.kind }}</td>
         <td>{{ starmap.author.username}}</td>
-        <td>{{ starmap.modified | naturaltime }}</td>
+        <td>{{ starmap.modified | localtime|naturaltime }}</td>
         <td>{{ starmap.get_state()}}</td>
         <td>{% for star in starmap.index %}{{star}}<br />{% endfor %}</td>
         <td>{{ starmap.vesicles | length }}</td>
@@ -122,7 +126,7 @@
     <thead>
         <tr>
             <th>ID</id>
-            <th>Groupname</th>
+            <th>Name</th>
             <th>Description</th>
             <th>Profile</th>
             <th>Vesicles</th>
@@ -132,7 +136,7 @@
       {% for group in groups %}
       <tr>
         <td>{{ group.id }}</td>
-        <td>{{ group.groupname }}</td>
+        <td>{{ group.username }}</td>
         <td>{{ group.description }}</td>
         <td>{{ group.profile }}</td>
         <td>{{ group.vesicles | length }}</td>

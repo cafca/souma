@@ -1,0 +1,18 @@
+<!-- Pagination macro. Append all kwargs going to the view def to the macro call, they will be appended in url_for -->
+{% macro render_pagination(chapter, endpoint) %}
+  <div class="pagination" id="souma-pagination" style="bottom: 0">
+    <ul>
+    {%- for pagenum in chapter.iter_pages() %}
+      {% if pagenum %}
+        {% if pagenum != chapter.current_page %}
+          <li><a href="{{ url_for(endpoint, current_page=pagenum, **kwargs) }}">{{ pagenum }}</a></li>
+        {% else %}
+          <li class="active"><a href="{{ url_for(endpoint, current_page=pagenum, **kwargs) }}">{{ pagenum }}</a></li>
+        {% endif %}
+      {% else %}
+        <li>…</li>
+      {% endif %}
+    {%- endfor %}
+    </ul>
+  </div>
+{% endmacro %}

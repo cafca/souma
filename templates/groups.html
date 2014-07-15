@@ -6,21 +6,23 @@
 <table class="table">
     <thead>
         <tr>
-            <th>Groupname</th>
+            <th>Name</th>
             <th>Description</th>
         </tr>
     </thead>
     <tbody>
       {% for group in groups %}
       <tr>
-        <td>  
-            <a href="{{ url_for('group', id=group.id) }}"> {{ group.groupname }} </a>
+        <td>
+            <a href="{{ url_for('group', id=group.id) }}"> {{ group.username }} </a>
         </td>
         <td>{{ group.description }}</td>
       </tr>
       {% endfor %}
     </tbody>
-</table>  
+</table>
+
+<a class="btn" href="{{url_for('create_group')}}"><i class="fa fa-magic"></i> Create Group</a>
 
 
 {%endblock%}

@@ -2,13 +2,14 @@
 {% import "macros/star.html" as star_macros %}
 {% import "macros/planet.html" as planet_macros %}
 {% import "macros/create_star.html" as create_macro %}
+{% import "macros/pagination.html" as pagination %}
 
 
 {% block content %}
 <!-- <section class="col0 row1 w3 h1">-->
-<section class='{{ page.header[0].css_class }}'> 
+<section class='{{ chapter.page.header[0].css_class }}'>
     <span class="content">
-        <h1>{{group.groupname}}</h1>
+        <h1>{{group.username}}</h1>
         <p>Description: {{group.description}}</p>
     </span>
 </section>
@@ -16,19 +17,30 @@
 </form>
 
 
-{{ create_macro.create_star(page, form, active_persona) }}
+{{ create_macro.create_star(chapter.page, form, active_persona) }}
 
+{% if chapter.page.stars_with_images %}
+    {% for star in chapter.page.stars_with_images %}
 
-{% for star in page.stars %}
-    {% for planet in star.planets %}
+    <section class="image-overlay {{ star.css_class }}">
+        {{ star_macros.star(star.content, author=active_persona, controlled_personas=controlled_personas) }}
+    </section>
+
+    {% endfor %}
+{% endif %}
+
+{% for star in chapter.page.stars %}
+    {% for planet_assoc in star.content.planet_assocs %}
     <section class='{{ star.css_class }}'>
-        {{ planet_macros.planet(planet, False)}}
+        {{ planet_macros.planet(planet_assoc.planet, False)}}
     </section>
     {% endfor %}
 
-    <section class="{%if star.planets|length() >= 1 %}image-overlay{% endif %} {{star.css_class}}">
-        {{ star_macros.star(star.content) }}
+    <section class="{%if star.content.has_picture() %}image-overlay{% endif %} {{star.css_class}}">
+        {{ star_macros.star(star.content, author=active_persona, controlled_personas=controlled_personas, link_context=False) }}
     </section>
 {% endfor %}
+
+{{ pagination.render_pagination(chapter, "group", id=group.id) }}
 
 {% endblock %}

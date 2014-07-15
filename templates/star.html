@@ -3,19 +3,78 @@
 {% import "macros/planet.html" as planet_macros %}
 
 {% block content %}
-{% if star.planets|length() > 0 %}
-    {% for planet in star.planets %}
+{% if star.has_text() %}
+    <section class="col1 row1 w6 h7">
+        {{ planet_macros.planet(star.text_planets()[0].planet, True) }}
+    </section>
+
+    <section class="col8 row1 w5 h4">
+        {{ star_macros.star(star,
+            author=active_persona,
+            controlled_personas=controlled_personas,
+            controls="extended",
+            display_planets=False)
+        }}
+    </section>
+
+    {% if star.children.filter_by(kind='star')[0] %}
+        <section class="col8 row4 w4 h4">
+            <h3 style="margin: 0 auto; color: #666">Comments</h3>
+            <ul class="star_list">
+            {% for star in star.children.filter_by(kind="star")[:4] %}
+                <li class="{% if star.has_picture() %}rel-blend image-overlay{% endif %}">
+                {{ star_macros.star(star, author=active_persona, controlled_personas=controlled_personas, display_planets=True) }}
+                </li>
+                <div style="margin-bottom: 1em;"></div>
+            {% endfor %}
+        </ul>
+        </section>
+    {% endif %}
+{% elif star.has_picture() %}
+    {% for planet_assoc in star.planet_assocs %}
     <section class="col2 row1 w5 h7">
-        {{ planet_macros.planet(planet, True) }}
+        {{ planet_macros.planet(planet_assoc.planet, True) }}
     </section>
     {% endfor %}
 
-    <section class="col7 row1 w5 h2">
-        {{ star_macros.star(star) }}
+    <section class="col7 row1 w5 h4">
+
+        {{ star_macros.star(star,
+            author=active_persona,
+            controlled_personas=controlled_personas,
+            controls="extended",
+            display_planets=False)
+        }}
     </section>
+
+    {% if star.children.filter_by(kind='star')[0] %}
+        <section class="col7 row4 w4 h4">
+            <h3 style="margin: 0 auto; color: #666">Comments</h3>
+            <ul class="star_list">
+            {% for star in star.children.filter_by(kind="star")[:4] %}
+                <li class="{% if star.has_picture() %}rel-blend image-overlay{% endif %}">
+                {{ star_macros.star(star, author=active_persona, controlled_personas=controlled_personas, display_planets=True) }}
+                </li>
+                <div style="margin-bottom: 1em;"></div>
+            {% endfor %}
+        </ul>
+        </section>
+    {% endif %}
 {% else %}
     <section class="col1 row1 w6 h2">
-        {{ star_macros.star(star) }}
+        {{ star_macros.star(star, author=active_persona, controlled_personas=controlled_personas, controls="extended") }}
     </section>
+
+    {% if star.children.filter_by(kind='star')[0] %}
+        {% for star in star.children.filter_by(kind="star")[:8] %}
+            {% if loop.index < 5 %}
+        <section class="col1 row{{ loop.index0 + 3 }} w4 h2">
+            {% else %}
+        <section class="col6 row{{ loop.index0 -1 }} w4 h2">
+            {% endif %}
+            {{ star_macros.star(star, author=active_persona, controlled_personas=controlled_personas) }}
+        </section>
+        {% endfor %}
+    {% endif %}
 {% endif %}
 {% endblock %}

@@ -1,0 +1,4 @@
+include requirements_osx.txt
+include requirements_win.txt
+recursive-include static *
+recursive-include templates *
