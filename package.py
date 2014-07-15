@@ -51,7 +51,6 @@ INCLUDES = [
     "flask.ext",
     "flaskext",
     "flaskext.uploads",
-    "flask_migrate",
     "flask_misaka",
     "flask_wtf",
     "sqlalchemy.orm",

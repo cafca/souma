@@ -1,6 +1,5 @@
 import logging
 
-from flask.ext.migrate import Migrate, upgrade
 from sqlalchemy.exc import OperationalError
 
 from nucleus.models import *
@@ -31,6 +30,4 @@ def initialize_database(app, db):
         app.logger.info("Setting up database")
         db.create_all()
 
-    Migrate(app, db)
-    with app.app_context():
-        upgrade()
+    # TODO: Update database
