@@ -1,6 +1,6 @@
-import logging
 import os
 import sys
+import logging
 
 from logging.handlers import RotatingFileHandler
 from flask import Flask
@@ -11,6 +11,7 @@ from humanize import naturaltime
 from werkzeug.contrib.cache import SimpleCache
 
 from web_ui.helpers import localtime
+
 
 # Initialize Flask app
 app = Flask('souma')

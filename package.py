@@ -6,24 +6,33 @@ Usage:
     python package.py py2exe
 """
 import ez_setup
-import numpy #important for py2exe to work
+import numpy  # important for py2exe to work
 ez_setup.use_setuptools()
 
+import sys
+import os
+from esky.bdist_esky import Executable
 from setuptools import setup
-import sys, os
 
 if sys.platform == 'win32':
     import py2exe
 
-# Compile .less files
-filenames = ["main", ]
-for fn in filenames:
-    rv = os.system("touch ./static/css/{}.css".format(fn))
-    rv += os.system("lesscpy ./static/css/{fn}.less > ./static/css/{fn}.css".format(fn=fn))
+APP = ['run.py', ]
 
-APP = ['run.py']
-DATA_FILES = ['templates', 'static']
+""" Read current version identifier as recorded in `souma/__init__.py` """
+with open("__init__.py", 'rb') as f:
+    VERSION = f.readline().split("=")[1].strip().replace('"', '')
 
+""" Compile list of static files """
+with open(".gitignore") as f:
+    ignorefiles = [l.strip() for l in f.readlines()]
+
+DATA_FILES = [('', ['__init__.py'])]
+for datadir in ['templates', 'static']:
+    for root, dirs, files in os.walk(datadir):
+        DATA_FILES.append((root, [os.path.join(root, fn) for fn in files if fn not in ignorefiles]))
+
+""" Modules imported using import() need to be manually specified here """
 INCLUDES = [
     "web_ui",
     "argparse",
@@ -35,20 +44,13 @@ INCLUDES = [
     "wtforms.ext",
     "wtforms.ext.csrf",
     "flask",
-    # "flask_restful",
     "flask_sqlalchemy",
     "flask.views",
     "flask.signals",
-    # "flask_restful.utils",
     "flask.helpers",
-    # "flask_restful.representations",
-    # "flask_restful.representations.json",
-    #"flaskext",
-    #"flaskext.wtf",
     "flask.ext",
     "flaskext",
     "flaskext.uploads",
-    "flaskext.babel",
     "flask_misaka",
     "flask_wtf",
     "sqlalchemy.orm",
@@ -58,13 +60,9 @@ INCLUDES = [
     "sqlalchemy.connectors.mxodbc",
     "sqlalchemy.connectors.mysqldb",
     "sqlalchemy.connectors.zxJDBC",
-    # "sqlalchemy.connectorsodbc.py",
     "sqlalchemy.dialects.sqlite.base",
-    # "sqlalchemy.dialects.sqlitesqlite.py",
     "sqlalchemy.dialects.sybase.base",
     "sqlalchemy.dialects.sybase.mxodbc",
-    # "sqlalchemy.dialects.sybaseodbc.py",
-    # "sqlalchemy.dialects.sybasesybase.py",
     "sqlalchemy.engine.base",
     "sqlalchemy.engine.default",
     "sqlalchemy.engine.interfaces",
@@ -162,7 +160,8 @@ INCLUDES = [
     "gevent.core",
     "logging",
     "Crypto",
-    "Crypto.Hash"]
+    "Crypto.Hash"
+]
 
 # might need to explicitly include dll:
 # data_files=[('.', 'libmmd.dll')
@@ -172,7 +171,8 @@ INCLUDES = [
 WIN_OPTIONS = {
     "dist_dir": "../dist",
     "includes": INCLUDES,
-    "packages": ["nucleus", "web_ui", "synapse", "astrolab"],
+    "iconfile": "static/images/icon_win.ico",
+    "packages": ["nucleus", "web_ui", "synapse", "astrolab", "requests"],
     "dll_excludes": [],
     'bundle_files': 1
 }
@@ -183,53 +183,23 @@ DARWIN_OPTIONS = {
     "dist_dir": "../dist",
     "iconfile": "static/images/icon_osx.icns",
     "includes": INCLUDES,
-    "packages": ["nucleus", "web_ui", "synapse", "astrolab"],
+    "packages": ["nucleus", "web_ui", "synapse", "astrolab", "requests"],
     "site_packages": True,
     "plist": {
-        "CFBundleShortVersionString": "0.2",
+        "CFBundleVersion": VERSION,
         "LSBackgroundOnly": True,
         "LSUIElement": True
     },
 }
 
-
-def find_data_files(source, target, patterns):
-    """Locates the specified data-files and returns the matches
-    in a data_files compatible format.
-
-    Parameters:
-        source(String): Root of the source data tree.
-            Use '' or '.' for current directory.
-        target(String): Root of the target data tree.
-            Use '' or '.' for the distribution directory.
-        patterns(Iterable):  Sequence of glob-patterns for the
-            files you want to copy.
-
-    Returns:
-        dict:
-    """
-    import os
-    import glob
-
-    if glob.has_magic(source) or glob.has_magic(target):
-        raise ValueError("Magic not allowed in src, target")
-    ret = {}
-    more = []
-    for pattern in patterns:
-        pattern = os.path.join(source, pattern)
-        for filename in glob.glob(pattern):
-            if os.path.isfile(filename):
-                targetpath = os.path.join(target, os.path.relpath(filename, source))
-                path = os.path.dirname(targetpath)
-                ret.setdefault(path, []).append(filename)
-            elif os.path.isdir(filename):
-                more.extend(find_data_files(filename, filename, '*'))
-    ret = sorted(ret.items())
-    ret.extend(more)
-    return ret
-
 """ Platform specific options """
 if sys.platform == 'darwin':
+    # Compile .less files
+    filenames = ["main", ]
+    for fn in filenames:
+        rv = os.system("touch ./static/css/{}.css".format(fn))
+        rv += os.system("lesscpy ./static/css/{fn}.less > ./static/css/{fn}.css".format(fn=fn))
+
     class SklearnRecipe(object):
         """ Recipe for using sklearn in py2app """
         def check(self, dist, mf):
@@ -253,18 +223,44 @@ if sys.platform == 'darwin':
         if not patched:
             f.write(patch)
 
+    """ Setup Esky Executable """
+    exe = Executable("run.py",
+        description="Souma App",
+        gui_only=True,
+        icon=DARWIN_OPTIONS["iconfile"],
+        name="run")
+
     extra_options = dict(
         setup_requires=['py2app'],
         app=['run.py'],
-        options=dict(py2app=DARWIN_OPTIONS))
+        options=dict(
+            bdist_esky=dict(
+                freezer_module="py2app",
+                freezer_options=DARWIN_OPTIONS
+            )
+        ),
+        scripts=[exe, ]
+    )
 
     install_requires = open('requirements_osx.txt').read()
 
 elif sys.platform == 'win32':
+    """ Setup Esky Executable """
+    exe = Executable("run.py",
+        description="Souma App",
+        gui_only=True,
+        icon=WIN_OPTIONS["iconfile"],
+        name="run")
+
     extra_options = dict(
         setup_requires=['py2exe'],
-        console=[{'script': "run.py"}],
-        options=dict(py2exe=WIN_OPTIONS),
+        options=dict(
+            bdist_esky=dict(
+                freezer_module="py2exe",
+                freezer_options=WIN_OPTIONS
+            )
+        ),
+        scripts=[exe, ],
         zipfile=None
     )
 
@@ -275,16 +271,11 @@ elif sys.platform == 'win32':
     try:
         flaskext.__file__
     except:
-        flaskext_init = open(flaskext.__path__[0]+'\\__init__.py', 'w')
+        flaskext_init = open(flaskext.__path__[0] + '\\__init__.py', 'w')
         flaskext_init.close()
 
-
-    install_requires = open('requirements_win.txt').read()
-
-    data_files_tmp = DATA_FILES
-    DATA_FILES = []
-    for data_file in data_files_tmp:
-        DATA_FILES.extend(find_data_files(data_file, data_file, '*'))
+    with open('requirements_win.txt') as f:
+        install_requires = [req.strip() for req in f.readlines()]
 else:
     extra_options = dict(
         scripts=APP)
@@ -293,9 +284,9 @@ else:
 
 setup(
     name="Souma",
-    version="0.2.1",
+    version=VERSION,
     author="Cognitive Networks Group",
-    author_email="cognitive-networks@googlegroups.com",
+    author_email="team@souma.io",
     url="https://github.com/ciex/souma/",
     packages=["nucleus", "web_ui", "synapse", "astrolab"],
     data_files=DATA_FILES,
