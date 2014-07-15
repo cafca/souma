@@ -20,7 +20,6 @@ db = SQLAlchemy(app)
 
 # Load configuration
 app.config.from_object("web_ui.default_config")
-app.config.from_object('astrolab.config')
 
 app.jinja_env.filters['naturaltime'] = naturaltime
 app.jinja_env.filters['localtime'] = lambda value: localtime(value, tzval=app.config["TIMEZONE"])
@@ -45,7 +44,7 @@ uploads.configure_uploads(app, (attachments))
 # mode. This overrides this setting and enables a new logging handler which prints
 # to the shell.
 handlers = []
-loggers = [app.logger, logging.getLogger('synapse'), logging.getLogger('e-synapse'), logging.getLogger('astrolab')]
+loggers = [app.logger, logging.getLogger('synapse'), logging.getLogger('e-synapse')]
 
 if app.config["LOG_SQL_STATEMENTS"]:
     loggers.append(logging.getLogger('sqlalchemy.engine'))

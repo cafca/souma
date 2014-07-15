@@ -37,8 +37,6 @@ INCLUDES = [
     "web_ui",
     "argparse",
     "jinja2.ext",
-    "sklearn",
-    "sklearn.utils",
     "sqlalchemy.dialects.sqlite",
     "sqlalchemy.ext.declarative",
     "wtforms.ext",
@@ -150,12 +148,7 @@ INCLUDES = [
     "sqlalchemy.util.queue",
     "sqlalchemy.util.topological",
     "flask_sqlalchemy._compat",
-    "lxml._elementpath",
-    "lxml.etree",
-    "scipy.sparse.csgraph._validation",
     "gzip",
-    "scipy.special._ufuncs_cxx",
-    "sklearn.utils.sparsetools._graph_validation",
     "gevent",
     "gevent.core",
     "logging",
@@ -172,7 +165,7 @@ WIN_OPTIONS = {
     "dist_dir": "../dist",
     "includes": INCLUDES,
     "iconfile": "static/images/icon_win.ico",
-    "packages": ["nucleus", "web_ui", "synapse", "astrolab", "requests"],
+    "packages": ["nucleus", "web_ui", "synapse", "requests"],
     "dll_excludes": [],
     'bundle_files': 1
 }
@@ -183,7 +176,7 @@ DARWIN_OPTIONS = {
     "dist_dir": "../dist",
     "iconfile": "static/images/icon_osx.icns",
     "includes": INCLUDES,
-    "packages": ["nucleus", "web_ui", "synapse", "astrolab", "requests"],
+    "packages": ["nucleus", "web_ui", "synapse", "requests"],
     "site_packages": True,
     "plist": {
         "CFBundleVersion": VERSION,
@@ -199,19 +192,6 @@ if sys.platform == 'darwin':
     for fn in filenames:
         rv = os.system("touch ./static/css/{}.css".format(fn))
         rv += os.system("lesscpy ./static/css/{fn}.less > ./static/css/{fn}.css".format(fn=fn))
-
-    class SklearnRecipe(object):
-        """ Recipe for using sklearn in py2app """
-        def check(self, dist, mf):
-            m = mf.findNode('sklearn')
-            if m is None:
-                return None
-            # Don't put sklearn in the site-packages.zip file
-            return dict(
-                packages=['sklearn']
-            )
-    import py2app.recipes
-    py2app.recipes.sklearn = SklearnRecipe()
 
     """ Patch gevent implicit loader """
     patched = False
@@ -242,7 +222,7 @@ if sys.platform == 'darwin':
         scripts=[exe, ]
     )
 
-    install_requires = open('requirements_osx.txt').read()
+    install_requires = open('requirements.txt').read()
 
 elif sys.platform == 'win32':
     """ Setup Esky Executable """
@@ -274,13 +254,13 @@ elif sys.platform == 'win32':
         flaskext_init = open(flaskext.__path__[0] + '\\__init__.py', 'w')
         flaskext_init.close()
 
-    with open('requirements_win.txt') as f:
+    with open('requirements.txt') as f:
         install_requires = [req.strip() for req in f.readlines()]
 else:
     extra_options = dict(
         scripts=APP)
 
-    install_requires = open('requirements_osx.txt').read()
+    install_requires = open('requirements.txt').read()
 
 setup(
     name="Souma",
@@ -288,7 +268,7 @@ setup(
     author="Cognitive Networks Group",
     author_email="team@souma.io",
     url="https://github.com/ciex/souma/",
-    packages=["nucleus", "web_ui", "synapse", "astrolab"],
+    packages=["nucleus", "web_ui", "synapse"],
     data_files=DATA_FILES,
     license="Apache License 2.0",
     description="A Cognitive Network for Groups",

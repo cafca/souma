@@ -1,20 +1,12 @@
-import logging
-
 from sqlalchemy.exc import OperationalError
 
 from nucleus.models import *
-from astrolab import interestmodel, topicmodel
 
 
 def initialize_database(app, db):
     """Inspect and create/update database
 
-    This method uses Alembic to upgrade the database to the latest revision. If
-    no database is found, it will be created and also updated to the latest
-    revision.
-
-    The method can be used to automatically upgrade the database following an
-    update applied by the auto-updater.
+    This method tests whether a database is set up and creates it if not.
 
     Args:
         app: Flask app object

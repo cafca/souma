@@ -14,7 +14,6 @@ from gevent.event import Event
 from sqlalchemy.exc import OperationalError
 from uuid import uuid4
 
-from astrolab.helpers import setup_astrolab
 from nucleus.models import Souma, Starmap
 from nucleus.update import timed_update_check
 from nucleus.helpers import configure_app
@@ -149,9 +148,6 @@ if start:
                 synapse.electrical.login_all()
             except Exception, e:
                 app.logger.error(e)
-
-        # Setup Astrolab
-        Greenlet.spawn(setup_astrolab)
 
         # Update Souma
         if host_kind() in ["win", "osx"]:
