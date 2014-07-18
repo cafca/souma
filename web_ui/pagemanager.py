@@ -26,8 +26,8 @@ class Cell(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     position = db.Column(db.String(16))
     kind = db.Column(db.String(16))
-    layout = db.relationship('Layout')
-    layout_id = db.Column(db.String(32), db.Foreignkey('layout.id'), backref="cells")
+    layout = db.relationship('Layout', backref="cells")
+    layout_id = db.Column(db.String(32), db.ForeignKey('layout.id'))
 
 
 class Layout(Serializable, db.Model):
