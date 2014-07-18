@@ -153,7 +153,8 @@ def watch_layouts(continuous=True):
         dict: Layout definitions if `continuous` is False
     """
     import json
-    from web_ui import app
+    from web_ui import app, db
+    from web_ui.pagemanager import Context, Cell, Layout
 
     mtime_last = 0
     layout_filename = os.path.join(app.config["RUNTIME_DIR"], 'static', 'layouts.json')
@@ -162,7 +163,6 @@ def watch_layouts(continuous=True):
         mtime_cur = os.path.getmtime(layout_filename)
 
         if mtime_cur != mtime_last:
-
             try:
                 with open(layout_filename) as f:
                     app.config['LAYOUT_DEFINITIONS'] = json.load(f)
@@ -171,6 +171,65 @@ def watch_layouts(continuous=True):
                 app.config['LAYOUT_DEFINITIONS'] = dict()
             else:
                 app.logger.info("Loaded {} layout definitions".format(len(app.config["LAYOUT_DEFINITIONS"])))
+
+                # Delete old defs
+                count1 = Context.query.delete()
+                count2 = Cell.query.delete()
+                count3 = Layout.query.delete()
+                app.logger.info("Deleted {} contexts, {} cells, {} layouts".format(count1, count2, count3))
+
+                # Create new def db
+                for ldef in app.config["LAYOUT_DEFINITIONS"]:
+                    # Get properties
+                    name = ldef["name"]
+                    contexts = ldef["context"]
+                    pm_version = ldef["vizier_version"]
+
+                    create_star_form = ldef.get("create_star_form", [])
+                    create_group_form = ldef.get('create_group_form', [])
+                    header = ldef.get("header", None)
+                    vcard = ldef.get('vcard', None)
+
+                    star_cells = ldef.get("stars", [])
+                    star_image_cells = ldef.get("stars_with_images", [])
+
+                    # Create layout object
+                    layout = Layout(name=name, contexts=contexts)
+                    layout.pm_version = pm_version
+                    db.session.add(layout)
+                    db.session.commit()
+
+                    # Append cells
+                    cells = []
+                    for cdef in star_cells:
+                        cell = Cell(position=cdef, kind="star")
+                        cell.restrictions = ""
+                        cells.append(cell)
+
+                    for cdef in star_image_cells:
+                        cell = Cell(position=cdef, kind="star")
+                        cell.restrictions = ";".join(["has_image"])
+                        cells.append(cell)
+
+                    for cdef in create_star_form:
+                        cell = Cell(position=cdef, kind="create_star_form")
+                        cells.append(cell)
+
+                    if create_group_form:
+                        cells.append(Cell(position=create_group_form, kind="create_group_form"))
+
+                    if header:
+                        cells.append(Cell(position=header, kind="header"))
+
+                    if vcard:
+                        cells.append(Cell(position=vcard, kind="vcard"))
+
+                    for cell in cells:
+                        cell.layout = layout
+
+                    db.session.add_all(cells)
+                    db.session.commit()
+
         mtime_last = mtime_cur
 
         cont = True if continuous is True else False

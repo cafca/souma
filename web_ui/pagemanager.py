@@ -9,6 +9,9 @@ from web_ui.helpers import watch_layouts
 
 
 class Context(db.Model):
+
+    __tablename__ = "context"
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(16), unique=True)
 
@@ -23,15 +26,29 @@ class Context(db.Model):
 
 
 class Cell(db.Model):
+
+    __tablename__ = "cell"
     id = db.Column(db.Integer, primary_key=True)
     position = db.Column(db.String(16))
     kind = db.Column(db.String(16))
+    restrictions = db.Column(db.Text)
     layout = db.relationship('Layout', backref="cells")
     layout_id = db.Column(db.String(32), db.ForeignKey('layout.id'))
+
+    def __init__(self, position, kind):
+        self.position = ";".join([str(p) for p in position])
+        self.kind = kind
+
+t_layout_contexts = db.Table('layout_contexts',
+    db.Column('layout_id', db.String(32), db.ForeignKey('layout.id')),
+    db.Column('context_id', db.String(32), db.ForeignKey('context.id'))
+)
 
 
 class Layout(Serializable, db.Model):
     """Defines a screen layout for use by the PageManager"""
+
+    __tablename__ = "layout"
 
     _insert_required = ["id", "name", "pm_version", "context", "cells"]
     _update_required = ["id", "pm_version"]
@@ -39,16 +56,17 @@ class Layout(Serializable, db.Model):
     id = db.Column(db.String(32), primary_key=True)
     name = db.Column(db.String(80))
     pm_version = db.Column(db.String(16), default="1")
-    context = db.relationship('Context')
-    context_id = db.Column(db.Integer, db.ForeignKey('context.id'))
 
-    def __init__(self, name, context, cells):
+    contexts = db.relationship('Context',
+        secondary='layout_contexts',
+        primaryjoin='layout_contexts.c.layout_id==layout.c.id',
+        secondaryjoin='layout_contexts.c.context_id==context.c.id')
+
+    def __init__(self, name, contexts):
         self.id = os.urandom(16).encode('hex')
         self.name = name
-        self.context = Context.get_or_create(context)
-        for cval in cells:
-            pos = ";".join(cval["position"])
-            c = Cell(position=pos, kind=cval["kind"], layout_id=self.id)
+        for con in contexts:
+            self.contexts.append(Context.get_or_create(con))
 
     def __repr__(self):
         return "<Layout: {name}>".format(name=self.name)
