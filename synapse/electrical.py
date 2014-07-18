@@ -271,7 +271,6 @@ class ElectricalSynapse(object):
         try:
             if method in HTTP_METHODS_1:
                 self.logger.debug("{} {}".format(method, url))
-
                 r = call(url, headers=headers, params=params, verify=cert)
             else:
                 self.logger.debug("{} {}\n{}".format(method, url, payload_json))
