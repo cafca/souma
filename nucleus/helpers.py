@@ -70,7 +70,8 @@ def _log_config_info(app):
                       app.config['LOCAL_HOSTNAME'],
                       app.config['SYNAPSE_PORT']),
                   "{:>12}: {}".format("database", app.config['DATABASE']),
-                  "{:>12}: {}".format("glia server", app.config['LOGIN_SERVER'])]))
+
+                  "{:>12}: {} ({}SSL)".format("glia server", app.config['LOGIN_SERVER'], ("" if app.config["LOGIN_SERVER_SSL"] else "NO "))]))
 
 
 def _set_souma_id(app):

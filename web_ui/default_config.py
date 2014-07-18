@@ -6,21 +6,31 @@ import appdirs
 # ANY CHANGES MADE TO OPTIONS DEPENDING ON LOCAL_PORT NEED TO BE UPDATED IN
 # web_ui/__init__.py
 
+
+def read_version():
+    """ Return current version identifier as recorded in `souma/__init__.py` """
+    with open("__init__.py", 'rb') as f:
+        return f.readline().split("=")[1].strip().replace('"', '')
+
 USER_DATA = appdirs.user_data_dir("souma", "souma", roaming=True)
 RUNTIME_DIR = ""
 
-VERSION = "1.0.0-alpha.1"
+VERSION = read_version()
+UPDATE_URL = "https://github.com/ciex/souma/wiki/Download-links"
+UPDATE_CHECK_INTERVAL = 15 * 60
 
 #
 # --------------------- FLASK OPTIONS ---------------------
 #
 
 LOCAL_PORT = 5000
-LOCAL_HOSTNAME = 'app.souma'
+LOCAL_HOSTNAME = 'app.souma.io'
 LOCAL_ADDRESS = "{}:{}".format(LOCAL_HOSTNAME, LOCAL_PORT)
 
 DEBUG = False
 USE_DEBUG_SERVER = False
+
+TIMEZONE = 'Europe/Berlin'
 
 SECRET_KEY_FILE = os.path.join(USER_DATA, "secret_key_{}.dat".format(LOCAL_PORT))
 PASSWORD_HASH_FILE = os.path.join(USER_DATA, "pw_hash_{}.dat".format(LOCAL_PORT))
@@ -57,9 +67,13 @@ LESS_FILENAMES = ["main"]
 
 SYNAPSE_PORT = LOCAL_PORT + 2000
 
-LOGIN_SERVER = "app.souma:24500"
-# Uncomment this to use Heroku server
+# A: Use local test server
+# LOGIN_SERVER = "app.souma.io:24500"
+# LOGIN_SERVER_SSL = False
+
+# B: Use Heroku server
 LOGIN_SERVER = "glia.herokuapp.com"
+LOGIN_SERVER_SSL = True
 
 # Setting this to True will automatically upload all vesicles to Myelin, and
 # enable periodic polling of the Myelin for new Vesicles sent to one of the

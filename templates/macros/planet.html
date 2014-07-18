@@ -12,5 +12,10 @@
 <!-- <span class="content link">
     <a href="{{ planet.url }}" />{{planet.url}}</a>
 </span> -->
+{% elif planet.kind == 'text' %}
+<span class="content text">
+    {{ planet.text|markdown}}
+</span>
 {% endif %}
+
 {% endmacro %}

@@ -102,7 +102,7 @@ article {
     section {
         position: absolute;
         margin-bottom: 1em;
-        // overflow: hidden;
+        overflow: scroll;
 
         &.card {
             border-radius: 3px;
@@ -135,6 +135,19 @@ article {
             .content {
                 font-size: (@font-size * 2)/16*1em;
                 line-height: 1em;
+            }
+
+            .text.content {
+                font-size: (@font-size)/16*1em;
+                line-height: ((@font-size) * 1.5)/16*1em;
+
+                p {
+                    margin-bottom: ((@font-size) * 1.5)/16*1em;
+                }
+
+                h1,h2,h3 {
+                    margin: .7em 0 .3em;
+                }
             }
         }
 
@@ -173,13 +186,20 @@ article {
             }
         }
 
-        .fullsize-input > textarea, .fullsize-input > input {
-            width: (22.8em);
-            height: 3em;
-            border: none;
-            resize: none;
-            box-shadow: none;
-            font-size: 1em;
+        .fullsize-input {
+            width: 95%;
+            height: 95%;
+            margin: 1% auto;
+
+            textarea, input {
+                width: 100%;
+                height: 100%;
+                border: none;
+                resize: none;
+                box-shadow: none;
+                font-size: 1em;
+                padding: 0;
+            }
         }
 
         .card-handle {

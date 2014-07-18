@@ -12,12 +12,10 @@ from gevent import Greenlet, monkey
 from gevent.wsgi import WSGIServer
 from gevent.event import Event
 from sqlalchemy.exc import OperationalError
-from sys import platform
 from uuid import uuid4
 
-from astrolab.helpers import setup_astrolab
-from nucleus.set_hosts import test_host_entry, create_new_hosts_file, HOSTSFILE
 from nucleus.models import Souma, Starmap
+from nucleus.update import timed_update_check
 from nucleus.helpers import configure_app
 from synapse import Synapse
 from web_ui.helpers import host_kind, compile_less
@@ -88,43 +86,33 @@ if getattr(sys, 'frozen', None) == 'macosx_app':
 start = True
 local_souma = None
 
+from nucleus.database import initialize_database
+
 try:
-    local_souma = Souma.query.get(app.config["SOUMA_ID"])
+    initialize_database(app, db)
 except OperationalError, e:
-    app.logger.error("An operational error occured while testing the local database. " +
-        "This is normal if you don't have a local database yet. If you do already have data" +
-        "you should reset it with `-r` or delete it from `{}`\n\nError: {}".format(
+    app.logger.error("An operational error occured while updating the local database. " +
+        "If you do already have data in it you should make a backup and then" +
+        "reset the database with `-r` or delete it from `{}`\n\nError: {}".format(
             app.config["USER_DATA"], e))
-    local_souma = None
     start = False
 
+
+local_souma = Souma.query.get(app.config["SOUMA_ID"])
 if local_souma is None:
-    # Make sure all models have been loaded before creating the database to
-    # create all their tables
-    from astrolab import interestmodel
-
-    app.logger.info("Setting up database")
-    db.create_all()
-
     app.logger.info("Setting up Nucleus for <Souma [{}]>".format(app.config['SOUMA_ID'][:6]))
     local_souma = Souma(id=app.config['SOUMA_ID'], version=app.config["VERSION"])
     local_souma.generate_keys()
     local_souma.starmap = Starmap(id=uuid4().hex, kind="index")
 
     db.session.add(local_souma)
-    try:
-        db.session.commit()
-    except OperationalError, e:
-        app.logger.error("Failed setting up database.\n\n{}".format(e))
-        start = False
-    else:
-        start = True
+    db.session.commit()
+    start = True
 
 elif local_souma.version < semantic_version.Version(app.config["VERSION"]):
     app.logger.error("""Local Souma data is outdated (local Souma {} < codebase {}
         You should reset all user data with `-r` or delete it from `{}`""".format(
         local_souma.version, app.config["VERSION"], app.config["USER_DATA"]))
-    start = False
 
 #__file__ doesn't work with freezing
 app.config["RUNTIME_DIR"] = os.path.abspath('.')
@@ -136,6 +124,17 @@ if start:
         app.run(app.config['LOCAL_HOSTNAME'], app.config['LOCAL_PORT'])
     else:
         shutdown = Event()
+
+        # Web UI
+        if not app.config['NO_UI']:
+            # Compile less when running from console
+            if host_kind() == "":
+                compile_less()
+
+            app.logger.info("Starting Web-UI")
+            local_server = WSGIServer(('', app.config['LOCAL_PORT']), app)
+            local_server.start()
+            webbrowser.open("http://{}/".format(app.config["LOCAL_ADDRESS"]))
 
         # Synapse
         app.logger.info("Starting Synapses")
@@ -150,30 +149,10 @@ if start:
             except Exception, e:
                 app.logger.error(e)
 
-        # Web UI
-        if not app.config['NO_UI']:
-            if not test_host_entry():
-                app.logger.info("No hosts entry found. Will now enable access to local Souma service in your browser.")
-                app.logger.info("Please enter your Administrator password if prompted")
-                tempfile_path = os.path.join(app.config["USER_DATA"], "hosts.tmp")
-                create_new_hosts_file(tempfile_path)
-                # move temporary new hosts file to final location using administrator privileges
-                if platform == 'win32':
-                    os.system("runas /noprofile /user:Administrator move '{}' '{}'".format(tempfile_path, HOSTSFILE))
-                else:
-                    cmd = """osascript -e 'do shell script "mv \\"{}\\" \\"{}\\"" with administrator privileges'"""
-                    os.system(cmd.format(tempfile_path, HOSTSFILE))
-
-            # Compile less when running from console
-            if host_kind() == "":
-                compile_less()
-
-            app.logger.info("Starting Web-UI")
-            local_server = WSGIServer(('', app.config['LOCAL_PORT']), app)
-            local_server.start()
-            webbrowser.open("http://{}/".format(app.config["LOCAL_ADDRESS"]))
-
-        # Setup Astrolab
-        Greenlet.spawn(setup_astrolab)
+        # Update Souma
+        if host_kind() in ["win", "osx"]:
+            app.logger.info("Checking for updates")
+            timed_update_check()
 
         shutdown.wait()
+        sys.exit()
