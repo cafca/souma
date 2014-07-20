@@ -45,6 +45,7 @@
   position: relative;
   padding: 3px;
   margin: 10px 0px;
+  border: 1px solid #c1c1c1;
 }
 #percent {
   position: absolute;
@@ -53,4 +54,47 @@
 #bar {
   height: 20px;
   background-color: #cdfacd;
+}
+.show_answer_qadiv {
+  margin-bottom: 50px;
+}
+.show_answer_qadiv span {
+  margin-right: 10px;
+}
+.show_answer_question {
+  padding: 10px;
+  margin: 0px 10px;
+  background: #f1f1f1;
+  font-weight: bold;
+  font-size: 16px;
+}
+.show_answer_answer {
+  margin-left: 20px;
+  font-size: 18px;
+  margin-top: 20px;
+}
+.space {
+  height: 40px;
+}
+.show_answers {
+  float: left;
+}
+.reflection_date_badge {
+  height: 100px;
+  width: 100px;
+  display: table-cell;
+  text-align: center;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: #c1c1c1;
+}
+.reflection_navigation {
+  float: left;
+  margin-right: 50px;
+}
+.reflection_navigation div {
+  margin-left: 20px;
+}
+.reflection_navigation a {
+  font-size: 30px;
 }
