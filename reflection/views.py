@@ -8,6 +8,10 @@ from reflection.models import Catalogue, CatalogueAnswer, CatalogueQuestion, Cat
 from reflection.forms import Answer_range_question_form, Answer_text_question_form
 
 
+#rnd
+from random import randint, randrange
+from datetime import timedelta
+
 @app.route('/catalogue_overview')
 def catalogue_overview():
     cs = Catalogue.query
@@ -226,7 +230,7 @@ def show_graph(id):
 
         for q in range_questions:
 
-            range_answers = CatalogueAnswer.query.filter(CatalogueAnswer.question_id == q.id).all()
+            range_answers = CatalogueAnswer.query.filter(CatalogueAnswer.question_id == q.id).order_by(CatalogueAnswer.answer_time.asc()).all()
 
             if range_answers is not None:
 
@@ -276,3 +280,59 @@ def reset_database():
     flash('All questionnaires have been reset')
 
     return redirect(url_for('catalogue_overview'))
+
+@app.route('/generate_data_for_catalogue/<id>', methods=['GET'])
+def random_data(id):
+  
+    #Random Date Time Range
+    d1 = datetime.datetime.strptime('1/1/2014 1:30 PM', '%m/%d/%Y %I:%M %p')
+    d2 = datetime.datetime.strptime('6/30/2014 4:50 AM', '%m/%d/%Y %I:%M %p')  
+
+    catalogue = Catalogue.query.filter(Catalogue.id==id).first_or_404()
+    preset_answer_time = random_date(d1, d2)
+
+    run_uuid =  uuid4().hex
+    for q in catalogue.questions:
+
+        answer = None
+
+        if q.identifier=="catalogue_range_question":
+
+            answer = CatalogueRangeAnswer()
+            answer.range_value = randint(q.start_value, q.end_value)
+            
+
+        if q.identifier=="catalogue_text_question":
+
+            answer = CatalogueTextAnswer()
+            answer.answer_text = "Lorem ipsum vehicula nulla urna torquent non hac donec, fermentum bibendum quam pretium justo imperdiet cursus. Taciti egestas nisi elit praesent luctus orci ac nec integer ante, lobortis leo porttitor potenti aptent cubilia eros nostra"
+             
+
+        answer.id = uuid4().hex
+        answer.question_id = q.id
+        answer.run_id = run_uuid  
+
+        if catalogue.ask_for_all:
+            answer.answer_time = preset_answer_time
+        else:
+            answer.answer_time = random_date(d1, d2)
+        
+        db.session.add(answer)
+            
+    db.session.commit()
+    flash("Random Data successfully generated!")
+    return redirect(url_for('catalogue_overview'))
+
+
+def random_date(start, end):
+    """
+    This function will return a random datetime between two datetime 
+    objects.
+    """
+    delta = end - start
+    int_delta = (delta.days * 24 * 60 * 60) + delta.seconds
+    random_second = randrange(int_delta)
+    return start + timedelta(seconds=random_second)
+    
+
+

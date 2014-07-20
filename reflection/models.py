@@ -32,7 +32,8 @@ class Catalogue(Serializable, db.Model):
     @staticmethod
     def readFromCSV():
         """Read questionnaire from a csv file"""
-        questionnaire_list = ["eggs.csv", "eggs2.csv", "eggs3.csv"]
+        questionnaire_list = ["eggs.csv", "eggs2.csv", "eggs3.csv", "eggs4.csv", "eggs5.csv"]
+        #questionnaire_list = ["eggs6.csv"]
 
         for questionnaire_item in questionnaire_list:
             catalogue_obj = Catalogue()
