@@ -196,73 +196,82 @@ def show_catalouge_answers(id, index):
     # else:
     return render_template('reflection/show_catalogue_answers.html', answers = catalogue_answers, cat_id=id, prev_index=prev_index, next_index=next_index)
 
-@app.route('/show_graph', methods=['GET'])
-def show_graph():
+@app.route('/show_graph/<id>', methods=['GET'])
+def show_graph(id):
 
-    short_moods = CatalogueAnswer.query.join(CatalogueQuestion).join(Catalogue).filter(Catalogue.system_name=="ShortMood", CatalogueAnswer.identifier=="catalogue_range_answer").all()
-    if short_moods is not None:
 
-        question = short_moods[0].question
+    range_questions = CatalogueQuestion.query.filter(CatalogueQuestion.catalogue_id==id,CatalogueQuestion.identifier=="catalogue_range_question").all()
+    #import pdb; pdb.set_trace()
+    if len(range_questions)>0:
+
+        question = range_questions[0]
         graph_title = question.catalogue.name
         yAxis_title = question.question_text
 
-
-
-        x_data_list = []
-        data_list = []
-
-        range_value_texts = question.range_text_values.split(',')
+        # Beschriftung der Y Axen Abschnitte
         plot_band_string = '['
-
+        range_value_texts = question.range_text_values.split(',')
+      
         for range_index in range(0, len(range_value_texts)):
             range_text_dict=dict()
-            range_text_dict["from"]=range_index+1
-            range_text_dict["to"]=range_index+2
+            range_text_dict["from"]=range_index
+            range_text_dict["to"]=range_index +1
             if range_index % 2 == 0:
                 range_text_dict["color"]="#fff"
             else:
                 range_text_dict["color"]="#f1f1f1"
-            range_text_dict["label"]={"text": str(range_value_texts[range_index]), "style": {"color":'#606060'}}
+            range_text_dict["label"]={"text": range_value_texts[range_index].encode('utf-8'), "style": {"color":'#606060'}}
 
             plot_band_string += json.dumps(range_text_dict) + ','
 
         plot_band_string += ']'
 
-            # { // Light air
-            #             from: 0.3,
-            #             to: 1.5,
-            #             color: 'rgba(68, 170, 213, 0.1)',
-            #             label: {
-            #                 text: 'Light air',
-            #                 style: {
-            #                     color: '#606060'
-            #                 }
-            #             }
+        #Data:
+
+        json_string = "["
+        x_data_set = set()
+
+        count = 0
+
+        for q in range_questions:
+
+            range_answers = CatalogueAnswer.query.filter(CatalogueAnswer.question_id==q.id).all()
             
+            if range_answers is not None:
 
-        for a in short_moods:
-             data_list.append(a.range_value)
-             x_data_list.append(a.answer_time.strftime('%m-%d'))
+                data_list = []
+                json_string += '{'
+                json_string += 'name: '
+                json_string += "'"
+                json_string += q.question_text
+                json_string += "', data: ["
+                
+                comma_count = 0
+                for a in range_answers:
+                     json_string += "[Date.UTC({}, {}, {}), {}]".format(a.answer_time.year, a.answer_time.month-1, a.answer_time.day, a.range_value)          
+                     if comma_count < len(range_answers)-1:
+                        json_string += ","
+                     comma_count += 1
 
-        start_date_year=short_moods[0].answer_time.strftime('%Y')
-        start_date_month=short_moods[0].answer_time.strftime('%m')
-        start_date_day=short_moods[0].answer_time.strftime('%d')
-
-        data_dict = {}
-        data_dict["data"] = data_list
-        data_dict["pointInterval"] = 24*3600*1000
-        #data_dict["pointStart"]=start_date
-        data_dict["name"] = yAxis_title
-        
-        
-        json_string = json.dumps(data_dict)
-        final_string='[' +json_string + ']'
-                    
-        #import pdb; pdb.set_trace()
-
-        return render_template('reflection/show_diagramm.html', graph_title=graph_title, yAxis_title=yAxis_title, series=final_string, x_values=x_data_list, plot_band_values=plot_band_string, start_date_y=start_date_year, start_date_m=start_date_month, start_date_d=start_date_day)
+                json_string += "]}"
+                #json_string += json.dumps(data_dict)
+                if count < len(range_questions)-1: 
+                    json_string += ","
+                count = count + 1
+                #pdb.set_trace()
+            
+            
+        json_string += "]"
+        final_string= json_string
+                        
+        x_data_list=[]
+        for item in x_data_set:
+            x_data_list.append(item) 
+    
+        return render_template('reflection/show_diagramm.html', graph_title=graph_title, yAxis_title=yAxis_title, series=final_string, x_values=x_data_list, plot_band_values=plot_band_string)
 
     else:
-        return 404
+        flash('No Range Questions for Plotting a Graph.')
+        return redirect(url_for('catalogue_overview'))
 
    

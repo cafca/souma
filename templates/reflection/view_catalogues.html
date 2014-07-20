@@ -32,7 +32,9 @@
                     <a href="{{url_for('start_catalogue', id=cat.id)}}"> Answer Questions </a>  
     		</td>
             <td>
-                    <a href="{{url_for('show_catalouge_answers', id=cat.id, index=0)}}"> Show Answer ListView</a>  
+                    <a href="{{url_for('show_catalouge_answers', id=cat.id, index=0)}}"> Show Answer ListView</a>
+                    <a href="{{url_for('show_graph', id=cat.id)}}"> Show Answer Graph</a>  
+            </td>  
             </td>
     	</tr>
     {% endfor %}

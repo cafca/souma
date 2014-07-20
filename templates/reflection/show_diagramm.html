@@ -18,7 +18,7 @@
 
         $(function () {
             $('#d_container').highcharts({
-                 chart: {
+                chart: {
                     zoomType: 'x'
                 },
                 title: {
@@ -27,16 +27,26 @@
                 },
                 xAxis: {
                     type: 'datetime',
+                    dateTimeLabelFormats: { // don't display the dummy year
+                        month: '%e. %b',
+                        year: '%b'
+                    },
+                    title: {
+                        text: 'Date'
+                    },
+                    //type: 'datetime',
                     minRange: 1 * 24 * 3600000,
                     labels: {
                         overflow: 'justify'
                     }
+                    //categories: x_values
                 },
                 yAxis: {
                     title: {
                         text: yAxis_title
                     },
                     min: 0,
+                    max: 7,
                     minorGridLineWidth: 0,
                     gridLineWidth: 0,
                     alternateGridColor: null,
@@ -63,9 +73,9 @@
                         },
                         marker: {
                             enabled: false
-                        },
-                        pointInterval: 24*3600000, // one day
-                        pointStart: Date.UTC({{start_date_y|safe}}, {{start_date_m|safe}}, {{start_date_d|safe}}, 0, 0, 0)
+                        }//,
+                        //pointInterval: 24*3600000, // one day
+                        //pointStart: Date.UTC({{start_date_y|safe}}, {{start_date_m|safe}}, {{start_date_d|safe}}, 0, 0, 0)
                     }
                 },
                 series: series_data
