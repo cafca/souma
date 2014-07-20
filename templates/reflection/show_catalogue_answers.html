@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="reflection_navigation">
+    <div class="reflection_date_badge">
+        {{answers[0].answer_time.strftime('%d %b')}}<br />
+        {{answers[0].answer_time.strftime('%Y')}}
+    </div>
+
+    <div>
+        {% if prev_index > -1 %}
+            <a href="{{url_for('show_catalouge_answers', id=cat_id, index=prev_index)}}"><span class="fa fa-arrow-circle-left"></span></a>
+        {% endif %}
+        {% if next_index > -1 %}
+            <a href="{{url_for('show_catalouge_answers', id=cat_id, index=next_index)}}"><span class="fa fa-arrow-circle-right"></span></a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="show_answers">
+    <h2>{{answers[0].question.catalogue.name}}</h2>
+    <div class="space"></div>
+
+    {% for a in answers %}
+
+    <div class="show_answer_qadiv">
+        <p class="show_answer_question">
+            <span class="fa fa-question"></span>
+            {{a.question.question_text}}
+        </p>
+
+        {% if a.identifier == "catalogue_text_answer" %}
+
+            <div class="show_answer_answer">
+                <p>"{{a.answer_text}}"</p>
+            </div>
+
+        {% else %}
+            <div class="show_answer_answer">
+                <div id="progress">
+                    <span id="percent">{{a.question.range_text_values.split(',')[a.range_value-1]}}</span>
+                    {% set count = (a.range_value / a.question.range_text_values.split(',')|length) * 100  %}
+                    <div id="bar" style="width: {{count}}%"></div>
+                </div>
+            </div>
+
+        {% endif %}
+    </div>
+
+    {% endfor %}
+</div>
+<div class="clear"></div>
+{% endblock %}

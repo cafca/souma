@@ -1,6 +1,5 @@
 <!doctype html>
 <head>
-    <title>{%block title %}souma{% endblock %}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" type="text/css" href="/static/css/bootstrap.css" media="screen" >
     <link rel="stylesheet" type="text/css" href="/static/css/jasny-bootstrap.css" media="screen" >
@@ -11,6 +10,7 @@
     <script src="{{ url_for('static', filename='js/less.js') }}" type="text/javascript"></script>
     <script src="{{ url_for('static', filename='js/jquery-1.8.2.min.js') }}" type="text/javascript"></script>
     <script src="{{ url_for('static', filename='js/jasny-bootstrap.js') }}" type="text/javascript"></script>
+    
     <script>
     function ScaleImage(srcwidth, srcheight, targetwidth, targetheight, fLetterBox) {
 
@@ -76,9 +76,14 @@ function OnImageLoad(evt, scale) {
     }
 }
     </script>
+
+    {% block head %}{% endblock %}
+
+
+
 </head>
 <body>
-    <header>
+     <header>
         <div class="logo">
             <a href="{{ url_for('universe') }}">
                 <img src="/static/images/logo_2X.png" alt="Souma"   >
@@ -116,6 +121,11 @@ function OnImageLoad(evt, scale) {
         </ul>
 
         <ul>
+            <a href="{{url_for('catalogue_overview')}}">
+                <li>
+                    <p><i class="fa fa-dashboard"></i><span class="caption">Reflection</span></p>
+                </li>
+            </a>
             <a href="{{url_for('debug')}}"><li>
                 <p><i class="fa fa-cogs fa-2xd"></i> <span class="caption">Debug</span></p>
             </li></a>
@@ -130,12 +140,15 @@ function OnImageLoad(evt, scale) {
             <div class='flash'><span>{{message}}</span></div>
         {% endfor %}
         <div id="container">
-        {% block content %}{% endblock %}
+            {% block content %}{% endblock %}
         </div>
     </article>
 
-    <!-- Load scripts after content -->
+
+        <!-- Load scripts after content -->
+    <!-- Why is that??!?!?! They cost me 3 hours of my life because they disturb the javascript libraries loaded in the head?! 
     <script src="http://code.jquery.com/jquery.js"></script>
     <script src="/static/js/bootstrap.js"></script>
-    <script src="/static/js/main.js"></script>
+    <script src="/static/js/main.js"></script>-->
+
 </body>

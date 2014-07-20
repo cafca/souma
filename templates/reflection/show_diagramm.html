@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block head %}
+
+
+        <!-- ## Diagramms -->
+    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
+    <script src="{{ url_for('static', filename='js/highcharts.js') }}" type="text/javascript"></script>
+
+    <script type="text/javascript">
+
+    
+        var graph_title = "{{ graph_title|safe }}"
+        var yAxis_title = "{{ yAxis_title|safe }}"
+        var x_values  = {{x_values|safe}}
+        var series_data = {{series|safe}}
+        var plot_bands_values = {{plot_band_values|safe}}
+        var start_time = '{{start_date|safe}}'
+
+        $(function () {
+            $('#d_container').highcharts({
+                 chart: {
+                    zoomType: 'x'
+                },
+                title: {
+                    text: graph_title,
+                    x: -20 //center
+                },
+                xAxis: {
+                    type: 'datetime',
+                    minRange: 1 * 24 * 3600000,
+                    labels: {
+                        overflow: 'justify'
+                    }
+                },
+                yAxis: {
+                    title: {
+                        text: yAxis_title
+                    },
+                    min: 0,
+                    minorGridLineWidth: 0,
+                    gridLineWidth: 0,
+                    alternateGridColor: null,
+                    plotLines: [{
+                        value: 0,
+                        width: 1,
+                        color: '#808080'
+                    }],
+                    plotBands: plot_bands_values
+                },
+                legend: {
+                    layout: 'vertical',
+                    align: 'right',
+                    verticalAlign: 'middle',
+                    borderWidth: 0
+                },
+                plotOptions: {
+                    spline: {
+                        lineWidth: 4,
+                        states: {
+                            hover: {
+                                lineWidth: 5
+                            }
+                        },
+                        marker: {
+                            enabled: false
+                        },
+                        pointInterval: 24*3600000, // one day
+                        pointStart: Date.UTC({{start_date_y|safe}}, {{start_date_m|safe}}, {{start_date_d|safe}}, 0, 0, 0)
+                    }
+                },
+                series: series_data
+            });
+        });
+    
+
+        </script>
+
+ {% endblock %}
+
+
+ {% block content %}
+      <div id="d_container" style="min-width: 310px; height: 400px; margin: 0 auto"></div>
+ {% endblock %}
+</body>

@@ -12,6 +12,13 @@
             {{ form.text(placeholder="Text")}}
         </div>       
 
+        {% if form.text.errors %}
+            <ul class="errors">
+            {% for error in form.text.errors %}
+                <li>{{ error }}</li>
+            {% endfor %}
+            </ul>
+        {% endif %}
 
         {{ form.csrf_token }}
         <div class="controls">

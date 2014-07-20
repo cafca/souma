@@ -9,6 +9,8 @@
 	<th>Name</th>
 	<th>Description</th>
 	<th>Activation</th>
+    <th>Answer</th>
+    <th>Show</th>
     {% for cat in catalogues %}
 
     	{% if cat.activated %}
@@ -27,9 +29,11 @@
     		
         	</td>
     		<td>
-                    <a href="{{url_for('start_catalogue', id=cat.id)}}"> Answer Questions </a>               
-                
+                    <a href="{{url_for('start_catalogue', id=cat.id)}}"> Answer Questions </a>  
     		</td>
+            <td>
+                    <a href="{{url_for('show_catalouge_answers', id=cat.id, index=0)}}"> Show Answer ListView</a>  
+            </td>
     	</tr>
     {% endfor %}
 </table>

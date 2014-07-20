@@ -5,6 +5,7 @@ import datetime
 from reflection.models import *
 from reflection.forms import *
 from sqlalchemy import desc
+import json
 
 # reflection views
 @app.route('/catalogue_overview')
@@ -162,3 +163,106 @@ def route_to_next_question(cat_id, redirect_question_index):
     else:
         flash("Excellent Job! Questionnaire completely answered.")
         return '/catalogue_overview'
+
+@app.route('/show_catalogue_answers/<id>/<index>', methods=['GET'])
+def show_catalouge_answers(id, index):
+
+
+    offset_index = int(index)
+    catalogue_answers = None
+
+    prev_index = offset_index -1
+    next_index = offset_index +1
+
+    # correct if first or last item
+    max_runs = CatalogueAnswer.query.join(CatalogueQuestion).join(CatalogueQuestion.catalogue).filter(Catalogue.id==id).group_by(CatalogueAnswer.run_id).order_by(CatalogueAnswer.answer_time.desc()).count()
+
+    if offset_index == 0:
+        prev_index = -1
+    if offset_index == max_runs -1:
+        next_index = -1
+
+        
+    catalogue_answer_run_id  = CatalogueAnswer.query.join(CatalogueQuestion).join(CatalogueQuestion.catalogue).filter(Catalogue.id==id).group_by(CatalogueAnswer.run_id).order_by(CatalogueAnswer.answer_time.desc()).offset(offset_index).first()
+    if catalogue_answer_run_id is not None:
+        catalogue_answers = CatalogueAnswer.query.filter(CatalogueAnswer.run_id==catalogue_answer_run_id.run_id).all()
+    else:
+        catalogue_answers = CatalogueAnswer.query.join(CatalogueQuestion).join(CatalogueQuestion.catalogue).filter(Catalogue.id==id).all()
+
+    #import pdb; pdb.set_trace()
+    # if index > len(catalogue_answers)-1:
+    #     #Ende erreicht
+    #     return 404
+    # else:
+    return render_template('reflection/show_catalogue_answers.html', answers = catalogue_answers, cat_id=id, prev_index=prev_index, next_index=next_index)
+
+@app.route('/show_graph', methods=['GET'])
+def show_graph():
+
+    short_moods = CatalogueAnswer.query.join(CatalogueQuestion).join(Catalogue).filter(Catalogue.system_name=="ShortMood", CatalogueAnswer.identifier=="catalogue_range_answer").all()
+    if short_moods is not None:
+
+        question = short_moods[0].question
+        graph_title = question.catalogue.name
+        yAxis_title = question.question_text
+
+
+
+        x_data_list = []
+        data_list = []
+
+        range_value_texts = question.range_text_values.split(',')
+        plot_band_string = '['
+
+        for range_index in range(0, len(range_value_texts)):
+            range_text_dict=dict()
+            range_text_dict["from"]=range_index+1
+            range_text_dict["to"]=range_index+2
+            if range_index % 2 == 0:
+                range_text_dict["color"]="#fff"
+            else:
+                range_text_dict["color"]="#f1f1f1"
+            range_text_dict["label"]={"text": str(range_value_texts[range_index]), "style": {"color":'#606060'}}
+
+            plot_band_string += json.dumps(range_text_dict) + ','
+
+        plot_band_string += ']'
+
+            # { // Light air
+            #             from: 0.3,
+            #             to: 1.5,
+            #             color: 'rgba(68, 170, 213, 0.1)',
+            #             label: {
+            #                 text: 'Light air',
+            #                 style: {
+            #                     color: '#606060'
+            #                 }
+            #             }
+            
+
+        for a in short_moods:
+             data_list.append(a.range_value)
+             x_data_list.append(a.answer_time.strftime('%m-%d'))
+
+        start_date_year=short_moods[0].answer_time.strftime('%Y')
+        start_date_month=short_moods[0].answer_time.strftime('%m')
+        start_date_day=short_moods[0].answer_time.strftime('%d')
+
+        data_dict = {}
+        data_dict["data"] = data_list
+        data_dict["pointInterval"] = 24*3600*1000
+        #data_dict["pointStart"]=start_date
+        data_dict["name"] = yAxis_title
+        
+        
+        json_string = json.dumps(data_dict)
+        final_string='[' +json_string + ']'
+                    
+        #import pdb; pdb.set_trace()
+
+        return render_template('reflection/show_diagramm.html', graph_title=graph_title, yAxis_title=yAxis_title, series=final_string, x_values=x_data_list, plot_band_values=plot_band_string, start_date_y=start_date_year, start_date_m=start_date_month, start_date_d=start_date_day)
+
+    else:
+        return 404
+
+   
