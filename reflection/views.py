@@ -5,7 +5,7 @@ from flask import abort, flash, redirect, render_template, request, url_for
 from web_ui import app, db
 from uuid import uuid4
 from reflection.models import Catalogue, CatalogueAnswer, CatalogueQuestion, CatalogueTextAnswer, CatalogueRangeAnswer
-from reflection.forms import Answer_range_question_form, Answer_text_question_form
+from reflection.forms import Answer_range_question_form, Answer_text_question_form, Reset_form
 
 
 #rnd
@@ -15,8 +15,8 @@ from datetime import timedelta
 @app.route('/catalogue_overview')
 def catalogue_overview():
     cs = Catalogue.query
-
-    return render_template('reflection/view_catalogues.html', catalogues=cs)
+    reset_form = Reset_form()
+    return render_template('reflection/view_catalogues.html', catalogues=cs, reset_form=reset_form)
 
 
 @app.route('/catalogue/<id>/', methods=['GET'])
@@ -271,13 +271,17 @@ def show_graph(id):
 @app.route('/reflection/reset', methods=['POST'])
 def reset_database():
     """Delete all db tables and reload questions"""
+    reset_form = Reset_form()
 
-    Catalogue.query.delete()
-    CatalogueQuestion.query.delete()
-    CatalogueAnswer.query.delete()
+    if reset_form.validate_on_submit():
+        Catalogue.query.delete()
+        CatalogueQuestion.query.delete()
+        CatalogueAnswer.query.delete()
 
-    Catalogue.readFromCSV()
-    flash('All questionnaires have been reset')
+        Catalogue.readFromCSV()
+        flash('All questionnaires have been reset')
+    else:
+        flash("Invalid request to delete all Reflection data")
 
     return redirect(url_for('catalogue_overview'))
 
