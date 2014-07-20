@@ -194,7 +194,13 @@ def show_catalouge_answers(id, index):
     #     #Ende erreicht
     #     return 404
     # else:
-    return render_template('reflection/show_catalogue_answers.html', answers = catalogue_answers, cat_id=id, prev_index=prev_index, next_index=next_index)
+
+    #Falls der Fragebogen noch nicht beantwortet wurde.
+    if len(catalogue_answers) == 0 :
+        flash("No answers to show. Answer questionnaire first!")
+        return redirect(url_for('catalogue_overview'))
+    else:
+        return render_template('reflection/show_catalogue_answers.html', answers = catalogue_answers, cat_id=id, prev_index=prev_index, next_index=next_index)
 
 @app.route('/show_graph/<id>', methods=['GET'])
 def show_graph(id):
