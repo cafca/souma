@@ -26,18 +26,23 @@
                 {% else %}
                     <a href="{{url_for('activate_catalogue', id=cat.id)}}" class="btn btn-primary">Activate</a>
                 {% endif %}
-    		
+
         	</td>
     		<td>
-                    <a href="{{url_for('start_catalogue', id=cat.id)}}"> Answer Questions </a>  
+                    <a href="{{url_for('start_catalogue', id=cat.id)}}"> Answer Questions </a>
     		</td>
             <td>
                     <a href="{{url_for('show_catalouge_answers', id=cat.id, index=0)}}"> Show Answer ListView</a><br />
-                    <a href="{{url_for('show_graph', id=cat.id)}}"> Show Answer Graph</a>  
-            </td>  
+                    <a href="{{url_for('show_graph', id=cat.id)}}"> Show Answer Graph</a>
+            </td>
             </td>
     	</tr>
     {% endfor %}
 </table>
+
+
+<form action='/reflection/reset' method='POST'>
+<button class="btn btn-danger" type='submit'>Reset all data</button>
+</form>
 
 {% endblock %}

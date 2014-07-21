@@ -11,6 +11,7 @@ from reflection.forms import Answer_range_question_form, Answer_text_question_fo
 @app.route('/catalogue_overview')
 def catalogue_overview():
     cs = Catalogue.query
+
     return render_template('reflection/view_catalogues.html', catalogues=cs)
 
 
@@ -261,3 +262,17 @@ def show_graph(id):
     else:
         flash('No Range Questions for Plotting a Graph.')
         return redirect(url_for('catalogue_overview'))
+
+
+@app.route('/reflection/reset', methods=['POST'])
+def reset_database():
+    """Delete all db tables and reload questions"""
+
+    Catalogue.query.delete()
+    CatalogueQuestion.query.delete()
+    CatalogueAnswer.query.delete()
+
+    Catalogue.readFromCSV()
+    flash('All questionnaires have been reset')
+
+    return redirect(url_for('catalogue_overview'))
