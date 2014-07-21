@@ -1,0 +1,17 @@
+Name,Gratitude Journal,
+Description,"Studies have traced a range of impressive benefits to the simple act of writing down the things for which we’re grateful—benefits including better sleep, fewer symptoms of illness, and more happiness among adults and kids alike. Avoid repeating the same things. This will make writing in the journal more challenging as time goes on, but that's how your awareness and thankfulness will grow. You'll be challenging yourself to find new things to be thankful for that perhaps you never noticed before. Consider yourself, consider the people in your life, consider being alive as well and also your favourite material things like your favourite music cd or your favourite place in the room. ",
+SkalaStart,1,
+SkalaEnd,7,
+SkalaDescrValues,"Sehr schlecht,schlecht,nicht sehr gut,mir egal,okay,gut,sehr gut",
+SystemName,Gratitude,
+AllTogether,1,
+Interval,168,
+,,
+,,
+,,
+,,
+,,
+,,
+1,First thing that you are thankful for today?,text
+2,Second thing that you are thankful for today?,text
+3,Third thing that you are thankful for today?,text

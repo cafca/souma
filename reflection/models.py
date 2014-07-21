@@ -1,6 +1,7 @@
 from nucleus.models import Serializable
 from web_ui import db, app
 from uuid import uuid4
+from flask import url_for
 import os
 import csv
 
@@ -41,7 +42,7 @@ class Catalogue(Serializable, db.Model):
             results = False
             resultEndLine = 0
 
-            with open(os.path.join(app.config["USER_DATA"], questionnaire_item), 'rb') as csvfile:
+            with open(os.path.join(app.static_folder, 'reflection', questionnaire_item), 'rb') as csvfile:
                 spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
                 for line, row in enumerate(spamreader):
                     if line <= 7:

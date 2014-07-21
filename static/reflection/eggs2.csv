@@ -1,0 +1,16 @@
+Name,Stimmungsbarometer ,
+Description,Trage hier deine Stimmung ein und was du derzeit so treibst. Du kannst dir somit ein langfristiges Stimmungsbarometer bauen. ,
+SkalaStart,1,
+SkalaEnd,7,
+SkalaDescrValues,"Sehr schlecht,schlecht,nicht sehr gut,mir egal,okay,gut,sehr gut",
+SystemName,ShortMood,
+AllTogether,1,
+Intervall,4,
+,,
+,,
+,,
+,,
+,,
+,,
+1,Was tust Du? ,text
+2,Wie ist deine Laune?,range

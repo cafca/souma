@@ -1,0 +1,33 @@
+Name,Momentanes Befinden,
+Description,"Nachfolgend finden Sie eine Liste mit Wörtern, die verschiedene Gefühle und Gefühlszustände beschreiben. Bitte lesen Sie sorgfältig jedes einzelne Wort und kreuzen Sie dann dieZahl an, die am besten Ihren Gefühlszustand im Momentbeschreibt. Bitte machen Sie bei jeder Aussage ein Kreuz.",
+SkalaStart,1,
+SkalaEnd,7,
+SkalaDescrValues,"überhaupt nicht,sehr schwach,schwach,etwas,ziemlich,stark,sehr stark",
+SystemName,ExtendedMood,
+AllTogether,0,
+Interval,-1,
+,,
+,,
+,,
+,,
+,,
+,,
+1,zornig,range
+2,abgeschlafft,range
+3,unglücklich,range
+4,traurig,range
+5,angenehm,range
+6,betrübt,range
+7,freudig,range
+8,hoffnungslos,range
+9,müde,range
+10,verärgert,range
+11,frohgemut,range
+12,entmutigt,range
+13,fröhlich,range
+14,erschöpft,range
+15,heiter,range
+16,verzweifelt,range
+17,wütend,range
+18,entkäftet,range
+19,lustig,range
