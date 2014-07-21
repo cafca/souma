@@ -42,6 +42,7 @@
 
 
 <form action='/reflection/reset' method='POST'>
+{{ reset_form.csrf_token }}
 <button class="btn btn-danger" type='submit'>Reset all data</button>
 </form>
 
