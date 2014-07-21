@@ -3,6 +3,7 @@ import json
 import logging
 import requests
 import iso8601
+import os
 
 from base64 import b64encode
 from Crypto import Random
@@ -256,6 +257,9 @@ class ElectricalSynapse(object):
         url_elems.extend(endpoint)
         url = "/".join(url_elems) + "/"
 
+        # Heroku's SSL cert is bundled with Souma
+        cert = os.path.join(app.config["RUNTIME_DIR"], "static", "herokuapp.com.pem")
+
         # Make request
         errors = list()
         parsing_failed = False
@@ -267,11 +271,11 @@ class ElectricalSynapse(object):
         try:
             if method in HTTP_METHODS_1:
                 self.logger.debug("{} {}".format(method, url))
-                r = call(url, headers=headers, params=params)
+                r = call(url, headers=headers, params=params, verify=cert)
             else:
                 self.logger.debug("{} {}\n{}".format(method, url, payload_json))
                 headers['Content-Type'] = "application/json"
-                r = call(url, payload_json, headers=headers, params=params)
+                r = call(url, payload_json, headers=headers, params=params, verify=cert)
             r.raise_for_status()
         except requests.exceptions.RequestException, e:
             errors.append(e)

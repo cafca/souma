@@ -3,22 +3,18 @@
 # This script creates an OS X app bundle and puts that into a disk image ready
 # for installing
 
-rm ../Souma.dmg
+python package.py bdist_esky
 
-# Create app bundle
-echo "Creating app bundle"
-python package.py py2app
+cd dist
+unzip Souma-*.zip
 
 # Create disk image
-echo "Creating disk image"
-cd ..
-hdiutil create -srcfolder dist/Souma.app Souma.dmg
-cd souma
+hdiutil create -srcfolder Souma.app Souma.dmg
 
 # Clean up
-rm -R ./dist
-rm -R ./build
-rm ./distribute-*
-rm -R ./Souma.egg-info
-rm -R ../dist
-rm -R ../build
+# rm -R ./dist
+# rm -R ./build
+# rm ./distribute-*
+# rm -R ./Souma.egg-info
+# rm -R ../dist
+# rm -R ../build
