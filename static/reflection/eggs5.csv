@@ -1,0 +1,19 @@
+Name,Extended Diary ,
+Description,"The key to successful journal writing is to use it for your own needs. If you want to write about past hurts, disappointments or traumas then do so. If you’d rather write about the here and now, day-to-day dilemmas and frustrations — or your aspirations for the year ahead — do that. The beauty of a diary is that it is for you and you alone.",
+SkalaStart,1,
+SkalaEnd,7,
+SkalaDescrValues,"Very bad,unlucky,not my favourite,okay,good,happy,excellent",
+SystemName,ExtendedDiary ,
+AllTogether,1,
+Interval,24,
+,,
+,,
+,,
+,,
+,,
+,,
+1,What was your day about?,text
+2,What was your personal highlight?,text
+3,What did you learn from today?,text
+4,Anything you need to think of tomorrow/in the future?,text
+5,How do you rate your day?,range
