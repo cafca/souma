@@ -30,7 +30,7 @@ pycrypto==2.6.1
 python-dateutil==2.2
 python-keyczar==0.71c
 pytz==2014.2
-requests==2.2.1
+requests==2.20.0
 semantic-version==2.3.0
 six==1.5.2
 smmap==0.8.2
